@@ -16,8 +16,8 @@ from .textutil import today_berlin
 
 log = logging.getLogger(__name__)
 
-COMMENT_FIELDS = ["articleId", "sourceId", "text", "publishedAt", "crawledAt", "day", "analysisVersion"]
-MENTION_FIELDS = ["commentId", "entityId", "sourceId", "day", "label", "score", "publishedAt"]
+COMMENT_FIELDS = ["articleId", "sourceId", "text", "publishedAt", "crawledAt", "day", "analysisVersion", "analyzedAt"]
+MENTION_FIELDS = ["commentId", "entityId", "sourceId", "day", "label", "score", "publishedAt", "coEntityIds"]
 ENTITY_STAT_FIELDS = [
     "mentions",
     "pos",
@@ -43,7 +43,7 @@ ENTITY_READ_FIELDS = [
     "allowlisted",
     *ENTITY_STAT_FIELDS,
 ]
-STATE_DOC = "meta/analysis"  # internal: days still to aggregate after an interrupted run
+STATE_DOC = "meta/analysis"  # internal: (entity, day) pairs still to aggregate after an interrupted run
 ZERO_STATS = {
     "mentions": 0,
     "pos": 0,
@@ -182,7 +182,7 @@ def fetch_unanalyzed(fs: Firestore, limit: int) -> list[dict]:
 
 def run(
     fs: Firestore,
-    limit: int = 3000,
+    limit: int = 20000,
     batch: int = 250,
     ner_backend: str = "flair",
     sentiment_key: str = "ens",
@@ -197,16 +197,14 @@ def run(
     comments = fetch_unanalyzed(fs, limit)
     log.info("%d unanalyzed comments", len(comments))
     entity_docs = load_entity_docs(fs)
-    # Days whose mentions were written by an earlier run that crashed before aggregating.
+    # (entity, day) pairs whose mentions were written by a run that stopped before aggregating.
     state = fs.get(STATE_DOC)
-    pending = set((state.data.get("pendingDays") or []) if state else [])
+    pending = {tuple(p.split("|", 1)) for p in ((state.data.get("pendingPairs") or []) if state else [])}
     if not comments:
+        info = aggregate_pairs(fs, pending, entity_docs)
         if pending:
-            aggregate_days(fs, pending, entity_docs)
-            fs.commit([Write(STATE_DOC, {"pendingDays": []}, mask=["pendingDays"])])
-        else:
-            refresh_rolling(fs, entity_docs, set())
-        return {"comments": 0, "recoveredDays": sorted(pending)}
+            fs.commit([Write(STATE_DOC, {"pendingPairs": []}, mask=["pendingPairs"])])
+        return {"comments": 0, "recoveredPairs": len(pending), **info}
     registry = build_registry(entity_docs)
     ner = load_ner(ner_backend)
     sentiment = SentimentModel(sentiment_key)
@@ -218,11 +216,10 @@ def run(
         wd = WikidataLinker(max_lookups=max_wikidata_lookups)
     countries = source_countries(fs)
     stats = Stats()
-    affected_days: set[str] = set(pending)
+    to_aggregate: set[tuple[str, str]] = set(pending)
     all_days: set[str] = set()
     changed_entities = 0
     last_agg = 0
-    stale_entities: dict[str, set[str]] = {}  # day -> entity ids that lost a mention
     known_entities = set(entity_docs)
 
     for i in range(0, len(comments), batch):
@@ -231,28 +228,29 @@ def run(
         result = analyze_comments(
             chunk, registry, ner, sentiment, source_country=countries, article_context=ctx, wikidata=wd, stats=stats
         )
-        writes: list[Write] = []
+        pre: list[Write] = []
         # New entities discovered through Wikidata must exist before mentions reference them.
         for eid, e in registry.entities.items():
             if eid not in known_entities:
-                writes.append(new_entity_write(e))
+                pre.append(new_entity_write(e))
                 known_entities.add(eid)
                 entity_docs[eid] = {**e.metadata(), **ZERO_STATS}
-        # Re-analysis: drop mentions of entities that no longer match.
-        reanalysed = [c for c in chunk if c.get("analysisVersion")]
-        for c in reanalysed:
-            new_ids = {m["entityId"] for m in result[c["id"]]}
-            for d in fs.query("mentions", where=[("commentId", "EQUAL", c["id"])], select=["entityId", "day"]):
-                if d.data.get("entityId") not in new_ids:
-                    writes.append(Write(f"mentions/{d.id}", None))
-                    stale_entities.setdefault(d.data.get("day", ""), set()).add(d.data.get("entityId", ""))
-                    affected_days.add(d.data.get("day", ""))
+        groups: list[list[Write]] = []  # one atomic group per comment: its mentions + its flags
+        batch_pairs: set[tuple[str, str]] = set()
         ts = now()
         for c in chunk:
+            g: list[Write] = []
+            new_ids = {m["entityId"] for m in result[c["id"]]}
+            # Only a comment analysed before can have mentions to remove (saves a query per new comment).
+            if c.get("analysisVersion") or c.get("analyzedAt"):
+                for d in fs.query("mentions", where=[("commentId", "EQUAL", c["id"])], select=["entityId", "day"]):
+                    if d.data.get("entityId") not in new_ids:
+                        g.append(Write(f"mentions/{d.id}", None))
+                        batch_pairs.add((d.data.get("entityId", ""), d.data.get("day", "")))
             for m in result[c["id"]]:
-                writes.append(Write(f"mentions/{m['commentId']}_{m['entityId']}", m))
-                affected_days.add(m["day"])
-            writes.append(
+                g.append(Write(f"mentions/{m['commentId']}_{m['entityId']}", m))
+                batch_pairs.add((m["entityId"], m["day"]))
+            g.append(
                 Write(
                     f"comments/{c['id']}",
                     {"analyzed": True, "analyzedAt": ts, "analysisVersion": version},
@@ -260,50 +258,53 @@ def run(
                     exists=True,
                 )
             )
-        # Remember the days to aggregate *before* the mentions land (first write of the batch).
-        affected_days.discard("")
-        if affected_days - pending:
-            pending |= affected_days
-            writes.insert(0, Write(STATE_DOC, {"pendingDays": sorted(pending)}, mask=["pendingDays"]))
-        fs.commit(writes)
+            groups.append(g)
+        batch_pairs = {p for p in batch_pairs if p[0] and p[1]}
+        new_pending = batch_pairs - to_aggregate
+        to_aggregate |= batch_pairs
+        # Remember what still has to be aggregated *before* the mentions land.
+        if new_pending:
+            pre.append(
+                Write(STATE_DOC, {"pendingPairs": sorted(f"{e}|{d}" for e, d in to_aggregate)}, mask=["pendingPairs"])
+            )
+        fs.commit(pre)
+        fs.commit_groups(groups)
         log.info(
-            "batch %d-%d: %d mentions so far (ner %.0fs, sentiment %.0fs)",
+            "batch %d-%d: %d mentions so far (ner %.0fs, sentiment %.0fs, %d reads, %d writes)",
             i,
             i + len(chunk),
             stats.mentions,
             stats.ner_seconds,
             stats.sentiment_seconds,
+            fs.reads,
+            fs.writes,
         )
-        # Aggregate every ~agg_every comments (and at the end) so the dashboard fills progressively.
+        # Aggregate every ~agg_every comments and at the end, so the dashboard fills progressively.
         done = i + len(chunk)
         if done - last_agg < agg_every and done < len(comments):
             continue
         last_agg = done
-        agg_info = aggregate_days(fs, set(affected_days), entity_docs, stale_entities)
-        changed_entities += agg_info["changedEntities"]
-        stale_entities = {}
-        all_days |= affected_days
-        affected_days = set()
-        if pending:
-            fs.commit([Write(STATE_DOC, {"pendingDays": []}, mask=["pendingDays"])])
-            pending = set()
+        info = aggregate_pairs(fs, to_aggregate, entity_docs)
+        changed_entities += info["changedEntities"]
+        all_days |= {d for _, d in to_aggregate}
+        to_aggregate = set()
+        fs.commit([Write(STATE_DOC, {"pendingPairs": []}, mask=["pendingPairs"])])
         if wd is not None:
             wd.save()
-    affected_days = all_days
-    agg_info = {"changedEntities": changed_entities}
     summary = {
         "comments": stats.comments,
         "sentences": stats.sentences,
+        "nerSentences": stats.ner_sentences,
         "mentions": stats.mentions,
         "nerSeconds": round(stats.ner_seconds, 1),
         "sentimentSeconds": round(stats.sentiment_seconds, 1),
         "linkSeconds": round(stats.link_seconds, 1),
         "wikidataLookups": stats.wikidata_lookups,
         "discovered": stats.discovered,
-        "days": sorted(affected_days),
+        "days": sorted(all_days),
         "version": version,
         "seconds": round(time.time() - t0, 1),
-        **agg_info,
+        "changedEntities": changed_entities,
     }
     log.info("run summary: %s", summary)
     return summary
@@ -312,38 +313,33 @@ def run(
 # --------------------------------------------------------------------------- aggregation
 
 
-def aggregate_days(
-    fs: Firestore,
-    days: set[str],
-    entity_docs: dict[str, dict],
-    stale_entities: dict[str, set[str]] | None = None,
-) -> dict:
-    """Recompute day docs for `days` from mentions, then update entity totals + trending."""
+def aggregate_pairs(fs: Firestore, pairs: set[tuple[str, str]], entity_docs: dict[str, dict]) -> dict:
+    """Recompute the day docs of the affected (entity, day) pairs from their mentions.
+
+    Reads only the mentions of those pairs (query entityId == X AND day == D) and the old day
+    docs; entity totals change by (new - old) in the same atomic commit as the day docs.
+    Then slide rolling windows, rewrite trending and stats.
+    """
     today = today_berlin()
-    stale_entities = stale_entities or {}
+    pairs = {(e, d) for e, d in pairs if e in entity_docs and entity_docs[e].get("allowlisted", True)}
+    old = fs.batch_get([f"entities/{e}/days/{d}" for e, d in sorted(pairs)]) if pairs else {}
     changes: dict[str, list[tuple[str, dict | None, dict | None]]] = {}
     new_docs: dict[tuple[str, str], dict] = {}
-    for day in sorted(days):
-        mentions = [d.data for d in fs.query("mentions", where=[("day", "EQUAL", day)], select=MENTION_FIELDS)]
+    for e, day in sorted(pairs):
         mentions = [
-            m
-            for m in mentions
-            if m.get("entityId") in entity_docs and entity_docs[m["entityId"]].get("allowlisted", True)
+            x.data
+            for x in fs.query(
+                "mentions", where=[("entityId", "EQUAL", e), ("day", "EQUAL", day)], select=MENTION_FIELDS
+            )
         ]
-        docs = agg.build_day_docs(mentions)
-        ents = {e for e, _ in docs} | stale_entities.get(day, set())
-        old = fs.batch_get([f"entities/{e}/days/{day}" for e in ents])
-        for e in ents:
-            o = old.get(f"entities/{e}/days/{day}")
-            od = o.data if o else None
-            nd = docs.get((e, day))
-            if od is None and nd is None:
-                continue
-            if agg.same_day_doc(od, nd):
-                continue
-            changes.setdefault(e, []).append((day, od, nd))
-            if nd is not None:
-                new_docs[(e, day)] = nd
+        nd = agg.build_day_docs(mentions).get((e, day))
+        o = old.get(f"entities/{e}/days/{day}")
+        od = o.data if o else None
+        if (od is None and nd is None) or agg.same_day_doc(od, nd):
+            continue
+        changes.setdefault(e, []).append((day, od, nd))
+        if nd is not None:
+            new_docs[(e, day)] = nd
     _commit_entity_changes(fs, changes, new_docs, entity_docs, today)
     refresh_rolling(fs, entity_docs, set(changes))
     return {"changedEntities": len(changes), "changedDays": sum(len(v) for v in changes.values())}
@@ -390,7 +386,7 @@ def refresh_rolling(fs: Firestore, entity_docs: dict[str, dict], already: set[st
             d.update(upd)
             writes.append(Write(f"entities/{eid}", upd, mask=list(upd)))
     fs.commit(writes)
-    trend = agg.trending(entity_docs)
+    trend = agg.trending(entity_docs, today)
     trend["updatedAt"] = ts
     total_mentions = fs.count("mentions")
     tracked = sum(1 for d in entity_docs.values() if d.get("allowlisted") and (d.get("mentions") or 0) > 0)
@@ -406,8 +402,18 @@ def refresh_rolling(fs: Firestore, entity_docs: dict[str, dict], already: set[st
     )
 
 
+def reaggregate_since(fs: Firestore, since: str) -> dict:
+    """Recompute only the (entity, day) pairs with mentions on or after `since` (cheap repair)."""
+    entity_docs = load_entity_docs(fs)
+    pairs = {
+        (d.data.get("entityId", ""), d.data.get("day", ""))
+        for d in fs.query("mentions", where=[("day", "GREATER_THAN_OR_EQUAL", since)], select=["entityId", "day"])
+    }
+    return {"pairs": len(pairs), **aggregate_pairs(fs, pairs, entity_docs)}
+
+
 def reaggregate(fs: Firestore) -> dict:
-    """Rebuild every day doc and all entity counters from scratch from `mentions`."""
+    """Rebuild every day doc and all entity counters from scratch from `mentions` (full scan)."""
     today = today_berlin()
     entity_docs = load_entity_docs(fs)
     mentions = [d.data for d in fs.query("mentions", select=MENTION_FIELDS)]

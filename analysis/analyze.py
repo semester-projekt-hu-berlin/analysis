@@ -7,6 +7,7 @@ text is only held in memory; mentions keep nothing but the matched surface span.
 from __future__ import annotations
 
 import logging
+import re
 import time
 from dataclasses import dataclass, field
 
@@ -19,12 +20,15 @@ log = logging.getLogger(__name__)
 NER_MIN_SCORE = 0.75
 MAX_WINDOWS_PER_MENTION = 3
 MAX_WINDOW_CHARS = 1000
+MIN_NER_CHARS = 4
+_HAS_UPPER = re.compile(r"[A-ZÄÖÜ]")
 
 
 @dataclass
 class Stats:
     comments: int = 0
     sentences: int = 0
+    ner_sentences: int = 0
     mentions: int = 0
     ner_seconds: float = 0.0
     sentiment_seconds: float = 0.0
@@ -99,8 +103,15 @@ def analyze_comments(
     stats.comments += len(comments)
     stats.sentences += len(all_sentences)
 
+    # NER only where it can matter: sentences with an upper-case letter and some length. Weak
+    # aliases are case-sensitive and the NER model finds nothing in all-lowercase text anyway.
     t = time.time()
-    ner_out = ner.predict(all_sentences) if all_sentences else []
+    todo = [i for i, x in enumerate(all_sentences) if len(x) >= MIN_NER_CHARS and _HAS_UPPER.search(x)]
+    ner_out: list[list] = [[] for _ in all_sentences]
+    if todo:
+        for i, spans in zip(todo, ner.predict([all_sentences[i] for i in todo]), strict=True):
+            ner_out[i] = spans
+    stats.ner_sentences += len(todo)
     stats.ner_seconds += time.time() - t
 
     t = time.time()
@@ -160,6 +171,9 @@ def analyze_comments(
     scored = sentiment.predict(windows) if windows else []
     stats.sentiment_seconds += time.time() - t
 
+    ents_of: dict[str, set[str]] = {}
+    for c, eid, _first, _idxs in drafts:
+        ents_of.setdefault(c["id"], set()).add(eid)
     out: dict[str, list[dict]] = {c["id"]: [] for c in comments}
     for c, eid, first, idxs in drafts:
         label, score, conf = combine([scored[i] for i in idxs])
@@ -179,6 +193,7 @@ def analyze_comments(
                 "label": label,
                 "score": max(-1.0, min(1.0, float(score))),
                 "confidence": max(0.0, min(1.0, float(conf))),
+                "coEntityIds": sorted(ents_of[c["id"]] - {eid}),
             }
         )
         stats.mentions += 1

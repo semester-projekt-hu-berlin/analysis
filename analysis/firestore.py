@@ -323,6 +323,33 @@ class Firestore:
         for chunk in chunked(writes, min(size, MAX_WRITES_PER_COMMIT)):
             self._commit_splitting(chunk)
 
+    def commit_groups(self, groups: list[list[Write]], size: int = 100) -> None:
+        """Commit groups of writes; each group is atomic (never split), groups are packed up to `size`."""
+        batch: list[list[Write]] = []
+        n = 0
+        for g in groups:
+            if batch and n + len(g) > size:
+                self._commit_groups_splitting(batch)
+                batch, n = [], 0
+            batch.append(g)
+            n += len(g)
+        if batch:
+            self._commit_groups_splitting(batch)
+
+    def _commit_groups_splitting(self, groups: list[list[Write]]) -> None:
+        flat = [w for g in groups for w in g]
+        if len(groups) == 1:
+            self.commit_atomic(flat)
+            return
+        try:
+            self.commit_atomic(flat, retries=3)
+        except RuntimeError as e:
+            if "429" not in str(e):
+                raise
+            mid = len(groups) // 2
+            self._commit_groups_splitting(groups[:mid])
+            self._commit_groups_splitting(groups[mid:])
+
     def _commit_splitting(self, writes: list[Write]) -> None:
         if len(writes) == 1:
             self.commit_atomic(writes)

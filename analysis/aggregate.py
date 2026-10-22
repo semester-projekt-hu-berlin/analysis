@@ -17,7 +17,8 @@ CO_MENTIONS_TOP = 20
 TRENDING_TOP = 50
 MOVERS_TOP = 10
 MOVERS_MIN_MENTIONS = 20
-RECENT_DAYS = 14
+RECENT_DAYS = 30  # recentDays window; also feeds the 30-day sparkline in meta/trending
+SPARK_DAYS = 30
 
 
 def r4(x: float) -> float:
@@ -36,6 +37,7 @@ def build_day_docs(mentions: list[dict]) -> dict[tuple[str, str], dict]:
     """
     by_key: dict[tuple[str, str], dict] = {}
     comments: dict[tuple[str, str], set[str]] = defaultdict(set)  # (commentId, day) -> entity ids
+    mention_index: dict[tuple[str, str], list[dict]] = defaultdict(list)
     for m in mentions:
         key = (m["entityId"], m["day"])
         doc = by_key.get(key)
@@ -59,8 +61,17 @@ def build_day_docs(mentions: list[dict]) -> dict[tuple[str, str], dict]:
         if isinstance(ts, datetime) and (doc["lastMentionAt"] is None or ts > doc["lastMentionAt"]):
             doc["lastMentionAt"] = ts
         comments[(m["commentId"], m["day"])].add(m["entityId"])
+        mention_index[(m["commentId"], m["day"])].append(m)
     co: dict[tuple[str, str], Counter] = defaultdict(Counter)
-    for (_cid, day), ents in comments.items():
+    for m in mentions:
+        # Preferred: co-mentioned entities stored on the mention itself (so one (entity, day)
+        # can be recomputed from its own mentions only).
+        if "coEntityIds" in m:
+            for other in m.get("coEntityIds") or []:
+                co[(m["entityId"], m["day"])][other] += 1
+    for (cid, day), ents in comments.items():
+        if any("coEntityIds" in m for m in mention_index.get((cid, day), [])):
+            continue
         if len(ents) < 2:
             continue
         for a in ents:
@@ -170,7 +181,17 @@ def window_stats(recent: dict[str, dict], today: str) -> dict:
     }
 
 
-def trending(entities: dict[str, dict]) -> dict:
+def sparkline(recent: dict[str, dict], today: str, days: int = SPARK_DAYS) -> list[float | None]:
+    """Daily avgSentiment for the last `days` days (oldest first, ending today), None without mentions."""
+    t = date.fromisoformat(today)
+    out: list[float | None] = []
+    for k in range(days - 1, -1, -1):
+        v = recent.get((t - timedelta(days=k)).isoformat())
+        out.append(r4(v["scoreSum"] / v["mentions"]) if v and v.get("mentions") else None)
+    return out
+
+
+def trending(entities: dict[str, dict], today: str | None = None) -> dict:
     """Build meta/trending from entity docs (id -> doc with name, type, window stats)."""
     items = []
     for eid, e in entities.items():
@@ -186,6 +207,7 @@ def trending(entities: dict[str, dict]) -> dict:
                 "mentions7d": int(e["mentions7d"]),
                 "avgSentiment7d": a7,
                 "delta": delta,
+                "spark": sparkline(e.get("recentDays") or {}, today) if today else [None] * SPARK_DAYS,
                 "_prev": int(e.get("mentionsPrev7d") or 0),
             }
         )

@@ -70,7 +70,11 @@ class FakeFirestore:
         for i in range(0, len(writes), 500):
             self.commit_atomic(writes[i : i + 500])
 
-    def commit_atomic(self, writes):
+    def commit_groups(self, groups, size=100):
+        for g in groups:
+            self.commit_atomic(g)
+
+    def commit_atomic(self, writes, retries=10):
         assert len(writes) <= 500
         if not writes:
             return

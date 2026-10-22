@@ -15,7 +15,7 @@ def main(argv: list[str] | None = None) -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     r = sub.add_parser("run", help="analyze unanalyzed comments and update aggregates")
-    r.add_argument("--limit", type=int, default=int(os.environ.get("ANALYSIS_LIMIT", 3000)))
+    r.add_argument("--limit", type=int, default=int(os.environ.get("ANALYSIS_LIMIT", 20000)))
     r.add_argument("--batch", type=int, default=250, help="comments per NLP/commit batch")
     r.add_argument("--ner", choices=["flair", "bert", "none"], default=os.environ.get("ANALYSIS_NER", "flair"))
     r.add_argument(
@@ -23,8 +23,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     r.add_argument("--no-wikidata", action="store_true", help="disable the Wikidata fallback linker")
     r.add_argument("--max-wikidata-lookups", type=int, default=150)
+    r.add_argument("--agg-every", type=int, default=2000, help="aggregate after this many comments (and at the end)")
 
-    sub.add_parser("reaggregate", help="rebuild all day docs, entity counters and trending from mentions")
+    ra = sub.add_parser("reaggregate", help="rebuild day docs, entity counters and trending from mentions")
+    ra.add_argument("--since", help="only recompute (entity, day) pairs from this day (YYYY-MM-DD) on; default: all")
     s = sub.add_parser("seed", help="write curated entities and events")
     s.add_argument("--no-images", action="store_true")
 
@@ -37,7 +39,7 @@ def main(argv: list[str] | None = None) -> int:
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
     from .firestore import Firestore
-    from .pipeline import reaggregate, run, seed
+    from .pipeline import reaggregate, reaggregate_since, run, seed
 
     fs = Firestore()
     if args.cmd == "run":
@@ -55,9 +57,10 @@ def main(argv: list[str] | None = None) -> int:
             sentiment_key=args.sentiment,
             use_wikidata=not args.no_wikidata,
             max_wikidata_lookups=args.max_wikidata_lookups,
+            agg_every=args.agg_every,
         )
     elif args.cmd == "reaggregate":
-        out = reaggregate(fs)
+        out = reaggregate_since(fs, args.since) if args.since else reaggregate(fs)
     else:
         out = seed(fs, with_images=not args.no_images)
     out["firestoreReads"] = fs.reads

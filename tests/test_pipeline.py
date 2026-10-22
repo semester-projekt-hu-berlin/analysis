@@ -90,6 +90,7 @@ def test_privacy_mentions_store_only_surface(fs):
                 "label",
                 "score",
                 "confidence",
+                "coEntityIds",
             }
             assert len(d["surface"]) <= 40
     # the private person never becomes an entity
@@ -141,20 +142,65 @@ def test_new_comments_accumulate(fs):
 
 def test_crash_before_aggregation_is_recovered(fs, monkeypatch):
     calls = {"n": 0}
-    real = pipeline.aggregate_days
+    real = pipeline.aggregate_pairs
 
     def boom(*a, **k):
         calls["n"] += 1
         raise RuntimeError("simulated crash")
 
-    monkeypatch.setattr(pipeline, "aggregate_days", boom)
+    monkeypatch.setattr(pipeline, "aggregate_pairs", boom)
     with pytest.raises(RuntimeError):
         pipeline.run(fs, limit=100, use_wikidata=False)
     assert fs.docs["comments/c1"]["analyzed"] is True  # mentions + flags were written
     assert fs.docs["entities/friedrich-merz"]["mentions"] == 0  # but not aggregated
-    assert fs.docs["meta/analysis"]["pendingDays"]
-    monkeypatch.setattr(pipeline, "aggregate_days", real)
+    assert fs.docs["meta/analysis"]["pendingPairs"]
+    monkeypatch.setattr(pipeline, "aggregate_pairs", real)
     out = pipeline.run(fs, limit=100, use_wikidata=False)  # no new comments
-    assert out["comments"] == 0 and out["recoveredDays"]
+    assert out["comments"] == 0 and out["recoveredPairs"]
     assert fs.docs["entities/friedrich-merz"]["mentions"] == 2
-    assert fs.docs["meta/analysis"]["pendingDays"] == []
+    assert fs.docs["meta/analysis"]["pendingPairs"] == []
+
+
+def test_incremental_aggregation_touches_only_affected_pairs(fs):
+    pipeline.run(fs, limit=100, use_wikidata=False)
+    before = snapshot(fs)
+    # a late comment on an older day only mentioning the SPD
+    old_day = NOW - timedelta(days=3)
+    fs.docs["comments/c9"] = {**comment("c9", "Die SPD ist super.", hours_ago=72), "day": day_key(old_day)}
+    fs.reads = 0
+    pipeline.run(fs, limit=100, use_wikidata=False)
+    after = snapshot(fs)
+    changed = {p for p in after if after[p] != before.get(p)}
+    days = {p for p in changed if "/days/" in p}
+    assert days == {f"entities/spd/days/{day_key(old_day)}"}
+    assert fs.docs["entities/spd"]["mentions"] == 2 and fs.docs["entities/spd"]["pos"] == 1
+    # merz untouched
+    assert after["entities/friedrich-merz"] == before["entities/friedrich-merz"]
+    # incremental == full rebuild
+    inc = {p: after[p] for p in after if "/days/" in p}
+    pipeline.reaggregate(fs)
+    full = {p: d for p, d in snapshot(fs).items() if "/days/" in p}
+    assert inc == full
+
+
+def test_trending_has_30_day_spark(fs):
+    pipeline.run(fs, limit=100, use_wikidata=False)
+    top = fs.docs["meta/trending"]["top"]
+    assert all(len(x["spark"]) == 30 for x in top)
+    merz = next(x for x in top if x["entityId"] == "friedrich-merz")
+    assert merz["spark"][-1] is not None or merz["spark"][-2] is not None
+    assert merz["spark"][0] is None
+
+
+def test_new_comments_skip_mention_lookup(fs):
+    queried = []
+    real = fs.query
+
+    def spy(collection, where=None, **kw):
+        if collection == "mentions" and where and where[0][0] == "commentId":
+            queried.append(where[0][2])
+        return real(collection, where=where, **kw)
+
+    fs.query = spy
+    pipeline.run(fs, limit=100, use_wikidata=False)
+    assert queried == []

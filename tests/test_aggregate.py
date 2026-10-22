@@ -146,7 +146,7 @@ def test_trending_top_risers_fallers():
     }
     t = agg.trending(ents)
     assert [x["entityId"] for x in t["top"]] == ["a", "b", "f", "c"]
-    assert t["top"][0] == {
+    assert {k: v for k, v in t["top"][0].items() if k != "spark"} == {
         "entityId": "a",
         "name": "A",
         "type": "PER",
@@ -157,3 +157,15 @@ def test_trending_top_risers_fallers():
     assert t["top"][2]["delta"] is None
     assert [x["entityId"] for x in t["risers"]] == ["a"]  # c below min mentions
     assert [x["entityId"] for x in t["fallers"]] == ["b"]
+
+
+def test_sparkline():
+    recent = {"2026-10-22": {"mentions": 2, "scoreSum": 1.0}, "2026-09-23": {"mentions": 1, "scoreSum": -1.0}}
+    sp = agg.sparkline(recent, "2026-10-22")
+    assert len(sp) == 30 and sp[-1] == 0.5 and sp[0] == -1.0 and sp[1] is None
+
+
+def test_comentions_from_coentityids():
+    a = {**m("c1", "spd", "2026-10-20", "neg", -0.5), "coEntityIds": ["cdu"]}
+    b = {**m("c2", "spd", "2026-10-20", "neg", -0.5), "coEntityIds": []}
+    assert agg.build_day_docs([a, b])[("spd", "2026-10-20")]["coMentions"] == {"cdu": 1}
