@@ -25,7 +25,7 @@ ADJ = ["ist gut", "hat versagt", "redet viel", "ist eine Katastrophe", "macht Po
 
 def main(n: int = 4000) -> None:
     analysis.ner.load_ner = lambda name: FakeNer({})
-    analysis.sentiment.SentimentModel = lambda key: FakeSentiment()
+    analysis.sentiment.load_sentiment = lambda key, **kw: FakeSentiment()
     rnd = random.Random(1)
     reg = Registry.from_yaml()
     docs = {f"entities/{e.id}": {**e.metadata(), **pipeline.ZERO_STATS} for e in reg.entities.values()}

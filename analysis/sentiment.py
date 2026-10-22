@@ -9,9 +9,11 @@ P(pos) - P(neg) in [-1, 1], the label the argmax class, the confidence its proba
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 import time
+from pathlib import Path
 from typing import ClassVar
 
 log = logging.getLogger(__name__)
@@ -123,6 +125,21 @@ class _Nli:
         labels = {i: lab.lower() for i, lab in self.model.config.id2label.items()}
         self.ent = next(i for i, lab in labels.items() if lab.startswith("entail"))
 
+    def logits(self, torch, items: list[tuple[str, str]], keys: tuple[str, ...]) -> list[list[float]]:
+        """Raw NLI logits (in model label order) for each item and hypothesis in `keys`, flattened."""
+        prem, hyp = [], []
+        for text, name in items:
+            for k in keys:
+                prem.append(text or ".")
+                hyp.append(self.HYPOTHESES[k].format(name=name))
+        enc = self.tok(
+            prem, hyp, padding=True, truncation="only_first", max_length=self.max_length, return_tensors="pt"
+        )
+        out = self.model(**enc).logits
+        order = [self.ent, *[i for i in range(out.shape[1]) if i != self.ent]]
+        lg = out[:, order].reshape(len(items), -1).tolist()
+        return lg
+
     def probs(self, torch, items: list[tuple[str, str]]) -> list[tuple[float, float, float]]:
         prem, hyp = [], []
         for text, name in items:
@@ -140,6 +157,57 @@ NLI_MODELS = {
     "nli": "MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7",
     "nli-small": "MoritzLaurer/multilingual-MiniLMv2-L6-mnli-xnli",
 }
+
+
+CALIBRATION_FILE = Path(__file__).resolve().parents[1] / "data" / "sentiment_calibration.json"
+
+
+class CalibratedSentiment:
+    """Default target sentiment ("cal"): 3 model passes per mention.
+
+    Features: the NLI model's logits for "… positiv über {name}" and "… negativ über {name}"
+    (2 passes, target-aware) plus the news-sentiment classifier's probabilities (1 pass) on the
+    clause window. A multinomial logistic regression trained on the hand-labelled pairs
+    (data/sentiment_calibration.json, see eval/README.md) maps them to pos/neu/neg.
+    """
+
+    window_mode = "clause"
+
+    def __init__(self, batch_size: int = 16, max_length: int = 256, path: Path = CALIBRATION_FILE):
+        import torch
+
+        t = time.time()
+        self.torch = torch
+        cal = json.loads(path.read_text(encoding="utf-8"))
+        self.cal = cal
+        self.nli = _Nli(cal["nliModel"], max_length)
+        self.clf = _Single("news", max_length)
+        self.mean = torch.tensor(cal["mean"])
+        self.std = torch.tensor(cal["std"])
+        self.W = torch.tensor(cal["W"])
+        self.b = torch.tensor(cal["b"])
+        self.batch_size = batch_size
+        self.version = "sent-cal@1"
+        log.info("loaded calibrated sentiment in %.1fs", time.time() - t)
+
+    def probs(self, items: list) -> list[tuple[float, float, float]]:
+        items = [x if isinstance(x, tuple) else (x, "") for x in items]
+        order = sorted(range(len(items)), key=lambda i: len(items[i][0]))
+        out: dict[int, tuple[float, float, float]] = {}
+        with self.torch.inference_mode():
+            for s in range(0, len(order), self.batch_size):
+                idxs = order[s : s + self.batch_size]
+                batch = [items[i] for i in idxs]
+                nl = self.nli.logits(self.torch, batch, ("pos", "neg"))
+                cp = self.clf.probs(self.torch, [x[0] for x in batch])
+                x = self.torch.tensor([a + list(c) for a, c in zip(nl, cp, strict=True)])
+                p = self.torch.softmax((x - self.mean) / self.std @ self.W + self.b, dim=-1).tolist()
+                for i, row in zip(idxs, p, strict=True):
+                    out[i] = (row[0], row[1], row[2])
+        return [out[i] for i in range(len(items))]
+
+    def predict(self, items: list) -> list[tuple[str, float, float]]:
+        return [to_label(*p) for p in self.probs(items)]
 
 
 class SentimentModel:
@@ -226,3 +294,10 @@ def combine(results: list[tuple[str, float, float]]) -> tuple[str, float, float]
     label = max(mass, key=mass.get)
     conf = mass[label] / len(results)
     return label, round(score, 4), round(conf, 4)
+
+
+def load_sentiment(key: str = "cal", **kw):
+    """Factory used by the pipeline: "cal" (default, calibrated NLI + classifier) or any SentimentModel key."""
+    if key == "cal":
+        return CalibratedSentiment()
+    return SentimentModel(key, **kw)

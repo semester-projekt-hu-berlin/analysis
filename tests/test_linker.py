@@ -174,3 +174,12 @@ def test_local_aliases_only_in_their_country():
     assert ids("Die Sozis wieder.", country="AT") == ["spoe"]
     assert ids("Die Sozis wieder.", country="CH") == ["sp-schweiz"]
     assert ids("Wir brauchen eine starke Mitte.", country="CH") == []
+
+
+def test_social_text_cleaning():
+    from analysis.textutil import clean_text
+
+    t = clean_text("@anna@norden.social #Merz muss weg! #SPDVersagt https://x.y/z")
+    assert "@" not in t and "http" not in t
+    assert ids(t) == ["friedrich-merz", "spd"]
+    assert clean_text("#AfDVerbotJetzt") == "AfD Verbot Jetzt"

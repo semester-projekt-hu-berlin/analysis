@@ -111,7 +111,8 @@ The default pipeline is entirely open-source and free. The HU LLM offer is not u
   (`=UN`, `=SAP`), `~` weak (must overlap an NER span of a compatible type, or a context
   keyword is present: `~Reiche`, `~Union`, `~Bas`), `@` contextual (needs a keyword from a
   context set – football, US politics, business, politics – in the comment or the article
-  title: `@Leverkusen`, `@Bayern`, `@Demokraten`). Longest match wins ("Siemens Energy" vs
+  title: `@Leverkusen`, `@Bayern`, `@Demokraten`), `^` local (only on sources of the
+  entity's own country: `^Linke` is *Die Linke* on taz.de but just "the left" on blick.ch). Longest match wins ("Siemens Energy" vs
   "Siemens", "CDU/CSU" vs "CDU"); German inflection suffixes are accepted ("Trumps", "Merz'",
   "Grünen").
 * **Ambiguity**: the same alias may belong to several entities; the source country (from
@@ -159,6 +160,11 @@ The default pipeline is entirely open-source and free. The HU LLM offer is not u
   commit** as the day docs. A crash before the commit changes nothing; re-running yields a zero
   delta. `python -m analysis reaggregate` rebuilds everything from scratch (and deletes orphan
   day docs) if anything ever drifts.
+* **Baseline**: comment sections are negative on average, so `meta/stats` and `meta/trending`
+  carry `baseline7d` (mention-weighted mean sentiment of all entities over 7 days) and
+  `baselineBySource7d`; every entity with ≥ 10 mentions in 7 days gets
+  `relative7d = avgSentiment7d − baseline7d`. `top` lists only entities with ≥ 10 mentions in
+  7 days; risers/fallers need ≥ 20 in both windows.
 * Rolling windows are recomputed every run for all entities (they slide even without new
   mentions) from `recentDays`; only entity docs whose values change are written. `meta/trending` and `meta/stats` (`mentions`, `entities` = allowlisted entities
   with ≥ 1 mention, `lastAnalysisAt`) are rewritten after each run.
@@ -199,6 +205,7 @@ export GOOGLE_APPLICATION_CREDENTIALS=/path/to/sa.json   # or FIREBASE_SERVICE_A
 python -m analysis seed                 # curated entities (+ Wikimedia images) and events
 python -m analysis run                  # analyze unanalyzed comments (≤ 20000), update aggregates
 python -m analysis run --ner flair      # Flair NER instead of BERT; --no-wikidata disables the fallback
+python -m analysis rescore              # re-run only the sentiment step for all mentions, re-aggregate
 python -m analysis reaggregate --since 2026-10-20   # recompute only pairs from that day on (cheap)
 python -m analysis reaggregate          # full rebuild from all mentions (full scan, use rarely)
 python scripts/eval_sentiment.py score  # sentiment evaluation (see eval/README.md)

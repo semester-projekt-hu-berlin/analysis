@@ -19,7 +19,9 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--batch", type=int, default=250, help="comments per NLP/commit batch")
     r.add_argument("--ner", choices=["flair", "bert", "none"], default=os.environ.get("ANALYSIS_NER", "bert"))
     r.add_argument(
-        "--sentiment", choices=["ens", "guhr", "guhr-raw", "news"], default=os.environ.get("ANALYSIS_SENTIMENT", "ens")
+        "--sentiment",
+        choices=["cal", "ens", "guhr", "guhr-raw", "news", "nli"],
+        default=os.environ.get("ANALYSIS_SENTIMENT", "cal"),
     )
     r.add_argument("--no-wikidata", action="store_true", help="disable the Wikidata fallback linker")
     r.add_argument("--max-wikidata-lookups", type=int, default=150)
@@ -28,7 +30,7 @@ def main(argv: list[str] | None = None) -> int:
     ra = sub.add_parser("reaggregate", help="rebuild day docs, entity counters and trending from mentions")
     ra.add_argument("--since", help="only recompute (entity, day) pairs from this day (YYYY-MM-DD) on; default: all")
     rs = sub.add_parser("rescore", help="re-run only the sentiment step for all mentions, then re-aggregate")
-    rs.add_argument("--sentiment", default=os.environ.get("ANALYSIS_SENTIMENT", "ens"))
+    rs.add_argument("--sentiment", default=os.environ.get("ANALYSIS_SENTIMENT", "cal"))
     s = sub.add_parser("seed", help="write curated entities and events")
     s.add_argument("--no-images", action="store_true")
 

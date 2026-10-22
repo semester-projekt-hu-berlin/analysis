@@ -221,14 +221,27 @@ def _fill_images(reg: Registry) -> None:
 # --------------------------------------------------------------------------- run
 
 
-def fetch_unanalyzed(fs: Firestore, limit: int) -> list[dict]:
-    docs = fs.query(
-        "comments",
-        where=[("analyzed", "EQUAL", False)],
-        order_by=[("crawledAt", "ASCENDING")],
-        limit=limit,
-        select=COMMENT_FIELDS,
-    )
+def fetch_unanalyzed(fs: Firestore, limit: int, newest_first: bool = True) -> list[dict]:
+    """Unanalysed comments, newest first so the dashboard reflects recent days first.
+
+    Needs the composite index comments(analyzed ASC, crawledAt DESC); falls back to oldest first.
+    """
+    direction = "DESCENDING" if newest_first else "ASCENDING"
+    try:
+        docs = list(
+            fs.query(
+                "comments",
+                where=[("analyzed", "EQUAL", False)],
+                order_by=[("crawledAt", direction)],
+                limit=limit,
+                select=COMMENT_FIELDS,
+            )
+        )
+    except RuntimeError as e:
+        if not newest_first or "index" not in str(e).lower():
+            raise
+        log.warning("index for newest-first missing, falling back to oldest first")
+        return fetch_unanalyzed(fs, limit, newest_first=False)
     return [{"id": d.id, **d.data} for d in docs]
 
 
@@ -237,13 +250,13 @@ def run(
     limit: int = 20000,
     batch: int = 250,
     ner_backend: str = "bert",
-    sentiment_key: str = "ens",
+    sentiment_key: str = "cal",
     use_wikidata: bool = True,
     max_wikidata_lookups: int = 150,
     agg_every: int = 2000,
 ) -> dict:
     from .ner import load_ner
-    from .sentiment import SentimentModel
+    from .sentiment import load_sentiment
 
     t0 = time.time()
     comments = fetch_unanalyzed(fs, limit)
@@ -259,7 +272,7 @@ def run(
         return {"comments": 0, "recoveredPairs": len(pending), **info}
     registry = build_registry(entity_docs)
     ner = load_ner(ner_backend)
-    sentiment = SentimentModel(sentiment_key)
+    sentiment = load_sentiment(sentiment_key)
     version = f"{ner.version}+{sentiment.version}+link@1"
     wd = None
     if use_wikidata:
@@ -476,7 +489,7 @@ def refresh_rolling(fs: Firestore, entity_docs: dict[str, dict], already: set[st
 
 def rescore(
     fs: Firestore,
-    sentiment_key: str = "ens",
+    sentiment_key: str = "cal",
     ner_version: str | None = None,
     batch: int = 400,
     **model_kw,
@@ -489,14 +502,14 @@ def rescore(
     """
     from .analyze import mention_window
     from .linker import Match
-    from .sentiment import SentimentModel, combine
+    from .sentiment import combine, load_sentiment
     from .textutil import clean_text, split_sentences
 
     t0 = time.time()
     entity_docs = load_entity_docs(fs)
     registry = build_registry(entity_docs)
     countries = source_countries(fs)
-    model = SentimentModel(sentiment_key, **model_kw)
+    model = load_sentiment(sentiment_key, **model_kw)
     by_comment: dict[str, list] = {}
     for d in fs.query("mentions", select=["commentId", "entityId", "surface", "label", "score", "confidence", "day"]):
         by_comment.setdefault(d.data["commentId"], []).append(d)

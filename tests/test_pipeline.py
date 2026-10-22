@@ -32,7 +32,7 @@ def comment(cid, text, hours_ago=1, source="spiegel", article="a1"):
 @pytest.fixture
 def fs(monkeypatch):
     monkeypatch.setattr("analysis.ner.load_ner", lambda name: FakeNer({"Klaus Müller": "PER"}))
-    monkeypatch.setattr("analysis.sentiment.SentimentModel", lambda key: FakeSentiment())
+    monkeypatch.setattr("analysis.sentiment.load_sentiment", lambda key, **kw: FakeSentiment())
     reg = Registry.from_yaml()
     docs = {f"entities/{e.id}": {**e.metadata(), **pipeline.ZERO_STATS} for e in reg.entities.values()}
     docs["sources/spiegel"] = {"name": "DER SPIEGEL", "country": "DE"}
@@ -211,7 +211,7 @@ def test_new_comments_skip_mention_lookup(fs):
 def test_rescore_rewrites_sentiment_and_aggregates(fs, monkeypatch):
     pipeline.run(fs, limit=100, use_wikidata=False)
     assert fs.docs["entities/friedrich-merz"]["pos"] == 1
-    monkeypatch.setattr("analysis.sentiment.SentimentModel", lambda key, **kw: FakeSentiment(invert=True))
+    monkeypatch.setattr("analysis.sentiment.load_sentiment", lambda key, **kw: FakeSentiment(invert=True))
     out = pipeline.rescore(fs, sentiment_key="fake")
     assert out["changed"] >= 3
     assert fs.docs["mentions/c1_friedrich-merz"]["label"] == "neg"

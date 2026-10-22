@@ -64,10 +64,15 @@ def today_berlin(now: datetime | None = None) -> str:
 
 _URL = re.compile(r"https?://\S+|www\.\S+")
 _WS = re.compile(r"\s+")
+_HANDLE = re.compile(r"(?<![\w@])@[\w.]+(?:@[\w.-]+)?")  # @user or @user@instance.social
+_HASHTAG = re.compile(r"#(\w+)")
 
 
 def clean_text(text: str) -> str:
+    """Remove URLs and @handles, turn #Hashtags into words ("#Merz" -> "Merz"), collapse whitespace."""
     text = _URL.sub(" ", text or "")
+    text = _HANDLE.sub(" ", text)
+    text = _HASHTAG.sub(lambda m: _split_camel(m.group(1)), text)
     text = text.replace(" ", " ")
     text = _WS.sub(" ", text).strip()
     return text[:MAX_COMMENT_CHARS]
@@ -120,3 +125,8 @@ def split_sentences(text: str) -> list[tuple[int, int]]:
         else:
             spans.append((start, end))
     return spans
+
+
+def _split_camel(tag: str) -> str:
+    """'MerzMussWeg' -> 'Merz Muss Weg', 'AfDVerbot' -> 'AfD Verbot'; 'SPD' stays 'SPD'."""
+    return re.sub(r"(?<=[a-zäöüßA-ZÄÖÜ])(?=[A-ZÄÖÜ][a-zäöüß])", " ", tag)
