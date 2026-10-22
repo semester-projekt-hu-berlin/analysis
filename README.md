@@ -287,6 +287,24 @@ pytest -q && ruff check . && ruff format --check .
 Re-analysing everything with a new model version: set `analyzed = false` on the comments
 (their old `analysisVersion` is kept, so stale mentions are cleaned up) and run again.
 
+## Rollout of the generated entities (23 Oct 2026)
+
+1. `seed` wrote the 1,750 new entities (1,650 of all 2,130 have a portrait or logo).
+2. `relink --days 14` scanned 52,126 comments and re-ran NER on the 8,981 that contain a new
+   alias. It added 537 mentions in one pass (69,977 reads, 1,495 writes, 27 min).
+3. Spot check 1 (50 random new mentions): 60 % correct. The aliases were tightened and
+   `prune` re-checked the 537 mentions: it deleted 321, moved 97 "Rewe" mentions to the new
+   entity `rewe`, and removed 5 entities (incl. the Bundesministerium des Innern).
+4. Spot check 2: 88 % correct. A second tightening and `prune` deleted 12 more.
+5. Spot check 3 (final state): **50 / 50 correct**. 301 mentions on 83 new entities. Top 10:
+   Rewe 97, Lidl 33, Mercedes-AMG 29, Audi 10, Ionos 6, RTL Group 5, ADAC 4, Kaufland 4,
+   Mechthilde Wittmann 4, MediaMarkt 4.
+
+The relink and prune steps aggregated every affected (entity, day) pair. A check found
+that the totals of all 91 touched entities match their mention docs, so no full
+`reaggregate` was run (it would have used most of the day's remaining read budget). The
+whole rollout used 4,526 writes and 96,655 reads of the analysis share on 23 Oct.
+
 ## Daily Firestore budget
 
 To keep the project under about €3.70 a month, every command follows the shared
