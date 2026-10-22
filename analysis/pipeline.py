@@ -185,9 +185,10 @@ def run(
     limit: int = 3000,
     batch: int = 250,
     ner_backend: str = "flair",
-    sentiment_key: str = "guhr",
+    sentiment_key: str = "ens",
     use_wikidata: bool = True,
     max_wikidata_lookups: int = 150,
+    agg_every: int = 2000,
 ) -> dict:
     from .ner import load_ner
     from .sentiment import SentimentModel
@@ -220,6 +221,7 @@ def run(
     affected_days: set[str] = set(pending)
     all_days: set[str] = set()
     changed_entities = 0
+    last_agg = 0
     stale_entities: dict[str, set[str]] = {}  # day -> entity ids that lost a mention
     known_entities = set(entity_docs)
 
@@ -272,7 +274,11 @@ def run(
             stats.ner_seconds,
             stats.sentiment_seconds,
         )
-        # Aggregate after every batch so the dashboard fills progressively.
+        # Aggregate every ~agg_every comments (and at the end) so the dashboard fills progressively.
+        done = i + len(chunk)
+        if done - last_agg < agg_every and done < len(comments):
+            continue
+        last_agg = done
         agg_info = aggregate_days(fs, set(affected_days), entity_docs, stale_entities)
         changed_entities += agg_info["changedEntities"]
         stale_entities = {}

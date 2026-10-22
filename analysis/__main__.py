@@ -19,7 +19,7 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--batch", type=int, default=250, help="comments per NLP/commit batch")
     r.add_argument("--ner", choices=["flair", "bert", "none"], default=os.environ.get("ANALYSIS_NER", "flair"))
     r.add_argument(
-        "--sentiment", choices=["guhr", "guhr-raw", "news"], default=os.environ.get("ANALYSIS_SENTIMENT", "guhr")
+        "--sentiment", choices=["ens", "guhr", "guhr-raw", "news"], default=os.environ.get("ANALYSIS_SENTIMENT", "ens")
     )
     r.add_argument("--no-wikidata", action="store_true", help="disable the Wikidata fallback linker")
     r.add_argument("--max-wikidata-lookups", type=int, default=150)

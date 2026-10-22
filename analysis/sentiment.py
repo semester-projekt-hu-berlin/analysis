@@ -81,55 +81,74 @@ def target_window(sentence: str, mention_start: int, mention_end: int, other_men
     return clause if len(clause) >= 12 else sentence
 
 
-class SentimentModel:
-    def __init__(self, key: str = "guhr", batch_size: int = 32, max_length: int = 256):
-        import torch
+class _Single:
+    def __init__(self, key: str, max_length: int):
         from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
         name, self.clean = MODELS[key]
-        t = time.time()
         self.tok = AutoTokenizer.from_pretrained(name)
         self.model = AutoModelForSequenceClassification.from_pretrained(name).eval()
-        self.torch = torch
-        self.batch_size = batch_size
         self.max_length = max_length
         labels = {i: lab.lower() for i, lab in self.model.config.id2label.items()}
-        self.idx = {
-            "pos": next(i for i, lab in labels.items() if lab.startswith("pos")),
-            "neg": next(i for i, lab in labels.items() if lab.startswith("neg")),
-            "neu": next(i for i, lab in labels.items() if lab.startswith("neu")),
-        }
-        self.version = f"sent-{key}@1"
-        log.info("loaded sentiment %s in %.1fs", name, time.time() - t)
+        self.idx = {k: next(i for i, lab in labels.items() if lab.startswith(k)) for k in ("pos", "neu", "neg")}
+
+    def probs(self, torch, texts: list[str]) -> list[tuple[float, float, float]]:
+        prepared = [(guhr_clean(t) if self.clean else t) or "." for t in texts]
+        enc = self.tok(prepared, padding=True, truncation=True, max_length=self.max_length, return_tensors="pt")
+        out = torch.softmax(self.model(**enc).logits, dim=-1).tolist()
+        return [(p[self.idx["pos"]], p[self.idx["neu"]], p[self.idx["neg"]]) for p in out]
+
+
+# Ensemble default, chosen on the hand-labelled sample (see eval/README.md).
+ENSEMBLE = ("news", "guhr-raw")
+THRESHOLD = 0.2  # |P(pos) - P(neg)| above this -> pos/neg, else neu (models are over-neutral on comments)
+
+
+class SentimentModel:
+    """One model key from MODELS, or "ens" = mean of ENSEMBLE models with a score threshold."""
+
+    def __init__(self, key: str = "ens", batch_size: int = 32, max_length: int = 256):
+        import torch
+
+        t = time.time()
+        self.torch = torch
+        self.keys = list(ENSEMBLE) if key == "ens" else [key]
+        self.models = [_Single(k, max_length) for k in self.keys]
+        self.threshold = THRESHOLD if key == "ens" else None
+        self.batch_size = batch_size
+        self.version = f"sent-{key}@2"
+        log.info("loaded sentiment %s in %.1fs", "+".join(self.keys), time.time() - t)
 
     def predict(self, texts: list[str]) -> list[tuple[str, float, float]]:
         """Return (label, score, confidence) per text."""
-        out: list[tuple[str, float, float]] = []
-        prepared = [guhr_clean(t) if self.clean else t for t in texts]
-        order = sorted(range(len(texts)), key=lambda i: len(prepared[i]))
+        order = sorted(range(len(texts)), key=lambda i: len(texts[i]))
         results: dict[int, tuple[str, float, float]] = {}
         with self.torch.inference_mode():
             for b in range(0, len(order), self.batch_size):
                 idxs = order[b : b + self.batch_size]
-                enc = self.tok(
-                    [prepared[i] or "." for i in idxs],
-                    padding=True,
-                    truncation=True,
-                    max_length=self.max_length,
-                    return_tensors="pt",
-                )
-                probs = self.torch.softmax(self.model(**enc).logits, dim=-1).tolist()
-                for i, p in zip(idxs, probs, strict=True):
-                    results[i] = to_label(p[self.idx["pos"]], p[self.idx["neu"]], p[self.idx["neg"]])
-        for i in range(len(texts)):
-            out.append(results[i])
-        return out
+                batch = [texts[i] for i in idxs]
+                per_model = [m.probs(self.torch, batch) for m in self.models]
+                for j, i in enumerate(idxs):
+                    ps = [pm[j] for pm in per_model]
+                    p_pos = sum(p[0] for p in ps) / len(ps)
+                    p_neu = sum(p[1] for p in ps) / len(ps)
+                    p_neg = sum(p[2] for p in ps) / len(ps)
+                    results[i] = to_label(p_pos, p_neu, p_neg, self.threshold)
+        return [results[i] for i in range(len(texts))]
 
 
-def to_label(p_pos: float, p_neu: float, p_neg: float) -> tuple[str, float, float]:
+def to_label(p_pos: float, p_neu: float, p_neg: float, threshold: float | None = None) -> tuple[str, float, float]:
+    """Map class probabilities to (label, score in [-1, 1], confidence in [0, 1]).
+
+    Without threshold: argmax. With threshold t: pos if score > t, neg if score < -t, else neu.
+    """
     probs = {"pos": p_pos, "neu": p_neu, "neg": p_neg}
-    label = max(probs, key=probs.get)
-    return label, round(p_pos - p_neg, 4), round(probs[label], 4)
+    score = p_pos - p_neg
+    if threshold is None:
+        label = max(probs, key=probs.get)
+    else:
+        label = "pos" if score > threshold else "neg" if score < -threshold else "neu"
+    return label, round(score, 4), round(probs[label], 4)
 
 
 def combine(results: list[tuple[str, float, float]]) -> tuple[str, float, float]:

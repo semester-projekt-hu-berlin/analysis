@@ -141,7 +141,7 @@ def main() -> None:
     s.add_argument("--n", type=int, default=60)
     s.add_argument("--seed", type=int, default=7)
     sc = sub.add_parser("score")
-    sc.add_argument("--models", nargs="+", default=["guhr", "guhr-raw", "news"])
+    sc.add_argument("--models", nargs="+", default=["ens", "guhr", "guhr-raw", "news"])
     sc.add_argument("--ner", default="flair")
     args = ap.parse_args()
     {"sample": cmd_sample, "score": cmd_score}[args.cmd](args)
