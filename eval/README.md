@@ -92,17 +92,29 @@ seed + `data/entities_generated.yaml`:
 
 | registry | gold pairs found | of them correct | precision on gold pairs | correct pairs lost |
 |---|---|---|---|---|
-| seed only | 439 / 480 | 425 | 96.8 % | 31 |
-| seed + generated (1,749) | 439 / 480 | 425 | 96.8 % | 31 |
+| seed only | 436 / 480 | 425 | 97.5 % | 31 |
+| seed + generated (1,745) | 436 / 480 | 425 | 97.5 % | 31 |
 
-The 31 pairs that both miss come from the missing article titles (contextual aliases such as
-club names) and from the Wikidata fallback, which this offline check leaves out. The generated
-list loses no gold pair. On these comments it adds 10 new matches, and all 10 are correct
-(Reddig, Eralp, Giffey, Curio, Scheuer, Wittmann, Lidl, Edeka, Kaufland, Rewe). Earlier drafts
-of the list caused errors that the alias policy now prevents: "CL" was read as Lufthansa
-CityLine, "das erste" as Das Erste, "Deutsche" as Deutsche Grammophon, "rational" as
-Rational AG, "die grüne Wiese" as Dirk Wiese, and "Olav Scholz" was lost. The spot check of
-production matches after the relink is listed in the rollout notes below.
+Both lose the same 31 pairs, because this offline check has no article titles (contextual
+aliases such as club names) and no Wikidata fallback. The generated list loses no gold pair.
+(Before the NER-lookup rule below, both found 439 pairs with 425 correct, 96.8 %.) On these
+comments the generated list adds 10 new matches, and all 10 are correct (Reddig, Eralp,
+Giffey, Curio, Scheuer, Wittmann, Lidl, Edeka, Kaufland, Rewe).
+
+**Production spot checks** (random samples of 50 new mentions after the 14-day relink,
+judged by hand against the comment):
+
+| round | correct | typical errors | fix |
+|---|---|---|---|
+| 1: first list | 30 / 50 (60 %) | "Thiel" = Peter Thiel, "Kant", "Paulus", "Clemens", "Moser"(-Roth); "3000 Netto"; Austrian "Innenministerium"/"BMI" on derstandard.at; "EUV", "MBS" | NER-only surnames only on sources of the person's country, never first names or names frequent in English; ambiguous company words contextual; acronyms only for well-known items; public bodies removed |
+| 2: after `prune` | 44 / 50 (88 %) | "Binz" (the town), "Basler Schulen", "Aida", "Netto vom Brutto", "Norma" in "Norman", "smart" in "smarten" | inflection suffixes only for curated names; Basler/Aida/smart/Norma contextual, "Netto" dropped |
+
+The fixes of round 2 keep all 44 correct matches of that sample and remove 5 of the 6
+errors (offline re-check). "Binz" is still wrong: the NER model tags the town as a person. NER
+spans resolved by exact alias lookup now follow the contextual, local and NER-only rules too.
+That also removed three wrong seed links among the gold pairs, which is why precision rose
+from 96.8 % to 97.5 %. Round 3 (the final state in production) is in the rollout notes of
+the analysis README.
 
 ## Limitations
 

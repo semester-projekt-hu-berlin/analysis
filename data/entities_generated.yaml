@@ -492,7 +492,7 @@ entities:
   country: DE
   description: deutscher Automobilhersteller
   aliases:
-  - ~smart
+  - '@smart'
   - =Micro Compact Car
   - Swatch Mercedes Art
   context: business
@@ -600,7 +600,7 @@ entities:
   country: DE
   description: französisch-deutscher Fernsehsender
   aliases:
-  - '@Arte'
+  - =Arte
   - =Arte HD
   - Arte.tv
   - Association relative à la télévision européenne
@@ -2704,7 +2704,7 @@ entities:
   description: deutschsprachige Kreuzfahrtmarke der Carnival Corporation & plc
   aliases:
   - AIDA Cruises
-  - =Aida
+  - '@Aida'
   - Aida Cruises
   - AIDA Cruises - German Branch of Costa Crociere S.p.A.
   context: business
@@ -5651,7 +5651,6 @@ entities:
   description: Lebensmitteldiscounter und Tochterunternehmen der Edeka Zentrale AG & Co. KG
   aliases:
   - =Netto Marken-Discount
-  - '@Netto'
   - =Netto Süd
   context: business
 - id: prosegur
@@ -6002,7 +6001,7 @@ entities:
   country: DE
   description: Lebensmittel-Discounter
   aliases:
-  - =Norma
+  - '@Norma'
   context: business
 - id: giesecke-devrient
   wikidata: Q461257
@@ -17261,7 +17260,7 @@ entities:
   description: Unternehmen im Bereich des maschinellen Sehens (SDAX)
   aliases:
   - =Basler AG
-  - =Basler
+  - '@Basler'
   context: business
 - id: benedikt-zimmer
   wikidata: Q817016

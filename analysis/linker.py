@@ -331,6 +331,9 @@ class Registry:
     def _suffix_ok(self, entity: Entity, suffix: str | None) -> bool:
         if not suffix:
             return True
+        if entity.source == "generated":
+            # inflected forms only for curated names ("Grünen"); "Norma" in "Norman", "smart" in "smarten"
+            return suffix in ("s", "'s", "’s")
         allowed = PER_SUFFIXES if entity.type == "PER" else ORG_SUFFIXES
         return suffix in allowed
 

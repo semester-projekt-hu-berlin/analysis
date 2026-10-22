@@ -222,17 +222,25 @@ def _fill_images(reg: Registry) -> None:
         optional = " ".join(f"OPTIONAL {{ ?item wdt:{p} ?{v} }}" for p, v in IMAGE_PROPS.items())
         variables = " ".join("?" + v for v in IMAGE_PROPS.values())
         query = f"SELECT ?item {variables} WHERE {{ VALUES ?item {{ {values} }} {optional} }}"
-        try:
-            r = requests.post(
-                "https://query.wikidata.org/sparql",
-                data={"query": query},
-                headers={"Accept": "application/sparql-results+json", "User-Agent": USER_AGENT},
-                timeout=120,
-            )
-            r.raise_for_status()
-        except requests.RequestException as e:
-            log.warning("could not fetch images: %s", e)
-            raise
+        for attempt in range(6):
+            try:
+                r = requests.post(
+                    "https://query.wikidata.org/sparql",
+                    data={"query": query},
+                    headers={"Accept": "application/sparql-results+json", "User-Agent": USER_AGENT},
+                    timeout=120,
+                )
+                if r.status_code in (429, 500, 502, 503, 504) and attempt < 5:
+                    # rate limited: honour Retry-After, otherwise back off exponentially
+                    wait = float(r.headers.get("Retry-After") or 0) or 5 * 2**attempt
+                    log.warning("Wikidata %s, retrying in %.0fs", r.status_code, wait)
+                    time.sleep(min(wait, 120))
+                    continue
+                r.raise_for_status()
+                break
+            except requests.RequestException as e:
+                log.warning("could not fetch images: %s", e)
+                raise
         for b in r.json()["results"]["bindings"]:
             q = b["item"]["value"].rsplit("/", 1)[1]
             d = files.setdefault(q, {})

@@ -113,3 +113,12 @@ def test_production_spot_check_errors():
     assert "conrad-clemens" not in ids(t, per(t, "Clemens"))
     t = "Fallweise kaufe ich Moser-Roth vom Hofer."
     assert ids(t) == []
+
+
+def test_second_spot_check_errors():
+    t = "Klassiker von Norman Finkelstein und Ilan Pappé, Produkte des Konzerns."
+    assert "norma" not in ids(t)
+    assert "smart" not in ids("Solche smarten Produkte und Konzerne meiden.")
+    assert "basler-ag" not in ids("Feuerzeuge an Basler Schulen.", country="CH")
+    assert "netto-marken-discount" not in ids("Für die Mitarbeiter mehr Netto vom Brutto.")
+    assert ids("Grünen und SPD") == ["gruene", "spd"]  # curated inflection still works

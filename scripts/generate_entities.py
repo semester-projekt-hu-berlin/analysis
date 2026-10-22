@@ -309,7 +309,6 @@ AMBIGUOUS_WORDS = {
     "bauhaus",
     "continental",
     "signal",
-    "arte",
     "phoenix",
     "union",
     "allianz",
@@ -319,7 +318,13 @@ AMBIGUOUS_WORDS = {
     "atlas",
     "vision",
     "concordia",
+    "basler",
+    "aida",
+    "smart",
+    "norma",
 }
+# ... and some that are almost never the company ("mehr Netto vom Brutto")
+DROP_WORDS = {"netto"}
 
 DETAILS = """SELECT ?i ?labelDe ?labelEn ?desc ?sl ?gender ?party
     (GROUP_CONCAT(DISTINCT ?alias; separator="|") AS ?aliases)
@@ -577,6 +582,8 @@ def main() -> None:
                     or (raw.isupper() and raw != name and d.get("sl", 0) < ACRONYM_MIN_SITELINKS)
                 ):
                     # "CL", "Deutsche", "EUV": too short / too frequent / too obscure to be reliable
+                    stats["dropped company aliases"] += 1
+                elif raw.casefold() in DROP_WORDS and raw != name:
                     stats["dropped company aliases"] += 1
                 elif raw.casefold() in AMBIGUOUS_WORDS:
                     # "3000 Netto", "beim Globus": only with a business keyword nearby
