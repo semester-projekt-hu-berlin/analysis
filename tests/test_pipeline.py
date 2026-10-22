@@ -55,7 +55,8 @@ def snapshot(fs):
     return out
 
 
-def test_run_aggregates_and_marks_comments(fs):
+def test_run_aggregates_and_marks_comments(fs, monkeypatch):
+    monkeypatch.setattr(pipeline.agg, "TOP_MIN_MENTIONS", 1)
     out = pipeline.run(fs, limit=100, use_wikidata=False)
     assert out["comments"] == 4
     assert all(fs.docs[f"comments/c{i}"]["analyzed"] is True for i in range(1, 5))
@@ -183,7 +184,8 @@ def test_incremental_aggregation_touches_only_affected_pairs(fs):
     assert inc == full
 
 
-def test_trending_has_30_day_spark(fs):
+def test_trending_has_30_day_spark(fs, monkeypatch):
+    monkeypatch.setattr(pipeline.agg, "TOP_MIN_MENTIONS", 1)
     pipeline.run(fs, limit=100, use_wikidata=False)
     top = fs.docs["meta/trending"]["top"]
     assert all(len(x["spark"]) == 30 for x in top)
@@ -204,3 +206,20 @@ def test_new_comments_skip_mention_lookup(fs):
     fs.query = spy
     pipeline.run(fs, limit=100, use_wikidata=False)
     assert queried == []
+
+
+def test_rescore_rewrites_sentiment_and_aggregates(fs, monkeypatch):
+    pipeline.run(fs, limit=100, use_wikidata=False)
+    assert fs.docs["entities/friedrich-merz"]["pos"] == 1
+    monkeypatch.setattr("analysis.sentiment.SentimentModel", lambda key, **kw: FakeSentiment(invert=True))
+    out = pipeline.rescore(fs, sentiment_key="fake")
+    assert out["changed"] >= 3
+    assert fs.docs["mentions/c1_friedrich-merz"]["label"] == "neg"
+    merz = fs.docs["entities/friedrich-merz"]
+    assert merz["mentions"] == 2 and merz["neg"] == 1 and merz["pos"] == 1
+    assert fs.docs["mentions/c2_friedrich-merz"]["label"] == "pos"
+    assert fs.docs["entities/spd"]["pos"] == 1
+    assert fs.docs["comments/c1"]["analysisVersion"].endswith("fake-sent@1+link@1")
+    inc = {p: d for p, d in snapshot(fs).items() if "/days/" in p}
+    pipeline.reaggregate(fs)
+    assert inc == {p: d for p, d in snapshot(fs).items() if "/days/" in p}

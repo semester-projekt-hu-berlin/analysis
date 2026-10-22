@@ -11,6 +11,8 @@
 #                 keyword of the entity's `context` occurs in the comment / article title
 #   "@Leverkusen" contextual: case-sensitive AND only accepted if a keyword of the
 #                 entity's `context` occurs in the comment or the article title
+#   "^Linke"      local: case-sensitive AND only on sources of the entity's own country
+#                 (generic words that mean a specific party only in one country)
 # The display name is always an alias as well. `country` breaks ties between
 # entities sharing an alias (e.g. "Grüne" on an Austrian vs. a German site).
 # `wikidata` was resolved with scripts/resolve_wikidata.py and checked by hand.
@@ -39,19 +41,19 @@ entities:
 - {id: cdu-csu, wikidata: Q708725, name: CDU/CSU, type: PARTY, country: DE, description: Union aus CDU und CSU (Bundestagsfraktion),
    aliases: [CDU/CSU, CDU-CSU, CDU und CSU, Unionsparteien, Unionsfraktion, "~Union"], context: politics}
 - {id: spd, wikidata: Q49768, name: SPD, type: PARTY, country: DE, description: Sozialdemokratische Partei Deutschlands,
-   aliases: [SPD, Sozialdemokraten, Sozis, Sozi, SPDler, SPD'ler]}
+   aliases: [SPD, "^Sozialdemokraten", "^Sozis", "^Sozi", SPDler, SPD'ler]}
 - {id: afd, wikidata: Q6721203, name: AfD, type: PARTY, country: DE, description: Alternative für Deutschland,
    aliases: [AfD, Alternative für Deutschland, AfDler, AfD'ler]}
 - {id: gruene, wikidata: Q49766, name: Bündnis 90/Die Grünen, type: PARTY, country: DE, description: Partei Bündnis 90/Die Grünen,
    aliases: [Bündnis 90/Die Grünen, Bündnis 90, "=Grünen", "=Grüne", Grünenpartei, Die Grünen]}
 - {id: die-linke, wikidata: Q49764, name: Die Linke, type: PARTY, country: DE, description: Partei Die Linke,
-   aliases: [Die Linke, Linkspartei, "=Linke", "=Linken"]}
+   aliases: ["^Die Linke", Linkspartei, "^Linke", "^Linken"]}
 - {id: fdp, wikidata: Q13124, name: FDP, type: PARTY, country: DE, description: Freie Demokratische Partei,
    aliases: [FDP, Freidemokraten, FDPler, "~Liberale", "~Liberalen"], context: politics}
 - {id: bsw, wikidata: Q123121346, name: BSW, type: PARTY, country: DE, description: Bündnis Soziale Gerechtigkeit und Wirtschaftliche Vernunft (vormals Bündnis Sahra Wagenknecht),
    aliases: [BSW, Bündnis Sahra Wagenknecht]}
 - {id: freie-waehler, wikidata: Q327389, name: Freie Wähler, type: PARTY, country: DE, description: Partei Freie Wähler,
-   aliases: [Freie Wähler, Freien Wähler, "=FW"]}
+   aliases: [Freie Wähler, Freien Wähler]}
 - {id: ssw, wikidata: Q161545, name: SSW, type: PARTY, country: DE, description: Südschleswigscher Wählerverband,
    aliases: [SSW, Südschleswigscher Wählerverband]}
 - {id: volt, wikidata: Q106205950, name: Volt, type: PARTY, country: DE, description: Volt Deutschland, aliases: ["~Volt"], context: politics}
@@ -59,7 +61,7 @@ entities:
 - {id: oevp, wikidata: Q186867, name: ÖVP, type: PARTY, country: AT, description: Österreichische Volkspartei,
    aliases: [ÖVP, OEVP, ÖVPler, "=VP", VPler]}
 - {id: spoe, wikidata: Q179111, name: SPÖ, type: PARTY, country: AT, description: Sozialdemokratische Partei Österreichs,
-   aliases: [SPÖ, SPOE, SPÖler, "=SP", SPler]}
+   aliases: [SPÖ, SPOE, SPÖler, "=SP", SPler, "^Sozis", "^Sozi"]}
 - {id: fpoe, wikidata: Q131692, name: FPÖ, type: PARTY, country: AT, description: Freiheitliche Partei Österreichs,
    aliases: [FPÖ, FPOE, Freiheitliche, Freiheitlichen, FPler, FPÖler, "=FP"]}
 - {id: neos, wikidata: Q13564543, name: NEOS, type: PARTY, country: AT, description: NEOS – Das Neue Österreich, aliases: [NEOS, Neos]}
@@ -289,11 +291,11 @@ entities:
 - {id: svp, wikidata: Q385258, name: SVP, type: PARTY, country: CH, description: Schweizerische Volkspartei,
    aliases: [SVP, Schweizerische Volkspartei, SVPler]}
 - {id: sp-schweiz, wikidata: Q303745, name: SP Schweiz, type: PARTY, country: CH, description: Sozialdemokratische Partei der Schweiz,
-   aliases: [SP Schweiz, "=SP", Sozialdemokratische Partei der Schweiz]}
+   aliases: [SP Schweiz, "=SP", Sozialdemokratische Partei der Schweiz, "^Sozis", "^Sozi", "^Sozialdemokraten"]}
 - {id: fdp-schweiz, wikidata: Q202638, name: FDP.Die Liberalen, type: PARTY, country: CH, description: Freisinnig-Demokratische Partei der Schweiz,
    aliases: [FDP.Die Liberalen, FDP, Freisinnige, Freisinn]}
 - {id: die-mitte, wikidata: Q100934025, name: Die Mitte, type: PARTY, country: CH, description: Schweizer Partei Die Mitte,
-   aliases: [Die Mitte, Mitte-Partei, "~Mitte"], context: politics}
+   aliases: [Die Mitte, Mitte-Partei], context: politics}
 - {id: gruene-schweiz, wikidata: Q659739, name: Grüne Schweiz, type: PARTY, country: CH, description: Grüne Partei der Schweiz,
    aliases: [Grüne Schweiz, "=Grünen", "=Grüne", Die Grünen]}
 - {id: glp, wikidata: Q545900, name: Grünliberale, type: PARTY, country: CH, description: Grünliberale Partei der Schweiz,
@@ -594,7 +596,7 @@ entities:
 - {id: vfl-wolfsburg, wikidata: Q101859, name: VfL Wolfsburg, type: ORG, country: DE, description: Fußballverein (2. Bundesliga), context: football,
    aliases: [VfL Wolfsburg, "@Wolfsburg", "@Wölfe"]}
 - {id: hannover-96, wikidata: Q33748, name: Hannover 96, type: ORG, country: DE, description: Fußballverein (2. Bundesliga), context: football,
-   aliases: [Hannover 96, "@Hannover", "@Roten"]}
+   aliases: [Hannover 96, "@Hannover"]}
 - {id: sv-darmstadt-98, wikidata: Q479351, name: SV Darmstadt 98, type: ORG, country: DE, description: Fußballverein (2. Bundesliga), context: football,
    aliases: [SV Darmstadt 98, Darmstadt 98, "@Darmstadt", "@Lilien"]}
 - {id: 1-fc-kaiserslautern, wikidata: Q8466, name: 1. FC Kaiserslautern, type: ORG, country: DE, description: Fußballverein (2. Bundesliga), context: football,

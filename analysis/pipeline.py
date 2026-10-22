@@ -44,6 +44,7 @@ ENTITY_READ_FIELDS = [
     "aliases",
     "allowlisted",
     *ENTITY_STAT_FIELDS,
+    "relative7d",
 ]
 STATE_DOC = "meta/analysis"  # internal: (entity, day) pairs still to aggregate after an interrupted run
 ZERO_STATS = {
@@ -426,6 +427,8 @@ def refresh_rolling(fs: Firestore, entity_docs: dict[str, dict], already: set[st
     today = today_berlin()
     writes = []
     ts = now()
+    pending: dict[str, set[str]] = {}
+    # 1. slide windows
     for eid, d in entity_docs.items():
         if eid in already or (not d.get("recentDays") and not d.get("mentions7d") and not d.get("mentionsPrev7d")):
             continue
@@ -433,12 +436,24 @@ def refresh_rolling(fs: Firestore, entity_docs: dict[str, dict], already: set[st
         win = agg.window_stats(recent, today)
         cur = {k: d.get(k) for k in win}
         if cur != win or recent != (d.get("recentDays") or {}):
-            upd = {**win, "recentDays": recent, "updatedAt": ts}
-            d.update(upd)
-            writes.append(Write(f"entities/{eid}", upd, mask=list(upd)))
+            d.update({**win, "recentDays": recent})
+            pending.setdefault(eid, set()).update([*win, "recentDays"])
+    # 2. global baseline and relative sentiment per entity
+    baseline, by_source = agg.baselines(entity_docs, today)
+    for eid, d in entity_docs.items():
+        rel = agg.relative(d, baseline)
+        if d.get("relative7d") != rel and (rel is not None or "relative7d" in d):
+            d["relative7d"] = rel
+            pending.setdefault(eid, set()).add("relative7d")
+    for eid, fields in pending.items():
+        upd = {f: entity_docs[eid].get(f) for f in fields}
+        upd["updatedAt"] = ts
+        writes.append(Write(f"entities/{eid}", upd, mask=list(upd)))
     fs.commit(writes)
     trend = agg.trending(entity_docs, today)
     trend["updatedAt"] = ts
+    trend["baseline7d"] = baseline
+    trend["baselineBySource7d"] = by_source
     total_mentions = fs.count("mentions")
     tracked = sum(1 for d in entity_docs.values() if d.get("allowlisted") and (d.get("mentions") or 0) > 0)
     fs.commit(
@@ -446,11 +461,112 @@ def refresh_rolling(fs: Firestore, entity_docs: dict[str, dict], already: set[st
             Write("meta/trending", trend),
             Write(
                 "meta/stats",
-                {"mentions": total_mentions, "entities": tracked, "lastAnalysisAt": ts},
-                mask=["mentions", "entities", "lastAnalysisAt"],
+                {
+                    "mentions": total_mentions,
+                    "entities": tracked,
+                    "lastAnalysisAt": ts,
+                    "baseline7d": baseline,
+                    "baselineBySource7d": by_source,
+                },
+                mask=["mentions", "entities", "lastAnalysisAt", "baseline7d", "baselineBySource7d"],
             ),
         ]
     )
+
+
+def rescore(
+    fs: Firestore,
+    sentiment_key: str = "ens",
+    ner_version: str | None = None,
+    batch: int = 400,
+    **model_kw,
+) -> dict:
+    """Re-run only the sentiment step for all existing mentions (NER/linking results are kept).
+
+    The mention positions are recovered with the gazetteer (or the stored surface); labels,
+    scores and confidences are rewritten where they change, the comments get the new
+    analysisVersion, and the affected (entity, day) pairs are re-aggregated.
+    """
+    from .analyze import mention_window
+    from .linker import Match
+    from .sentiment import SentimentModel, combine
+    from .textutil import clean_text, split_sentences
+
+    t0 = time.time()
+    entity_docs = load_entity_docs(fs)
+    registry = build_registry(entity_docs)
+    countries = source_countries(fs)
+    model = SentimentModel(sentiment_key, **model_kw)
+    by_comment: dict[str, list] = {}
+    for d in fs.query("mentions", select=["commentId", "entityId", "surface", "label", "score", "confidence", "day"]):
+        by_comment.setdefault(d.data["commentId"], []).append(d)
+    cids = sorted(by_comment)
+    changed_pairs: set[tuple[str, str]] = set()
+    n_changed = n_mentions = 0
+    for i in range(0, len(cids), batch):
+        chunk = cids[i : i + batch]
+        docs = fs.batch_get([f"comments/{c}" for c in chunk], mask=["text", "sourceId", "analysisVersion"])
+        items: list[tuple[str, str]] = []
+        plan: list[tuple[str, object, list[int]]] = []
+        for cid in chunk:
+            cd = docs.get(f"comments/{cid}")
+            if cd is None:
+                continue
+            text = clean_text(cd.data.get("text") or "")
+            sents = split_sentences(text)
+            matches = registry.gazetteer(text, [], "", countries.get(cd.data.get("sourceId") or ""))
+            for md in by_comment[cid]:
+                eid = md.data["entityId"]
+                mine = [m for m in matches if m.entity_id == eid]
+                if not mine:
+                    surf = md.data.get("surface") or ""
+                    j = text.casefold().find(surf.casefold()) if surf else -1
+                    if j < 0:
+                        continue
+                    mine = [Match(j, j + len(surf), surf, eid, "surface")]
+                    matches.append(mine[0])
+                name = registry.entities[eid].name if eid in registry.entities else md.data.get("surface", "")
+                idxs = []
+                for m in mine[:3]:
+                    items.append((mention_window(text, sents, m, matches, model.window_mode), name))
+                    idxs.append(len(items) - 1)
+                plan.append((cid, md, idxs))
+        scored = model.predict(items) if items else []
+        groups: list[list[Write]] = []
+        version_of: dict[str, str] = {}
+        for cid, md, idxs in plan:
+            label, score, conf = combine([scored[k] for k in idxs])
+            n_mentions += 1
+            old = (md.data.get("label"), md.data.get("score"), md.data.get("confidence"))
+            if old != (label, score, conf):
+                n_changed += 1
+                groups.append(
+                    [
+                        Write(
+                            md.path,
+                            {"label": label, "score": score, "confidence": conf},
+                            mask=["label", "score", "confidence"],
+                        )
+                    ]
+                )
+                changed_pairs.add((md.data["entityId"], md.data["day"]))
+            cd = docs[f"comments/{cid}"]
+            old_v = cd.data.get("analysisVersion") or ""
+            ner_part = ner_version or (old_v.split("+", 1)[0] if old_v else "unknown")
+            version_of[cid] = f"{ner_part}+{model.version}+link@1"
+        for cid, v in version_of.items():
+            groups.append([Write(f"comments/{cid}", {"analysisVersion": v}, mask=["analysisVersion"])])
+        fs.commit_groups(groups)
+        log.info("rescore %d/%d comments, %d/%d mentions changed", i + len(chunk), len(cids), n_changed, n_mentions)
+    info = aggregate_pairs(fs, changed_pairs, entity_docs)
+    return {
+        "comments": len(cids),
+        "mentions": n_mentions,
+        "changed": n_changed,
+        "version": model.version,
+        "seconds": round(time.time() - t0, 1),
+        **info,
+    }
 
 
 def reaggregate_since(fs: Firestore, since: str) -> dict:

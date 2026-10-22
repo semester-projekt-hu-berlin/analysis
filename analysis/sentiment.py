@@ -12,6 +12,7 @@ from __future__ import annotations
 import logging
 import re
 import time
+from typing import ClassVar
 
 log = logging.getLogger(__name__)
 
@@ -104,37 +105,100 @@ ENSEMBLE = ("news", "guhr-raw")
 THRESHOLD = 0.2  # |P(pos) - P(neg)| above this -> pos/neg, else neu (models are over-neutral on comments)
 
 
-class SentimentModel:
-    """One model key from MODELS, or "ens" = mean of ENSEMBLE models with a score threshold."""
+class _Nli:
+    """Zero-shot target sentiment with an NLI model: premise = window, one hypothesis per class."""
 
-    def __init__(self, key: str = "ens", batch_size: int = 32, max_length: int = 256):
+    HYPOTHESES: ClassVar[dict[str, str]] = {
+        "pos": "Der Kommentar äußert sich positiv über {name}.",
+        "neu": "Der Kommentar äußert sich neutral über {name}.",
+        "neg": "Der Kommentar äußert sich negativ über {name}.",
+    }
+
+    def __init__(self, name: str, max_length: int):
+        from transformers import AutoModelForSequenceClassification, AutoTokenizer
+
+        self.tok = AutoTokenizer.from_pretrained(name)
+        self.model = AutoModelForSequenceClassification.from_pretrained(name).eval()
+        self.max_length = max_length
+        labels = {i: lab.lower() for i, lab in self.model.config.id2label.items()}
+        self.ent = next(i for i, lab in labels.items() if lab.startswith("entail"))
+
+    def probs(self, torch, items: list[tuple[str, str]]) -> list[tuple[float, float, float]]:
+        prem, hyp = [], []
+        for text, name in items:
+            for k in ("pos", "neu", "neg"):
+                prem.append(text or ".")
+                hyp.append(self.HYPOTHESES[k].format(name=name))
+        enc = self.tok(
+            prem, hyp, padding=True, truncation="only_first", max_length=self.max_length, return_tensors="pt"
+        )
+        ent = self.model(**enc).logits[:, self.ent].reshape(-1, 3)
+        return [tuple(p) for p in torch.softmax(ent, dim=-1).tolist()]
+
+
+NLI_MODELS = {
+    "nli": "MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7",
+    "nli-small": "MoritzLaurer/multilingual-MiniLMv2-L6-mnli-xnli",
+}
+
+
+class SentimentModel:
+    """Target sentiment model.
+
+    key: one of MODELS (single classifier), "ens" (mean of ENSEMBLE), one of NLI_MODELS
+    (zero-shot NLI, target-aware), or "a+b" combinations (probabilities averaged with
+    `weights`). The label uses the margin P(pos) - P(neg) with `threshold`, if given.
+    """
+
+    def __init__(
+        self,
+        key: str = "ens",
+        batch_size: int = 32,
+        max_length: int = 256,
+        threshold: float | None = None,
+        weights: list[float] | None = None,
+        window_mode: str = "clause",
+    ):
         import torch
 
         t = time.time()
         self.torch = torch
-        self.keys = list(ENSEMBLE) if key == "ens" else [key]
-        self.models = [_Single(k, max_length) for k in self.keys]
-        self.threshold = THRESHOLD if key == "ens" else None
+        parts = key.split("+")
+        self.keys = [k for p in parts for k in (ENSEMBLE if p == "ens" else (p,))]
+        self.models = [
+            _Nli(NLI_MODELS[k], max_length) if k in NLI_MODELS else _Single(k, max_length) for k in self.keys
+        ]
+        self.weights = weights or [1.0] * len(self.models)
+        self.threshold = threshold if threshold is not None else (THRESHOLD if key == "ens" else None)
         self.batch_size = batch_size
-        self.version = f"sent-{key}@2"
+        self.window_mode = window_mode
+        self.version = f"sent-{key}-{window_mode}@3"
         log.info("loaded sentiment %s in %.1fs", "+".join(self.keys), time.time() - t)
 
-    def predict(self, texts: list[str]) -> list[tuple[str, float, float]]:
-        """Return (label, score, confidence) per text."""
-        order = sorted(range(len(texts)), key=lambda i: len(texts[i]))
-        results: dict[int, tuple[str, float, float]] = {}
+    def probs(self, items: list) -> list[tuple[float, float, float]]:
+        """Weighted mean (p_pos, p_neu, p_neg) per (text, target name) item."""
+        items = [x if isinstance(x, tuple) else (x, "") for x in items]
+        order = sorted(range(len(items)), key=lambda i: len(items[i][0]))
+        out: dict[int, tuple[float, float, float]] = {}
+        wsum = sum(self.weights)
         with self.torch.inference_mode():
             for b in range(0, len(order), self.batch_size):
                 idxs = order[b : b + self.batch_size]
-                batch = [texts[i] for i in idxs]
-                per_model = [m.probs(self.torch, batch) for m in self.models]
+                batch = [items[i] for i in idxs]
+                per_model = [
+                    m.probs(self.torch, batch) if isinstance(m, _Nli) else m.probs(self.torch, [x[0] for x in batch])
+                    for m in self.models
+                ]
                 for j, i in enumerate(idxs):
-                    ps = [pm[j] for pm in per_model]
-                    p_pos = sum(p[0] for p in ps) / len(ps)
-                    p_neu = sum(p[1] for p in ps) / len(ps)
-                    p_neg = sum(p[2] for p in ps) / len(ps)
-                    results[i] = to_label(p_pos, p_neu, p_neg, self.threshold)
-        return [results[i] for i in range(len(texts))]
+                    out[i] = tuple(
+                        sum(w * pm[j][c] for w, pm in zip(self.weights, per_model, strict=True)) / wsum
+                        for c in range(3)
+                    )
+        return [out[i] for i in range(len(items))]
+
+    def predict(self, items: list) -> list[tuple[str, float, float]]:
+        """Return (label, score, confidence) per window; items are texts or (text, target name)."""
+        return [to_label(*p, self.threshold) for p in self.probs(items)]
 
 
 def to_label(p_pos: float, p_neu: float, p_neg: float, threshold: float | None = None) -> tuple[str, float, float]:

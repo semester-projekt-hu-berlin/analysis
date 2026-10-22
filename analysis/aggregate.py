@@ -15,6 +15,8 @@ from datetime import date, datetime, timedelta
 LABELS = ("pos", "neu", "neg")
 CO_MENTIONS_TOP = 20
 TRENDING_TOP = 50
+TOP_MIN_MENTIONS = 10  # an entity needs this many mentions in 7 days to appear in `top`
+RELATIVE_MIN_MENTIONS = 10
 MOVERS_TOP = 10
 MOVERS_MIN_MENTIONS = 20
 RECENT_DAYS = 30  # recentDays window; also feeds the 30-day sparkline in meta/trending
@@ -129,6 +131,12 @@ def apply_day_changes(entity: dict, changes: list[tuple[str, dict | None, dict |
         score_sum += n["scoreSum"] - o["scoreSum"]
         if n["mentions"]:
             recent[day] = {k: n[k] for k in ("mentions", "pos", "neu", "neg", "scoreSum")}
+            by_src = (new or {}).get("bySource") or {}
+            if by_src:
+                recent[day]["bySource"] = {
+                    src: {"mentions": v.get("mentions", 0), "scoreSum": r4(v.get("scoreSum", 0.0))}
+                    for src, v in by_src.items()
+                }
         else:
             recent.pop(day, None)
         ts = (new or {}).get("lastMentionAt")
@@ -211,7 +219,9 @@ def trending(entities: dict[str, dict], today: str | None = None) -> dict:
                 "_prev": int(e.get("mentionsPrev7d") or 0),
             }
         )
-    top = sorted(items, key=lambda x: (-x["mentions7d"], x["entityId"]))[:TRENDING_TOP]
+    top = sorted(
+        [x for x in items if x["mentions7d"] >= TOP_MIN_MENTIONS], key=lambda x: (-x["mentions7d"], x["entityId"])
+    )[:TRENDING_TOP]
     movers = [
         x
         for x in items
@@ -224,3 +234,33 @@ def trending(entities: dict[str, dict], today: str | None = None) -> dict:
         return [{k: v for k, v in x.items() if not k.startswith("_")} for x in xs]
 
     return {"top": clean(top), "risers": clean(risers), "fallers": clean(fallers)}
+
+
+def baselines(entities: dict[str, dict], today: str) -> tuple[float | None, dict[str, float]]:
+    """Mention-weighted mean sentiment over all allowlisted entities in the last 7 days, overall
+    and per source (from recentDays)."""
+    t = date.fromisoformat(today)
+    cur_from = (t - timedelta(days=6)).isoformat()
+    m = s = 0.0
+    src: dict[str, list[float]] = {}
+    for e in entities.values():
+        if not e.get("allowlisted"):
+            continue
+        for d, v in (e.get("recentDays") or {}).items():
+            if not (cur_from <= d <= today):
+                continue
+            m += v.get("mentions", 0)
+            s += v.get("scoreSum", 0.0)
+            for sid, sv in (v.get("bySource") or {}).items():
+                acc = src.setdefault(sid, [0.0, 0.0])
+                acc[0] += sv.get("mentions", 0)
+                acc[1] += sv.get("scoreSum", 0.0)
+    return (r4(s / m) if m else None), {k: r4(v[1] / v[0]) for k, v in sorted(src.items()) if v[0]}
+
+
+def relative(entity: dict, baseline: float | None) -> float | None:
+    if baseline is None or entity.get("avgSentiment7d") is None:
+        return None
+    if (entity.get("mentions7d") or 0) < RELATIVE_MIN_MENTIONS:
+        return None
+    return r4(entity["avgSentiment7d"] - baseline)

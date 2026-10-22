@@ -133,15 +133,20 @@ class FakeSentiment:
     """Keyword sentiment: 'gut'/'super' -> pos, 'schlecht'/'versagt' -> neg."""
 
     version = "fake-sent@1"
+    window_mode = "clause"
+
+    def __init__(self, invert: bool = False):
+        self.invert = invert
 
     def predict(self, texts):
         out = []
         for t in texts:
+            t = t[0] if isinstance(t, tuple) else t
             low = t.lower()
             if any(w in low for w in ("gut", "super", "stark")):
-                out.append(("pos", 0.8, 0.9))
+                out.append(("neg", -0.8, 0.9) if self.invert else ("pos", 0.8, 0.9))
             elif any(w in low for w in ("schlecht", "versagt", "katastrophe")):
-                out.append(("neg", -0.7, 0.85))
+                out.append(("pos", 0.7, 0.85) if self.invert else ("neg", -0.7, 0.85))
             else:
                 out.append(("neu", 0.0, 0.7))
         return out

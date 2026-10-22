@@ -166,3 +166,11 @@ def test_commons_thumb_url():
     assert u == "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/Example.jpg/250px-Example.jpg"
     assert commons_thumb("Logo FC.svg").endswith("/250px-Logo_FC.svg.png")
     assert commons_thumb("Scan.tif") is None
+
+
+def test_local_aliases_only_in_their_country():
+    assert ids("Die Linken wollen das.", country="DE") == ["die-linke"]
+    assert ids("Die Linken wollen das.", country="CH") == []
+    assert ids("Die Sozis wieder.", country="AT") == ["spoe"]
+    assert ids("Die Sozis wieder.", country="CH") == ["sp-schweiz"]
+    assert ids("Wir brauchen eine starke Mitte.", country="CH") == []

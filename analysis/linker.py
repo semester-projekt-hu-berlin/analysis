@@ -171,7 +171,7 @@ class Entity:
 class Alias:
     text: str
     entity_id: str
-    mode: str  # plain | cs | weak | ctx
+    mode: str  # plain | cs | weak | ctx | local
 
 
 @dataclass
@@ -191,6 +191,8 @@ def parse_alias(raw: str) -> tuple[str, str]:
         return raw[1:], "ctx"
     if raw.startswith("="):
         return raw[1:], "cs"
+    if raw.startswith("^"):
+        return raw[1:], "local"
     return raw, "plain"
 
 
@@ -383,6 +385,8 @@ class Registry:
                 if not self._context_ok(e, words, lowered):
                     continue
                 ev = 2
+            elif a.mode == "local" and country and e.country and country != e.country:
+                continue
             ok.append((e, ev))
         if not ok:
             return None

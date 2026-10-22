@@ -75,6 +75,39 @@ def link_comment(
     return matches
 
 
+def mention_window(
+    text: str, sents: list[tuple[int, int]], m: Match, matches: list[Match], mode: str = "clause"
+) -> str:
+    """Text window used to judge the sentiment toward the entity of match `m`.
+
+    clause: the mention's sentence plus neighbouring sentences without other entities; narrowed
+            to the clause when the sentence mentions other entities.
+    entity: the mention's sentence +- one sentence, other entities' surfaces masked as "X".
+    """
+    k = next((j for j, (a, b) in enumerate(sents) if a <= m.start < b), None)
+    if k is None:
+        return text[:MAX_WINDOW_CHARS]
+    s0, s1 = sents[k]
+    if mode == "entity":
+        w0, w1 = sents[max(0, k - 1)][0], sents[min(len(sents) - 1, k + 1)][1]
+        chunk = list(text[w0:w1])
+        for o in sorted(matches, key=lambda o: -o.start):
+            if o.entity_id != m.entity_id and w0 <= o.start and o.end <= w1:
+                chunk[o.start - w0 : o.end - w0] = list("X")
+        return "".join(chunk)[:MAX_WINDOW_CHARS]
+    others = [(o.start - s0, o.end - s0) for o in matches if o.entity_id != m.entity_id and s0 <= o.start < s1]
+    if others:
+        return target_window(text[s0:s1], m.start - s0, m.end - s0, others)
+
+    def free(j: int) -> bool:
+        a, b = sents[j]
+        return not any(o.entity_id != m.entity_id and a <= o.start < b for o in matches)
+
+    lo = k - 1 if k > 0 and free(k - 1) else k
+    hi = k + 1 if k + 1 < len(sents) and free(k + 1) else k
+    return text[sents[lo][0] : sents[hi][1]][:MAX_WINDOW_CHARS]
+
+
 def analyze_comments(
     comments: list[dict],
     registry: Registry,
@@ -115,8 +148,8 @@ def analyze_comments(
     stats.ner_seconds += time.time() - t
 
     t = time.time()
-    windows: list[str] = []
-    window_index: dict[str, int] = {}
+    windows: list[tuple[str, str]] = []  # (window text, target entity name)
+    window_index: dict[tuple[str, str], int] = {}
     drafts: list[tuple[dict, str, Match, list[int]]] = []
     for c, text, sents, offset in prepared:
         if not sents:
@@ -138,27 +171,8 @@ def analyze_comments(
         for eid, ms in by_entity.items():
             idxs: list[int] = []
             for m in ms[:MAX_WINDOWS_PER_MENTION]:
-                k = next((j for j, (a, b) in enumerate(sents) if a <= m.start < b), None)
-                if k is None:
-                    w = text[:MAX_WINDOW_CHARS]
-                else:
-                    s0, s1 = sents[k]
-                    others = [(o.start - s0, o.end - s0) for o in matches if o.entity_id != eid and s0 <= o.start < s1]
-                    if others:
-                        # several entities in this sentence: narrow to the clause of the mention
-                        w = target_window(text[s0:s1], m.start - s0, m.end - s0, others)
-                    else:
-                        # sentence plus its neighbours: short comments often split one opinion
-                        # over several sentences (evaluated: better than the sentence alone)
-                        # (only neighbours that do not mention another entity)
-                        def free(j, eid=eid, sents=sents, matches=matches):
-                            a, b = sents[j]
-                            return not any(o.entity_id != eid and a <= o.start < b for o in matches)
-
-                        lo = k - 1 if k > 0 and free(k - 1) else k
-                        hi = k + 1 if k + 1 < len(sents) and free(k + 1) else k
-                        w0, w1 = sents[lo][0], sents[hi][1]
-                        w = text[w0:w1][:MAX_WINDOW_CHARS]
+                w = mention_window(text, sents, m, matches, mode=getattr(sentiment, "window_mode", "clause"))
+                w = (w, registry.entities[eid].name)
                 if w not in window_index:
                     window_index[w] = len(windows)
                     windows.append(w)

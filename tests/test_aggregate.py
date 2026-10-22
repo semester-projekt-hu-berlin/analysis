@@ -145,7 +145,7 @@ def test_trending_top_risers_fallers():
         },
     }
     t = agg.trending(ents)
-    assert [x["entityId"] for x in t["top"]] == ["a", "b", "f", "c"]
+    assert [x["entityId"] for x in t["top"]] == ["a", "b", "f"]  # c: < 10 mentions
     assert {k: v for k, v in t["top"][0].items() if k != "spark"} == {
         "entityId": "a",
         "name": "A",
@@ -169,3 +169,38 @@ def test_comentions_from_coentityids():
     a = {**m("c1", "spd", "2026-10-20", "neg", -0.5), "coEntityIds": ["cdu"]}
     b = {**m("c2", "spd", "2026-10-20", "neg", -0.5), "coEntityIds": []}
     assert agg.build_day_docs([a, b])[("spd", "2026-10-20")]["coMentions"] == {"cdu": 1}
+
+
+def test_baselines_and_relative():
+    ents = {
+        "a": {
+            "allowlisted": True,
+            "mentions7d": 10,
+            "avgSentiment7d": 0.0,
+            "recentDays": {
+                "2026-10-22": {"mentions": 10, "scoreSum": 0.0, "bySource": {"x": {"mentions": 10, "scoreSum": 0.0}}}
+            },
+        },
+        "b": {
+            "allowlisted": True,
+            "mentions7d": 30,
+            "avgSentiment7d": -0.4,
+            "recentDays": {
+                "2026-10-21": {
+                    "mentions": 30,
+                    "scoreSum": -12.0,
+                    "bySource": {"y": {"mentions": 30, "scoreSum": -12.0}},
+                }
+            },
+        },
+        "c": {
+            "allowlisted": True,
+            "mentions7d": 3,
+            "avgSentiment7d": 0.9,
+            "recentDays": {"2026-10-01": {"mentions": 3, "scoreSum": 2.7}},
+        },  # outside 7 days
+    }
+    base, by_src = agg.baselines(ents, "2026-10-22")
+    assert base == -0.3 and by_src == {"x": 0.0, "y": -0.4}
+    assert agg.relative(ents["a"], base) == 0.3
+    assert agg.relative(ents["c"], base) is None  # < 10 mentions

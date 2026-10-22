@@ -27,6 +27,8 @@ def main(argv: list[str] | None = None) -> int:
 
     ra = sub.add_parser("reaggregate", help="rebuild day docs, entity counters and trending from mentions")
     ra.add_argument("--since", help="only recompute (entity, day) pairs from this day (YYYY-MM-DD) on; default: all")
+    rs = sub.add_parser("rescore", help="re-run only the sentiment step for all mentions, then re-aggregate")
+    rs.add_argument("--sentiment", default=os.environ.get("ANALYSIS_SENTIMENT", "ens"))
     s = sub.add_parser("seed", help="write curated entities and events")
     s.add_argument("--no-images", action="store_true")
 
@@ -39,7 +41,7 @@ def main(argv: list[str] | None = None) -> int:
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
     from .firestore import Firestore
-    from .pipeline import reaggregate, reaggregate_since, run, seed
+    from .pipeline import reaggregate, reaggregate_since, rescore, run, seed
 
     fs = Firestore()
     if args.cmd == "run":
@@ -59,6 +61,8 @@ def main(argv: list[str] | None = None) -> int:
             max_wikidata_lookups=args.max_wikidata_lookups,
             agg_every=args.agg_every,
         )
+    elif args.cmd == "rescore":
+        out = rescore(fs, sentiment_key=args.sentiment)
     elif args.cmd == "reaggregate":
         out = reaggregate_since(fs, args.since) if args.since else reaggregate(fs)
     else:
