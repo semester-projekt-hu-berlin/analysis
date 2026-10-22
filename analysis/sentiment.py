@@ -21,6 +21,8 @@ MODELS = {
     "guhr": ("oliverguhr/german-sentiment-bert", True),
     # Same architecture fine-tuned on German news; no special normalization.
     "news": ("mdraw/german-news-sentiment-bert", False),
+    # Guhr model on raw text (no lowercasing), evaluated as an alternative.
+    "guhr-raw": ("oliverguhr/german-sentiment-bert", False),
 }
 
 _URL = re.compile(r"https?://\S+|www\.\S+")

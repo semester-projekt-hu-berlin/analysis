@@ -85,11 +85,16 @@ def _cache_dir() -> Path:
     return Path(os.environ.get("ANALYSIS_CACHE_DIR", Path.cwd() / ".cache"))
 
 
+class RateLimited(RuntimeError):
+    pass
+
+
 class WikidataClient:
-    def __init__(self, session: requests.Session | None = None, min_interval: float = 1.0):
+    def __init__(self, session: requests.Session | None = None, min_interval: float = 1.0, max_wait: float = 120):
         self.session = session or requests.Session()
         self.session.headers["User-Agent"] = USER_AGENT
         self.min_interval = min_interval
+        self.max_wait = max_wait  # longest Retry-After we are willing to sleep; beyond that: RateLimited
         self._last = 0.0
         self.calls = 0
 
@@ -108,7 +113,10 @@ class WikidataClient:
                 log.warning("wikidata %s", r.status_code)
                 if r.status_code == 429:
                     # Respect the server's Retry-After (Wikimedia rate limits per UA+IP).
-                    time.sleep(min(120, float(r.headers.get("retry-after") or 10)))
+                    wait = float(r.headers.get("retry-after") or 10)
+                    if wait > self.max_wait:
+                        raise RateLimited(f"rate limited for {wait:.0f}s")
+                    time.sleep(wait)
                     continue
             except requests.RequestException as e:
                 log.warning("wikidata error %s", e)
@@ -230,8 +238,9 @@ class WikidataLinker:
     """Cached fallback linker: surface (+NER type) -> public Wikidata item or None."""
 
     def __init__(self, client: WikidataClient | None = None, max_lookups: int = 150, path: Path | None = None):
-        self.client = client or WikidataClient()
+        self.client = client or WikidataClient(max_wait=5)
         self.max_lookups = max_lookups
+        self.disabled = False
         self.lookups = 0
         self.path = path or (_cache_dir() / "wikidata.json")
         self.cache: dict[str, str] = {}  # sha1(surface|type) -> qid or ""
@@ -258,7 +267,7 @@ class WikidataLinker:
         if k in self.cache:
             qid = self.cache[k]
             return self.items.get(qid) if qid else None
-        if self.lookups >= self.max_lookups:
+        if self.lookups >= self.max_lookups or self.disabled:
             return None
         self.lookups += 1
         result = None
@@ -284,8 +293,11 @@ class WikidataLinker:
                     }
                     break
         except RuntimeError as e:
-            log.warning("wikidata lookup failed: %s", e)
+            # Rate limited / unavailable: stop using the fallback for the rest of this run
+            # (uncached surfaces are retried next run).
+            log.warning("wikidata fallback disabled for this run: %s", e)
             self.lookups -= 1
+            self.disabled = True
             return None
         self.cache[k] = result["qid"] if result else ""
         if result:
