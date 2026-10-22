@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import time
 from datetime import UTC, datetime
 from urllib.parse import unquote
@@ -694,6 +695,108 @@ def rescore(
 
 def _strip_ts(d: dict) -> dict:
     return {k: v for k, v in d.items() if k != "updatedAt"}
+
+
+class _OnlyFor:
+    """Sentiment proxy: runs the real model only for windows about `names` (others get a dummy)."""
+
+    def __init__(self, model, names: set[str]):
+        self.model, self.names = model, names
+        self.window_mode = getattr(model, "window_mode", "clause")
+        self.version = model.version
+
+    def predict(self, items: list) -> list[tuple[str, float, float]]:
+        idx = [i for i, x in enumerate(items) if isinstance(x, tuple) and x[1] in self.names]
+        out: list[tuple[str, float, float]] = [("neu", 0.0, 0.0)] * len(items)
+        for i, r in zip(idx, self.model.predict([items[i] for i in idx]) if idx else [], strict=True):
+            out[i] = r
+        return out
+
+
+def relink(
+    fs: Firestore,
+    days: int = 14,
+    entity_ids: set[str] | None = None,
+    ner_backend: str = "bert",
+    sentiment_key: str = "cal",
+    batch: int = 250,
+) -> dict:
+    """Add mentions of newly added entities to already analysed comments (last `days` days).
+
+    Only comments whose text contains an alias of a new entity are re-run (NER + linking);
+    sentiment is computed only for the new (comment, entity) pairs, existing mentions keep their
+    labels (their coEntityIds are extended). Afterwards the affected pairs are aggregated.
+    """
+    from datetime import date, timedelta
+
+    from .ner import load_ner
+    from .sentiment import load_sentiment
+    from .textutil import clean_text
+
+    t0 = time.time()
+    entity_docs = load_entity_docs(fs)
+    registry = build_registry(entity_docs)
+    if entity_ids is None:  # default: generated entities without any mention yet
+        entity_ids = {
+            eid
+            for eid, e in registry.entities.items()
+            if e.source == "generated" and not (entity_docs.get(eid) or {}).get("mentions")
+        }
+    new = {eid for eid in entity_ids if eid in registry.entities}
+    names = {registry.entities[e].name for e in new}
+    alias_texts = sorted({a.text.casefold() for a in registry.aliases if a.entity_id in new}, key=len, reverse=True)
+    if not alias_texts:
+        return {"newEntities": 0}
+    prefilter = re.compile(r"(?<![\w])(" + "|".join(re.escape(a) for a in alias_texts) + r")", re.IGNORECASE)
+    cutoff = (date.fromisoformat(today_berlin()) - timedelta(days=days - 1)).isoformat()
+    candidates = []
+    scanned = 0
+    for d in fs.query("comments", where=[("day", "GREATER_THAN_OR_EQUAL", cutoff)], select=COMMENT_FIELDS):
+        scanned += 1
+        if d.data.get("analysisVersion") and prefilter.search(clean_text(d.data.get("text") or "")):
+            candidates.append({"id": d.id, **d.data})
+    log.info("relink: %d new entities, %d comments scanned, %d candidates", len(new), scanned, len(candidates))
+    ner = load_ner(ner_backend)
+    sentiment = _OnlyFor(load_sentiment(sentiment_key), names)
+    countries = source_countries(fs)
+    pairs: set[tuple[str, str]] = set()
+    added = 0
+    for i in range(0, len(candidates), batch):
+        chunk = candidates[i : i + batch]
+        ctx = article_context(fs, {c.get("articleId") for c in chunk if c.get("articleId")})
+        result = analyze_comments(chunk, registry, ner, sentiment, source_country=countries, article_context=ctx)
+        groups: list[list[Write]] = []
+        for c in chunk:
+            ms = result[c["id"]]
+            fresh = [m for m in ms if m["entityId"] in new]
+            if not fresh:
+                continue
+            all_ids = {m["entityId"] for m in ms}
+            g = [Write(f"mentions/{m['commentId']}_{m['entityId']}", m) for m in fresh]
+            for d in fs.query(
+                "mentions", where=[("commentId", "EQUAL", c["id"])], select=["entityId", "coEntityIds", "day"]
+            ):
+                if d.data.get("entityId") in new:
+                    continue
+                co = sorted(set(d.data.get("coEntityIds") or []) | ({m["entityId"] for m in fresh} & all_ids))
+                if co != sorted(d.data.get("coEntityIds") or []):
+                    g.append(Write(d.path, {"coEntityIds": co}, mask=["coEntityIds"]))
+                    pairs.add((d.data["entityId"], d.data["day"]))
+            pairs |= {(m["entityId"], m["day"]) for m in fresh}
+            added += len(fresh)
+            groups.append(g)
+        fs.commit_groups(groups)
+        log.info("relink %d/%d comments, %d new mentions", i + len(chunk), len(candidates), added)
+    entity_docs = load_entity_docs(fs)
+    info = aggregate_pairs(fs, pairs, entity_docs)
+    return {
+        "newEntities": len(new),
+        "scanned": scanned,
+        "candidates": len(candidates),
+        "newMentions": added,
+        "seconds": round(time.time() - t0, 1),
+        **info,
+    }
 
 
 def reaggregate_since(fs: Firestore, since: str) -> dict:

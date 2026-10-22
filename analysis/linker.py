@@ -25,6 +25,7 @@ from .textutil import normalize_surface, search_tokens, slugify
 
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 SEED_FILE = DATA_DIR / "entities.yaml"
+GENERATED_FILE = DATA_DIR / "entities_generated.yaml"  # from scripts/generate_entities.py
 
 TRACKED_TYPES = {"PER", "ORG", "PARTY"}
 
@@ -171,7 +172,7 @@ class Entity:
 class Alias:
     text: str
     entity_id: str
-    mode: str  # plain | cs | weak | ctx | local
+    mode: str  # plain | cs | weak | ner | ctx | local
 
 
 @dataclass
@@ -187,6 +188,8 @@ def parse_alias(raw: str) -> tuple[str, str]:
     raw = str(raw)
     if raw.startswith("~"):
         return raw[1:], "weak"
+    if raw.startswith("!"):
+        return raw[1:], "ner"
     if raw.startswith("@"):
         return raw[1:], "ctx"
     if raw.startswith("="):
@@ -216,27 +219,35 @@ class Registry:
 
     # ------------------------------------------------------------------ building
     @classmethod
-    def from_yaml(cls, path: Path = SEED_FILE) -> Registry:
+    def from_yaml(cls, path: Path = SEED_FILE, generated: Path | None = GENERATED_FILE) -> Registry:
+        """Curated seed list plus (optionally) the Wikidata-generated list; curated entries win."""
         data = yaml.safe_load(path.read_text(encoding="utf-8"))
         contexts = {k: list(v) for k, v in (data.get("contexts") or {}).items()}
         reg = cls()
-        for raw in data["entities"]:
-            specs = [parse_alias(a) for a in raw.get("aliases", [])]
-            ctx = raw.get("context")
-            ctx_words = contexts.get(ctx, []) if isinstance(ctx, str) else list(ctx or [])
-            display = list(dict.fromkeys([raw["name"], *[t for t, _ in specs]]))
-            e = Entity(
-                id=raw["id"],
-                name=raw["name"],
-                type=raw["type"],
-                description=raw.get("description", ""),
-                wikidataId=raw.get("wikidata"),
-                country=raw.get("country"),
-                aliases=display,
-                context=ctx_words,
-                source="seed",
-            )
-            reg.add(e, specs)
+        lists = [(data["entities"], "seed")]
+        if generated is not None and generated.exists():
+            gen = yaml.safe_load(generated.read_text(encoding="utf-8")) or {}
+            lists.append((gen.get("entities") or [], "generated"))
+        for entries, origin in lists:
+            for raw in entries:
+                if origin == "generated" and (raw["id"] in reg.entities or raw.get("wikidata") in reg.by_qid):
+                    continue
+                specs = [parse_alias(a) for a in raw.get("aliases", [])]
+                ctx = raw.get("context")
+                ctx_words = contexts.get(ctx, []) if isinstance(ctx, str) else list(ctx or [])
+                display = list(dict.fromkeys([raw["name"], *[t for t, _ in specs]]))
+                e = Entity(
+                    id=raw["id"],
+                    name=raw["name"],
+                    type=raw["type"],
+                    description=raw.get("description", ""),
+                    wikidataId=raw.get("wikidata"),
+                    country=raw.get("country"),
+                    aliases=display,
+                    context=ctx_words,
+                    source=origin,
+                )
+                reg.add(e, specs)
         return reg
 
     def add(self, e: Entity, specs: list[tuple[str, str]] | None = None) -> None:
@@ -252,7 +263,7 @@ class Registry:
             specs = [(a, "weak") for a in e.aliases]
         names = {t for t, _ in specs}
         if e.name not in names:
-            specs = [(e.name, "plain" if e.source == "seed" else "weak"), *specs]
+            specs = [(e.name, "plain" if e.source in ("seed", "generated") else "weak"), *specs]
         for text, mode in specs:
             text = text.strip()
             if len(text) < 2:
@@ -306,6 +317,12 @@ class Registry:
             self._lookup_plain.setdefault(a.text.casefold(), []).append(a)
         for a in strict:
             self._lookup_strict.setdefault(a.text, []).append(a)
+        # first names of all tracked persons: "Hermann Merz" is not Friedrich Merz
+        self._first_names = {
+            e.name.split()[0]
+            for e in self.entities.values()
+            if e.type == "PER" and len(e.name.split()) >= 2 and len(e.name.split()[0]) >= 3
+        }
         self._compiled = True
 
     # ------------------------------------------------------------------ linking
@@ -356,11 +373,27 @@ class Registry:
             if any(not (end <= m.start or start >= m.end) for m in out):
                 continue
             eid = self._choose(als, start, end, suf, ner_spans, words, lowered, country)
+            if eid and self._other_first_name(text, start, surface, eid):
+                continue
             if eid:
                 core = surface[: len(surface) - len(suf)] if suf else surface
                 out.append(Match(start, end, core, eid, "gazetteer"))
         out.sort(key=lambda m: m.start)
         return out
+
+    def _other_first_name(self, text: str, start: int, surface: str, eid: str) -> bool:
+        """A bare surname preceded by a different person's first name ("Hermann Merz")."""
+        e = self.entities[eid]
+        if e.type != "PER" or " " in surface.strip():
+            return False
+        prev = re.search(r"([A-ZÄÖÜ][\w-]+) $", text[max(0, start - 40) : start])
+        if not prev:
+            return False
+        first = prev.group(1)
+        own = e.name.split()[0]
+        if first[:3].casefold() == own[:3].casefold():  # "Olav Scholz" is a typo, not another Scholz
+            return False
+        return first in self._first_names and first not in e.name.split() and first not in " ".join(e.aliases)
 
     def _context_ok(self, e: Entity, words: set[str], lowered: str) -> bool:
         for kw in e.context:
@@ -379,6 +412,11 @@ class Registry:
             if a.mode == "weak":
                 ner_ok = any(s < end and start < t and _ner_compatible(tag, e.type) for s, t, tag, _score in ner_spans)
                 if not (ner_ok or (e.context and self._context_ok(e, words, lowered))):
+                    continue
+                ev = 2
+            elif a.mode == "ner":
+                # NER-only (generated surnames): a context keyword is not enough ("die grüne Wiese")
+                if not any(s < end and start < t and _ner_compatible(tag, e.type) for s, t, tag, _score in ner_spans):
                     continue
                 ev = 2
             elif a.mode == "ctx":

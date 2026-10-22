@@ -74,9 +74,9 @@ def test_case_sensitive_aliases():
 
 
 def test_private_person_is_not_linked_without_wikidata():
-    text = "Mein Nachbar Klaus Müller sagt das auch."
+    text = "Mein Nachbar Klaus Mösenbacher sagt das auch."
     sents = split_sentences(text)
-    ner = [[(13, 25, "PER", 0.99)]]
+    ner = [[(13, 30, "PER", 0.99)]]
     matches = link_comment(text, sents, ner, reg(), wikidata=None)
     assert matches == []
 

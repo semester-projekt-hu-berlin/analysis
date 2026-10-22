@@ -31,6 +31,8 @@ def main(argv: list[str] | None = None) -> int:
     ra.add_argument("--since", help="only recompute (entity, day) pairs from this day (YYYY-MM-DD) on; default: all")
     rs = sub.add_parser("rescore", help="re-run only the sentiment step for all mentions, then re-aggregate")
     rs.add_argument("--sentiment", default=os.environ.get("ANALYSIS_SENTIMENT", "cal"))
+    rl = sub.add_parser("relink", help="add mentions of new entities to analysed comments of the last N days")
+    rl.add_argument("--days", type=int, default=14)
     sub.add_parser("seed-requests", help="validate accepted entity_requests via Wikidata and seed them")
     s = sub.add_parser("seed", help="write curated entities and events")
     s.add_argument("--no-images", action="store_true")
@@ -44,7 +46,7 @@ def main(argv: list[str] | None = None) -> int:
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
     from .firestore import Firestore
-    from .pipeline import reaggregate, reaggregate_since, rescore, run, seed
+    from .pipeline import reaggregate, reaggregate_since, relink, rescore, run, seed
 
     fs = Firestore()
     if args.cmd == "run":
@@ -64,6 +66,8 @@ def main(argv: list[str] | None = None) -> int:
             max_wikidata_lookups=args.max_wikidata_lookups,
             agg_every=args.agg_every,
         )
+    elif args.cmd == "relink":
+        out = relink(fs, days=args.days)
     elif args.cmd == "seed-requests":
         from .entity_requests import process_entity_requests
 

@@ -31,7 +31,7 @@ def comment(cid, text, hours_ago=1, source="spiegel", article="a1"):
 
 @pytest.fixture
 def fs(monkeypatch):
-    monkeypatch.setattr("analysis.ner.load_ner", lambda name: FakeNer({"Klaus Müller": "PER"}))
+    monkeypatch.setattr("analysis.ner.load_ner", lambda name: FakeNer({"Klaus Mösenbacher": "PER"}))
     monkeypatch.setattr("analysis.sentiment.load_sentiment", lambda key, **kw: FakeSentiment())
     reg = Registry.from_yaml()
     docs = {f"entities/{e.id}": {**e.metadata(), **pipeline.ZERO_STATS} for e in reg.entities.values()}
@@ -39,7 +39,7 @@ def fs(monkeypatch):
     docs["sources/derstandard"] = {"name": "DER STANDARD", "country": "AT"}
     docs["articles/a1"] = {"title": "Koalitionsstreit in Berlin", "sourceId": "spiegel"}
     docs["comments/c1"] = comment("c1", "Merz macht das gut. Die SPD hat versagt.")
-    docs["comments/c2"] = comment("c2", "Kanzler Merz ist eine Katastrophe, Klaus Müller sagt das auch.")
+    docs["comments/c2"] = comment("c2", "Kanzler Merz ist eine Katastrophe, Klaus Mösenbacher sagt das auch.")
     docs["comments/c3"] = comment("c3", "Die Grünen sind super.", source="derstandard")
     docs["comments/c4"] = comment("c4", "Nichts Relevantes hier.")
     return FakeFirestore(docs)
@@ -95,10 +95,10 @@ def test_privacy_mentions_store_only_surface(fs):
             }
             assert len(d["surface"]) <= 40
     # the private person never becomes an entity
-    assert not any("mueller" in p or "muller" in p for p in fs.docs)
+    assert not any("moesenbacher" in p for p in fs.docs)
     for p, d in fs.docs.items():
         if p.startswith(("entities/", "meta/")):
-            assert "Klaus" not in str(d)
+            assert "Mösenbacher" not in str(d)
             assert "Katastrophe" not in str(d)
 
 

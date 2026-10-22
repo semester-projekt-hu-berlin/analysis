@@ -28,6 +28,8 @@ contexts:
     Repräsentantenhaus, Midterms, Zwischenwahlen, Washington, Weißes Haus, MAGA, Wahlkampf]
   business: [Aktie, Aktien, Konzern, Unternehmen, Firma, Vorstand, Börse, DAX, Gewinn, Umsatz, Stellen,
     Mitarbeiter, Werk, Werke, Chef, CEO, Kunden, Produkt, Produkte, Pharma, Medikament, Dividende, Quartal]
+  education: [Uni, Universität, Hochschule, Studium, studieren, Studierende, Studenten, Studentin, Professor,
+    Professorin, Forschung, Campus, Semester, Lehre, Wissenschaft, Wissenschaftler, Exzellenz]
   politics: [Partei, Parteien, Wahl, Wahlen, Regierung, Koalition, Bundestag, Minister, Ministerin, Kanzler,
     Opposition, Fraktion, Politik, Politiker, Abgeordnete, Abgeordneten, Umfrage, Umfragen, Landtag,
     CDU, CSU, SPD, AfD, FDP, Grüne, Grünen, Linke, BSW, Merz, Söder, Ampel, Groko, Wähler, Wahlkampf, Kanzleramt]
@@ -461,6 +463,8 @@ entities:
 - {id: bnd, wikidata: Q272969, name: Bundesnachrichtendienst, type: ORG, country: DE, description: Auslandsnachrichtendienst, aliases: [BND, Bundesnachrichtendienst]}
 - {id: bundesagentur-fuer-arbeit, wikidata: Q1478016, name: Bundesagentur für Arbeit, type: ORG, country: DE, description: Bundesbehörde für Arbeitsmarkt,
    aliases: [Bundesagentur für Arbeit, Arbeitsagentur, Jobcenter]}
+- {id: aldi, wikidata: Q125054, name: Aldi, type: ORG, country: DE, description: Discounter-Gruppe (Aldi Nord und Aldi Süd),
+   aliases: [Aldi, ALDI], context: business}
 - {id: deutsche-bahn, wikidata: Q9322, name: Deutsche Bahn, type: ORG, country: DE, description: Staatliches Eisenbahnunternehmen,
    aliases: [Deutsche Bahn, "=DB", "~Bahn"], context: business}
 - {id: ard, wikidata: Q49653, name: ARD, type: ORG, country: DE, description: Arbeitsgemeinschaft der öffentlich-rechtlichen Rundfunkanstalten,
