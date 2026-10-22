@@ -195,11 +195,35 @@ def all_names(item: dict) -> list[str]:
     return list(dict.fromkeys(names))
 
 
-def image_url(item: dict, width: int = 320) -> str | None:
-    files = WikidataClient.claim_strings(item, "P18")
-    if not files:
+THUMB_WIDTH = 250  # Wikimedia only serves standard thumbnail widths; 160px returns HTTP 400
+
+
+def commons_thumb(filename: str, width: int = THUMB_WIDTH) -> str | None:
+    """Direct upload.wikimedia.org thumbnail URL for a Commons file (no redirect).
+
+    Commons stores files under /<md5[0]>/<md5[0:2]>/ of the underscored file name; SVGs are
+    rendered to PNG. Formats without a simple thumbnail path (TIFF, PDF, video) return None.
+    """
+    name = filename.strip().replace(" ", "_")
+    if not name:
         return None
-    return f"https://commons.wikimedia.org/wiki/Special:FilePath/{quote(files[0].replace(' ', '_'))}?width={width}"
+    ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
+    if ext not in ("jpg", "jpeg", "png", "gif", "svg", "webp"):
+        return None
+    h = hashlib.md5(name.encode("utf-8")).hexdigest()
+    q = quote(name)
+    thumb = f"{width}px-{q}" + (".png" if ext == "svg" else "")
+    return f"https://upload.wikimedia.org/wikipedia/commons/thumb/{h[0]}/{h[:2]}/{q}/{thumb}"
+
+
+def image_url(item: dict, prefer_logo: bool = False) -> str | None:
+    props = ("P154", "P18") if prefer_logo else ("P18", "P154")
+    for prop in props:
+        for f in WikidataClient.claim_strings(item, prop):
+            url = commons_thumb(f)
+            if url:
+                return url
+    return None
 
 
 def public_figure_check(item: dict, surface: str, ner_type: str) -> tuple[bool, str]:
@@ -289,7 +313,7 @@ class WikidataLinker:
                         "type": "PER"
                         if ner_type == "PER"
                         else ("PARTY" if "Q7278" in self.client.claim_ids(it, "P31") else "ORG"),
-                        "imageUrl": image_url(it),
+                        "imageUrl": image_url(it, prefer_logo=ner_type != "PER"),
                     }
                     break
         except RuntimeError as e:

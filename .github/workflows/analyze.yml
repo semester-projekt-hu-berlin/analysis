@@ -2,12 +2,12 @@ name: Analyze comments
 
 on:
   schedule:
-    - cron: "30 * * * *" # hourly at minute 30 (the crawler runs on the hour)
+    - cron: "30 5,17 * * *" # twice a day, ~1 h after the crawler (17 4,16 * * * UTC)
   workflow_dispatch:
     inputs:
       limit:
         description: Max comments to analyze in this run
-        default: "3000"
+        default: "20000"
       ner:
         description: NER backend (flair | bert | none)
         default: flair
@@ -26,7 +26,7 @@ permissions:
 jobs:
   analyze:
     runs-on: ubuntu-latest
-    timeout-minutes: 55
+    timeout-minutes: 150 # a half-day backlog (4–8k comments) takes 20–40 min on 4 vCPU, up to ~2 h on 2 vCPU
     env:
       FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
       HF_HOME: ${{ github.workspace }}/.hf-cache
@@ -61,7 +61,8 @@ jobs:
           path: |
             .hf-cache
             .flair-cache
-          key: models-v1-flair-ner-german-guhr-sentiment
+          key: models-v2-flair-ner-german-news-guhr-sentiment
+          restore-keys: models-
 
       - name: Cache Wikidata lookups
         uses: actions/cache@v4
@@ -71,7 +72,7 @@ jobs:
           restore-keys: wikidata-
 
       - name: Analyze
-        run: python -m analysis run --limit "${{ inputs.limit || '3000' }}" --ner "${{ inputs.ner || 'flair' }}"
+        run: python -m analysis run --limit "${{ inputs.limit || '20000' }}" --ner "${{ inputs.ner || 'flair' }}"
 
       - name: Reaggregate
         if: ${{ inputs.reaggregate }}

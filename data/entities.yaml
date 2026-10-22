@@ -19,7 +19,9 @@ contexts:
   football: [Bundesliga, Fußball, Fussball, Tor, Tore, Spiel, Spiele, Spieltag, Trainer, Elfmeter, Abstieg,
     Aufstieg, Meister, Meisterschaft, Champions League, Europa League, Pokal, DFB-Pokal, Stürmer, Verteidiger,
     Torwart, Keeper, Kader, Saison, Transfer, Liga, Kicker, Stadion, Derby, Tabelle, Abwehr, Mittelfeld,
-    Schiri, Schiedsrichter, Elf, Kick, Punkte, Sieg, Niederlage, Remis, Unentschieden, gewonnen, verloren]
+    Schiri, Schiedsrichter, Elf, Kick, Punkte, Sieg, Niederlage, Remis, Unentschieden, gewonnen, verloren,
+    Fans, Kurve, Ultras, Coach, Abstiegskampf, Relegation, Premier League, Serie A, LaLiga, Super League, Cup,
+    Länderspiel, WM, EM, Qualifikation, Bundestrainer, Teamchef, Nati, Goalie, Penalty, Captain]
   us: [USA, US, Amerika, amerikanisch, amerikanische, amerikanischen, Trump, Biden, Harris, Kongress, Senat,
     Repräsentantenhaus, Midterms, Zwischenwahlen, Washington, Weißes Haus, MAGA, Wahlkampf]
   business: [Aktie, Aktien, Konzern, Unternehmen, Firma, Vorstand, Börse, DAX, Gewinn, Umsatz, Stellen,
@@ -329,12 +331,6 @@ entities:
 - {id: roche, wikidata: Q212646, name: Roche, type: ORG, country: CH, description: Pharmakonzern, aliases: [Roche Holding, "~Roche"], context: business}
 - {id: sbb, wikidata: Q83835, name: SBB, type: ORG, country: CH, description: Schweizerische Bundesbahnen, aliases: [SBB, Schweizerische Bundesbahnen]}
 - {id: srf, wikidata: Q1441462, name: SRF, type: ORG, country: CH, description: Schweizer Radio und Fernsehen, aliases: [SRF, Schweizer Radio und Fernsehen, SRG]}
-- {id: fc-basel, wikidata: Q189671, name: FC Basel, type: ORG, country: CH, description: Fußballverein, context: football,
-   aliases: [FC Basel, "=FCB", "@Basel"]}
-- {id: bsc-young-boys, wikidata: Q190526, name: BSC Young Boys, type: ORG, country: CH, description: Fußballverein, context: football,
-   aliases: [BSC Young Boys, Young Boys, "=YB"]}
-- {id: fc-zuerich, wikidata: Q206692, name: FC Zürich, type: ORG, country: CH, description: Fußballverein, context: football,
-   aliases: [FC Zürich, FCZ]}
 # ------------------------------------------------------------------ USA (midterms 3 Nov 2026)
 - {id: donald-trump, wikidata: Q22686, name: Donald Trump, type: PER, country: US, description: Präsident der Vereinigten Staaten,
    aliases: [Donald Trump, Trump, Donald J. Trump, Präsident Trump, Trumpel]}
@@ -553,76 +549,189 @@ entities:
 - {id: lufthansa, wikidata: Q9325, name: Lufthansa, type: ORG, country: DE, description: Fluggesellschaft, aliases: [Lufthansa]}
 - {id: thyssenkrupp, wikidata: Q137910, name: Thyssenkrupp, type: ORG, country: DE, description: Industriekonzern, aliases: [Thyssenkrupp, ThyssenKrupp]}
 - {id: intel, wikidata: Q248, name: Intel, type: ORG, country: US, description: Halbleiterhersteller, aliases: [Intel]}
-# ------------------------------------------------------------------ Football clubs (Bundesliga, 2. Bundesliga, Austria)
-- {id: fc-bayern-muenchen, wikidata: Q15789, name: FC Bayern München, type: ORG, country: DE, description: Fußballverein, context: football,
-   aliases: [FC Bayern München, FC Bayern, Bayern München, "=FCB", "@Bayern"]}
-- {id: borussia-dortmund, wikidata: Q41420, name: Borussia Dortmund, type: ORG, country: DE, description: Fußballverein, context: football,
-   aliases: [Borussia Dortmund, BVB, "@Dortmund"]}
-- {id: bayer-04-leverkusen, wikidata: Q104761, name: Bayer 04 Leverkusen, type: ORG, country: DE, description: Fußballverein, context: football,
+# ------------------------------------------------------------------ Football: clubs (Bundesliga 2026/27, 2. Bundesliga 2026/27,
+# 3. Liga/traditional clubs, Austrian Bundesliga, Swiss Super League, big international clubs), national teams
+- {id: fc-bayern-muenchen, wikidata: Q15789, name: FC Bayern München, type: ORG, country: DE, description: Fußballverein (Bundesliga), context: football,
+   aliases: [FC Bayern München, FC Bayern, Bayern München, "=FCB", "@Bayern", "@Rekordmeister"]}
+- {id: borussia-dortmund, wikidata: Q41420, name: Borussia Dortmund, type: ORG, country: DE, description: Fußballverein (Bundesliga), context: football,
+   aliases: [Borussia Dortmund, BVB, "@Dortmund", "@Schwarzgelben", "@Borussia"]}
+- {id: bayer-04-leverkusen, wikidata: Q104761, name: Bayer 04 Leverkusen, type: ORG, country: DE, description: Fußballverein (Bundesliga), context: football,
    aliases: [Bayer 04 Leverkusen, Bayer Leverkusen, Bayer 04, Werkself, "@Leverkusen", "@Bayer"]}
-- {id: rb-leipzig, wikidata: Q702455, name: RB Leipzig, type: ORG, country: DE, description: Fußballverein, context: football,
-   aliases: [RB Leipzig, RBL, "@Leipzig"]}
-- {id: vfb-stuttgart, wikidata: Q4512, name: VfB Stuttgart, type: ORG, country: DE, description: Fußballverein, context: football,
-   aliases: [VfB Stuttgart, VfB, "@Stuttgart"]}
-- {id: eintracht-frankfurt, wikidata: Q38245, name: Eintracht Frankfurt, type: ORG, country: DE, description: Fußballverein, context: football,
-   aliases: [Eintracht Frankfurt, "=SGE", "@Eintracht", "@Frankfurt"]}
-- {id: sc-freiburg, wikidata: Q106394, name: SC Freiburg, type: ORG, country: DE, description: Fußballverein, context: football,
-   aliases: [SC Freiburg, "@Freiburg"]}
-- {id: vfl-wolfsburg, wikidata: Q101859, name: VfL Wolfsburg, type: ORG, country: DE, description: Fußballverein, context: football,
-   aliases: [VfL Wolfsburg, "@Wolfsburg"]}
-- {id: borussia-moenchengladbach, wikidata: Q101959, name: Borussia Mönchengladbach, type: ORG, country: DE, description: Fußballverein, context: football,
-   aliases: [Borussia Mönchengladbach, Gladbach, "@Mönchengladbach", "@Borussia"]}
-- {id: 1-fc-union-berlin, wikidata: Q141971, name: 1. FC Union Berlin, type: ORG, country: DE, description: Fußballverein, context: football,
-   aliases: [1. FC Union Berlin, Union Berlin, Eisern Union, "@Union"]}
-- {id: werder-bremen, wikidata: Q51976, name: SV Werder Bremen, type: ORG, country: DE, description: Fußballverein, context: football,
-   aliases: [SV Werder Bremen, Werder Bremen, Werder, "@Bremen"]}
-- {id: tsg-hoffenheim, wikidata: Q22707, name: TSG 1899 Hoffenheim, type: ORG, country: DE, description: Fußballverein, context: football,
-   aliases: [TSG 1899 Hoffenheim, TSG Hoffenheim, Hoffenheim]}
-- {id: 1-fsv-mainz-05, wikidata: Q105254, name: 1. FSV Mainz 05, type: ORG, country: DE, description: Fußballverein, context: football,
-   aliases: [1. FSV Mainz 05, Mainz 05, "@Mainz"]}
-- {id: fc-augsburg, wikidata: Q15755, name: FC Augsburg, type: ORG, country: DE, description: Fußballverein, context: football,
-   aliases: [FC Augsburg, "@Augsburg"]}
-- {id: 1-fc-heidenheim, wikidata: Q162251, name: 1. FC Heidenheim, type: ORG, country: DE, description: Fußballverein, context: football,
-   aliases: [1. FC Heidenheim, "@Heidenheim"]}
-- {id: fc-st-pauli, wikidata: Q6463, name: FC St. Pauli, type: ORG, country: DE, description: Fußballverein, context: football,
-   aliases: [FC St. Pauli, "@St. Pauli"]}
-- {id: 1-fc-koeln, wikidata: Q104770, name: 1. FC Köln, type: ORG, country: DE, description: Fußballverein, context: football,
-   aliases: [1. FC Köln, FC Köln, Effzeh, "@Köln"]}
-- {id: hamburger-sv, wikidata: Q51974, name: Hamburger SV, type: ORG, country: DE, description: Fußballverein, context: football,
-   aliases: [Hamburger SV, HSV]}
-- {id: fc-schalke-04, wikidata: Q32494, name: FC Schalke 04, type: ORG, country: DE, description: Fußballverein, context: football,
-   aliases: [FC Schalke 04, Schalke 04, Schalke, S04]}
-- {id: hertha-bsc, wikidata: Q102720, name: Hertha BSC, type: ORG, country: DE, description: Fußballverein, context: football,
-   aliases: [Hertha BSC, "@Hertha"]}
-- {id: vfl-bochum, wikidata: Q105861, name: VfL Bochum, type: ORG, country: DE, description: Fußballverein, context: football,
-   aliases: [VfL Bochum, "@Bochum"]}
-- {id: holstein-kiel, wikidata: Q157828, name: Holstein Kiel, type: ORG, country: DE, description: Fußballverein, context: football,
-   aliases: [Holstein Kiel, "@Kiel"]}
-- {id: sv-darmstadt-98, wikidata: Q479351, name: SV Darmstadt 98, type: ORG, country: DE, description: Fußballverein, context: football,
-   aliases: [SV Darmstadt 98, Darmstadt 98, "@Darmstadt"]}
-- {id: fortuna-duesseldorf, wikidata: Q151747, name: Fortuna Düsseldorf, type: ORG, country: DE, description: Fußballverein, context: football,
-   aliases: [Fortuna Düsseldorf, "@Fortuna", "@Düsseldorf"]}
-- {id: hannover-96, wikidata: Q33748, name: Hannover 96, type: ORG, country: DE, description: Fußballverein, context: football,
-   aliases: [Hannover 96]}
-- {id: 1-fc-nuernberg, wikidata: Q15786, name: 1. FC Nürnberg, type: ORG, country: DE, description: Fußballverein, context: football,
-   aliases: [1. FC Nürnberg, FC Nürnberg, "@Nürnberg"]}
-- {id: 1-fc-kaiserslautern, wikidata: Q8466, name: 1. FC Kaiserslautern, type: ORG, country: DE, description: Fußballverein, context: football,
-   aliases: [1. FC Kaiserslautern, "@Kaiserslautern", "@Lautern"]}
-- {id: sc-paderborn-07, wikidata: Q160532, name: SC Paderborn 07, type: ORG, country: DE, description: Fußballverein, context: football,
+- {id: rb-leipzig, wikidata: Q702455, name: RB Leipzig, type: ORG, country: DE, description: Fußballverein (Bundesliga), context: football,
+   aliases: [RB Leipzig, RBL, Rasenballsport Leipzig, "@Leipzig", "@Rasenballer"]}
+- {id: vfb-stuttgart, wikidata: Q4512, name: VfB Stuttgart, type: ORG, country: DE, description: Fußballverein (Bundesliga), context: football,
+   aliases: [VfB Stuttgart, VfB, "@Stuttgart", "@Schwaben"]}
+- {id: eintracht-frankfurt, wikidata: Q38245, name: Eintracht Frankfurt, type: ORG, country: DE, description: Fußballverein (Bundesliga), context: football,
+   aliases: [Eintracht Frankfurt, "=SGE", "@Eintracht", "@Frankfurt", "@Adlerträger"]}
+- {id: tsg-hoffenheim, wikidata: Q22707, name: TSG 1899 Hoffenheim, type: ORG, country: DE, description: Fußballverein (Bundesliga), context: football,
+   aliases: [TSG 1899 Hoffenheim, TSG Hoffenheim, Hoffenheim, "=TSG"]}
+- {id: 1-fc-union-berlin, wikidata: Q141971, name: 1. FC Union Berlin, type: ORG, country: DE, description: Fußballverein (Bundesliga), context: football,
+   aliases: [1. FC Union Berlin, Union Berlin, Eisern Union, "@Union", "@Köpenicker"]}
+- {id: sc-freiburg, wikidata: Q106394, name: SC Freiburg, type: ORG, country: DE, description: Fußballverein (Bundesliga), context: football,
+   aliases: [SC Freiburg, "@Freiburg", "@Breisgauer"]}
+- {id: 1-fsv-mainz-05, wikidata: Q105254, name: 1. FSV Mainz 05, type: ORG, country: DE, description: Fußballverein (Bundesliga), context: football,
+   aliases: [1. FSV Mainz 05, Mainz 05, FSV Mainz, "@Mainz", "@Nullfünfer"]}
+- {id: borussia-moenchengladbach, wikidata: Q101959, name: Borussia Mönchengladbach, type: ORG, country: DE, description: Fußballverein (Bundesliga), context: football,
+   aliases: [Borussia Mönchengladbach, Gladbach, "@Mönchengladbach", "@Fohlen", "@Fohlenelf"]}
+- {id: werder-bremen, wikidata: Q51976, name: SV Werder Bremen, type: ORG, country: DE, description: Fußballverein (Bundesliga), context: football,
+   aliases: [SV Werder Bremen, Werder Bremen, Werder, "@Bremen", "@Grün-Weißen"]}
+- {id: fc-augsburg, wikidata: Q15755, name: FC Augsburg, type: ORG, country: DE, description: Fußballverein (Bundesliga), context: football,
+   aliases: [FC Augsburg, "=FCA", "@Augsburg", "@Fuggerstädter"]}
+- {id: 1-fc-koeln, wikidata: Q104770, name: 1. FC Köln, type: ORG, country: DE, description: Fußballverein (Bundesliga), context: football,
+   aliases: [1. FC Köln, FC Köln, Effzeh, "@Köln", "@Geißböcke"]}
+- {id: hamburger-sv, wikidata: Q51974, name: Hamburger SV, type: ORG, country: DE, description: Fußballverein (Bundesliga), context: football,
+   aliases: [Hamburger SV, HSV, "@Rothosen"]}
+- {id: fc-schalke-04, wikidata: Q32494, name: FC Schalke 04, type: ORG, country: DE, description: Fußballverein (Bundesliga), context: football,
+   aliases: [FC Schalke 04, Schalke 04, Schalke, S04, "@Knappen", "@Königsblauen"]}
+- {id: sv-elversberg, wikidata: Q692691, name: SV Elversberg, type: ORG, country: DE, description: Fußballverein (Bundesliga), context: football,
+   aliases: [SV Elversberg, Elversberg, "=SVE"]}
+- {id: sc-paderborn-07, wikidata: Q160532, name: SC Paderborn 07, type: ORG, country: DE, description: Fußballverein (Bundesliga), context: football,
    aliases: [SC Paderborn 07, SC Paderborn, "@Paderborn"]}
-- {id: sv-elversberg, wikidata: Q692691, name: SV Elversberg, type: ORG, country: DE, description: Fußballverein, context: football,
-   aliases: [SV Elversberg, Elversberg]}
-- {id: 1-fc-magdeburg, wikidata: Q155730, name: 1. FC Magdeburg, type: ORG, country: DE, description: Fußballverein, context: football,
-   aliases: [1. FC Magdeburg, "@Magdeburg"]}
-- {id: karlsruher-sc, wikidata: Q105853, name: Karlsruher SC, type: ORG, country: DE, description: Fußballverein, context: football,
-   aliases: [Karlsruher SC, "=KSC"]}
-- {id: red-bull-salzburg, wikidata: Q994811, name: FC Red Bull Salzburg, type: ORG, country: AT, description: Fußballverein, context: football,
-   aliases: [FC Red Bull Salzburg, Red Bull Salzburg, "@Salzburg"]}
-- {id: sk-rapid-wien, wikidata: Q131215, name: SK Rapid Wien, type: ORG, country: AT, description: Fußballverein, context: football,
-   aliases: [SK Rapid Wien, Rapid Wien, "@Rapid"]}
-- {id: fk-austria-wien, wikidata: Q131209, name: FK Austria Wien, type: ORG, country: AT, description: Fußballverein, context: football,
-   aliases: [FK Austria Wien, Austria Wien]}
-- {id: sk-sturm-graz, wikidata: Q124007617, name: SK Sturm Graz, type: ORG, country: AT, description: Fußballverein, context: football,
-   aliases: [SK Sturm Graz, Sturm Graz]}
+- {id: fc-st-pauli, wikidata: Q6463, name: FC St. Pauli, type: ORG, country: DE, description: Fußballverein (2. Bundesliga), context: football,
+   aliases: [FC St. Pauli, "@St. Pauli", "@Kiezkicker"]}
+- {id: 1-fc-heidenheim, wikidata: Q162251, name: 1. FC Heidenheim 1846, type: ORG, country: DE, description: Fußballverein (2. Bundesliga), context: football,
+   aliases: [1. FC Heidenheim 1846, 1. FC Heidenheim, FC Heidenheim, "@Heidenheim"]}
+- {id: vfl-wolfsburg, wikidata: Q101859, name: VfL Wolfsburg, type: ORG, country: DE, description: Fußballverein (2. Bundesliga), context: football,
+   aliases: [VfL Wolfsburg, "@Wolfsburg", "@Wölfe"]}
+- {id: hannover-96, wikidata: Q33748, name: Hannover 96, type: ORG, country: DE, description: Fußballverein (2. Bundesliga), context: football,
+   aliases: [Hannover 96, "@Hannover", "@Roten"]}
+- {id: sv-darmstadt-98, wikidata: Q479351, name: SV Darmstadt 98, type: ORG, country: DE, description: Fußballverein (2. Bundesliga), context: football,
+   aliases: [SV Darmstadt 98, Darmstadt 98, "@Darmstadt", "@Lilien"]}
+- {id: 1-fc-kaiserslautern, wikidata: Q8466, name: 1. FC Kaiserslautern, type: ORG, country: DE, description: Fußballverein (2. Bundesliga), context: football,
+   aliases: [1. FC Kaiserslautern, "@Kaiserslautern", "@Lautern", "@Roten Teufel", "@FCK"]}
+- {id: hertha-bsc, wikidata: Q102720, name: Hertha BSC, type: ORG, country: DE, description: Fußballverein (2. Bundesliga), context: football,
+   aliases: [Hertha BSC, "@Hertha", "@Alte Dame"]}
+- {id: 1-fc-nuernberg, wikidata: Q15786, name: 1. FC Nürnberg, type: ORG, country: DE, description: Fußballverein (2. Bundesliga), context: football,
+   aliases: [1. FC Nürnberg, FC Nürnberg, "=FCN", "@Nürnberg", "@Clubberer"]}
+- {id: vfl-bochum, wikidata: Q105861, name: VfL Bochum, type: ORG, country: DE, description: Fußballverein (2. Bundesliga), context: football,
+   aliases: [VfL Bochum, "@Bochum"]}
+- {id: karlsruher-sc, wikidata: Q105853, name: Karlsruher SC, type: ORG, country: DE, description: Fußballverein (2. Bundesliga), context: football,
+   aliases: [Karlsruher SC, "=KSC", "@Karlsruhe"]}
+- {id: dynamo-dresden, wikidata: Q141931, name: SG Dynamo Dresden, type: ORG, country: DE, description: Fußballverein (2. Bundesliga), context: football,
+   aliases: [SG Dynamo Dresden, Dynamo Dresden, "=SGD", "@Dynamo", "@Dresden"]}
+- {id: holstein-kiel, wikidata: Q157828, name: Holstein Kiel, type: ORG, country: DE, description: Fußballverein (2. Bundesliga), context: football,
+   aliases: [Holstein Kiel, "@Kiel", "@Störche"]}
+- {id: arminia-bielefeld, wikidata: Q105844, name: DSC Arminia Bielefeld, type: ORG, country: DE, description: Fußballverein (2. Bundesliga), context: football,
+   aliases: [DSC Arminia Bielefeld, Arminia Bielefeld, "@Arminia", "@Bielefeld"]}
+- {id: 1-fc-magdeburg, wikidata: Q155730, name: 1. FC Magdeburg, type: ORG, country: DE, description: Fußballverein (2. Bundesliga), context: football,
+   aliases: [1. FC Magdeburg, "=FCM", "@Magdeburg"]}
+- {id: eintracht-braunschweig, wikidata: Q154053, name: Eintracht Braunschweig, type: ORG, country: DE, description: Fußballverein (2. Bundesliga), context: football,
+   aliases: [Eintracht Braunschweig, "@Eintracht", "@Braunschweig", "@Löwen"]}
+- {id: spvgg-greuther-fuerth, wikidata: Q153539, name: SpVgg Greuther Fürth, type: ORG, country: DE, description: Fußballverein (2. Bundesliga), context: football,
+   aliases: [SpVgg Greuther Fürth, Greuther Fürth, "@Kleeblatt", "@Fürth"]}
+- {id: vfl-osnabrueck, wikidata: Q160530, name: VfL Osnabrück, type: ORG, country: DE, description: Fußballverein (2. Bundesliga), context: football,
+   aliases: [VfL Osnabrück, "@Osnabrück"]}
+- {id: energie-cottbus, wikidata: Q107818, name: FC Energie Cottbus, type: ORG, country: DE, description: Fußballverein (2. Bundesliga), context: football,
+   aliases: [FC Energie Cottbus, Energie Cottbus, "@Cottbus"]}
+- {id: tsv-1860-muenchen, wikidata: Q131603, name: TSV 1860 München, type: ORG, country: DE, description: Fußballverein (3. Liga), context: football,
+   aliases: [TSV 1860 München, 1860 München, TSV 1860, "@Sechzger", "@Löwen", "@Sechzig"]}
+- {id: fortuna-duesseldorf, wikidata: Q151747, name: Fortuna Düsseldorf, type: ORG, country: DE, description: Fußballverein (3. Liga), context: football,
+   aliases: [Fortuna Düsseldorf, "@Fortuna", "@Düsseldorf"]}
+- {id: preussen-muenster, wikidata: Q316865, name: SC Preußen Münster, type: ORG, country: DE, description: Fußballverein (3. Liga), context: football,
+   aliases: [SC Preußen Münster, Preußen Münster, Preussen Münster, "@Preußen"]}
+- {id: hansa-rostock, wikidata: Q142005, name: F.C. Hansa Rostock, type: ORG, country: DE, description: Fußballverein (3. Liga), context: football,
+   aliases: [F.C. Hansa Rostock, FC Hansa Rostock, Hansa Rostock, "@Hansa", "@Kogge"]}
+- {id: msv-duisburg, wikidata: Q154293, name: MSV Duisburg, type: ORG, country: DE, description: Fußballverein (3. Liga), context: football,
+   aliases: [MSV Duisburg, "=MSV", "@Duisburg", "@Zebras"]}
+- {id: alemannia-aachen, wikidata: Q153535, name: Alemannia Aachen, type: ORG, country: DE, description: Fußballverein (3. Liga), context: football,
+   aliases: [Alemannia Aachen, "@Alemannia", "@Aachen"]}
+- {id: rot-weiss-essen, wikidata: Q155218, name: Rot-Weiss Essen, type: ORG, country: DE, description: Fußballverein (3. Liga), context: football,
+   aliases: [Rot-Weiss Essen, Rot-Weiß Essen, "@RWE", "@Essen"]}
+- {id: 1-fc-saarbruecken, wikidata: Q157463, name: 1. FC Saarbrücken, type: ORG, country: DE, description: Fußballverein (3. Liga), context: football,
+   aliases: [1. FC Saarbrücken, FC Saarbrücken, "=FCS", "@Saarbrücken"]}
+- {id: waldhof-mannheim, wikidata: Q170134, name: SV Waldhof Mannheim, type: ORG, country: DE, description: Fußballverein (3. Liga), context: football,
+   aliases: [SV Waldhof Mannheim, Waldhof Mannheim, "@Waldhof"]}
+- {id: erzgebirge-aue, wikidata: Q141882, name: FC Erzgebirge Aue, type: ORG, country: DE, description: Fußballverein (3. Liga), context: football,
+   aliases: [FC Erzgebirge Aue, Erzgebirge Aue, "@Veilchen"]}
+- {id: kickers-offenbach, wikidata: Q159936, name: Kickers Offenbach, type: ORG, country: DE, description: Fußballverein, context: football,
+   aliases: [Kickers Offenbach, "=OFC", "@Offenbach"]}
+- {id: red-bull-salzburg, wikidata: Q994811, name: FC Red Bull Salzburg, type: ORG, country: AT, description: Fußballverein (österreichische Bundesliga), context: football,
+   aliases: [FC Red Bull Salzburg, Red Bull Salzburg, RB Salzburg, "@Salzburg", "@Bullen"]}
+- {id: sk-rapid-wien, wikidata: Q131215, name: SK Rapid Wien, type: ORG, country: AT, description: Fußballverein (österreichische Bundesliga), context: football,
+   aliases: [SK Rapid Wien, Rapid Wien, "@Rapid", "@Hütteldorfer"]}
+- {id: fk-austria-wien, wikidata: Q131209, name: FK Austria Wien, type: ORG, country: AT, description: Fußballverein (österreichische Bundesliga), context: football,
+   aliases: [FK Austria Wien, Austria Wien, "@Austria", "@Veilchen", "@Violetten"]}
+- {id: sk-sturm-graz, wikidata: Q124007617, name: SK Sturm Graz, type: ORG, country: AT, description: Fußballverein (österreichische Bundesliga), context: football,
+   aliases: [SK Sturm Graz, Sturm Graz, "@Blackies"]}
+- {id: lask, wikidata: Q392310, name: LASK, type: ORG, country: AT, description: Fußballverein (österreichische Bundesliga), context: football,
+   aliases: [LASK, LASK Linz, "@Athletiker"]}
+- {id: wolfsberger-ac, wikidata: Q694484, name: Wolfsberger AC, type: ORG, country: AT, description: Fußballverein (österreichische Bundesliga), context: football,
+   aliases: [Wolfsberger AC, "=WAC", "@Wolfsberg"]}
+- {id: tsv-hartberg, wikidata: Q699746, name: TSV Hartberg, type: ORG, country: AT, description: Fußballverein (österreichische Bundesliga), context: football,
+   aliases: [TSV Hartberg, "@Hartberg"]}
+- {id: scr-altach, wikidata: Q670438, name: SCR Altach, type: ORG, country: AT, description: Fußballverein (österreichische Bundesliga), context: football,
+   aliases: [SCR Altach, SC Rheindorf Altach, "@Altach"]}
+- {id: wsg-tirol, wikidata: Q686659, name: WSG Tirol, type: ORG, country: AT, description: Fußballverein (österreichische Bundesliga), context: football,
+   aliases: [WSG Tirol, WSG Wattens]}
+- {id: blau-weiss-linz, wikidata: Q696525, name: FC Blau-Weiß Linz, type: ORG, country: AT, description: Fußballverein (österreichische Bundesliga), context: football,
+   aliases: [FC Blau-Weiß Linz, Blau-Weiß Linz, Blau-Weiss Linz]}
+- {id: grazer-ak, wikidata: Q659780, name: Grazer AK, type: ORG, country: AT, description: Fußballverein (österreichische Bundesliga), context: football,
+   aliases: [Grazer AK, "=GAK"]}
+- {id: sv-ried, wikidata: Q457460, name: SV Ried, type: ORG, country: AT, description: Fußballverein (österreichische Bundesliga), context: football,
+   aliases: [SV Ried, "@Ried"]}
+- {id: fc-basel, wikidata: Q189671, name: FC Basel 1893, type: ORG, country: CH, description: Fußballverein (Schweizer Super League), context: football,
+   aliases: [FC Basel 1893, FC Basel, "=FCB", "@Basel", "@Bebbi"]}
+- {id: bsc-young-boys, wikidata: Q190526, name: BSC Young Boys, type: ORG, country: CH, description: Fußballverein (Schweizer Super League), context: football,
+   aliases: [BSC Young Boys, Young Boys, "=YB", "@Bern"]}
+- {id: fc-zuerich, wikidata: Q206692, name: FC Zürich, type: ORG, country: CH, description: Fußballverein (Schweizer Super League), context: football,
+   aliases: [FC Zürich, "=FCZ", "@Zürich", "@Zürcher"]}
+- {id: grasshopper-club-zuerich, wikidata: Q201360, name: Grasshopper Club Zürich, type: ORG, country: CH, description: Fußballverein (Schweizer Super League), context: football,
+   aliases: [Grasshopper Club Zürich, Grasshoppers, "=GC", "@Hoppers"]}
+- {id: servette-fc, wikidata: Q219235, name: Servette FC, type: ORG, country: CH, description: Fußballverein (Schweizer Super League), context: football,
+   aliases: [Servette FC, Servette Genf, Servette]}
+- {id: fc-lugano, wikidata: Q633521, name: FC Lugano, type: ORG, country: CH, description: Fußballverein (Schweizer Super League), context: football,
+   aliases: [FC Lugano, "@Lugano"]}
+- {id: fc-st-gallen, wikidata: Q659212, name: FC St. Gallen, type: ORG, country: CH, description: Fußballverein (Schweizer Super League), context: football,
+   aliases: [FC St. Gallen, "@St. Gallen", "@Espen"]}
+- {id: fc-luzern, wikidata: Q223262, name: FC Luzern, type: ORG, country: CH, description: Fußballverein (Schweizer Super League), context: football,
+   aliases: [FC Luzern, "=FCL", "@Luzern"]}
+- {id: fc-sion, wikidata: Q321061, name: FC Sion, type: ORG, country: CH, description: Fußballverein (Schweizer Super League), context: football,
+   aliases: [FC Sion, "@Sion", "@Sitten"]}
+- {id: fc-lausanne-sport, wikidata: Q309456, name: FC Lausanne-Sport, type: ORG, country: CH, description: Fußballverein (Schweizer Super League), context: football,
+   aliases: [FC Lausanne-Sport, Lausanne-Sport, "@Lausanne"]}
+- {id: fc-winterthur, wikidata: Q201969, name: FC Winterthur, type: ORG, country: CH, description: Fußballverein (Schweizer Super League), context: football,
+   aliases: [FC Winterthur, "@Winterthur"]}
+- {id: fc-thun, wikidata: Q464775, name: FC Thun, type: ORG, country: CH, description: Fußballverein (Schweizer Super League), context: football,
+   aliases: [FC Thun, "@Thun"]}
+- {id: real-madrid, wikidata: Q8682, name: Real Madrid, type: ORG, country: ES, description: Fußballverein, context: football,
+   aliases: [Real Madrid, "@Real", "@Königlichen"]}
+- {id: fc-barcelona, wikidata: Q7156, name: FC Barcelona, type: ORG, country: ES, description: Fußballverein, context: football,
+   aliases: [FC Barcelona, Barça, Barca, "@Barcelona"]}
+- {id: atletico-madrid, wikidata: Q8701, name: Atlético Madrid, type: ORG, country: ES, description: Fußballverein, context: football,
+   aliases: [Atlético Madrid, Atletico Madrid, Atlético, Atletico]}
+- {id: manchester-city, wikidata: Q50602, name: Manchester City, type: ORG, country: GB, description: Fußballverein, context: football,
+   aliases: [Manchester City, Man City, ManCity, "@City"]}
+- {id: manchester-united, wikidata: Q18656, name: Manchester United, type: ORG, country: GB, description: Fußballverein, context: football,
+   aliases: [Manchester United, Man United, ManU, Man Utd]}
+- {id: liverpool-fc, wikidata: Q1130849, name: FC Liverpool, type: ORG, country: GB, description: Fußballverein, context: football,
+   aliases: [FC Liverpool, Liverpool FC, "@Liverpool", "@Reds"]}
+- {id: arsenal-fc, wikidata: Q9617, name: FC Arsenal, type: ORG, country: GB, description: Fußballverein, context: football,
+   aliases: [FC Arsenal, Arsenal London, "@Arsenal", "@Gunners"]}
+- {id: chelsea-fc, wikidata: Q9616, name: FC Chelsea, type: ORG, country: GB, description: Fußballverein, context: football,
+   aliases: [FC Chelsea, Chelsea FC, "@Chelsea"]}
+- {id: tottenham-hotspur, wikidata: Q18741, name: Tottenham Hotspur, type: ORG, country: GB, description: Fußballverein, context: football,
+   aliases: [Tottenham Hotspur, Tottenham, Spurs]}
+- {id: paris-saint-germain, wikidata: Q483020, name: Paris Saint-Germain, type: ORG, country: FR, description: Fußballverein, context: football,
+   aliases: [Paris Saint-Germain, Paris St. Germain, PSG]}
+- {id: juventus-turin, wikidata: Q1422, name: Juventus Turin, type: ORG, country: IT, description: Fußballverein, context: football,
+   aliases: [Juventus Turin, Juventus, Juve]}
+- {id: inter-mailand, wikidata: Q631, name: Inter Mailand, type: ORG, country: IT, description: Fußballverein, context: football,
+   aliases: [Inter Mailand, Inter Milan, Internazionale, "@Inter"]}
+- {id: ac-mailand, wikidata: Q1543, name: AC Mailand, type: ORG, country: IT, description: Fußballverein, context: football,
+   aliases: [AC Mailand, AC Milan, "@Milan"]}
+- {id: ssc-neapel, wikidata: Q2641, name: SSC Neapel, type: ORG, country: IT, description: Fußballverein, context: football,
+   aliases: [SSC Neapel, SSC Napoli, "@Napoli", "@Neapel"]}
+- {id: deutsche-fussballnationalmannschaft, wikidata: Q43310, name: Deutsche Fußballnationalmannschaft, type: ORG, country: DE, description: Fußballnationalmannschaft der Männer, context: football,
+   aliases: [Deutsche Fußballnationalmannschaft, Deutsche Nationalmannschaft, DFB-Elf, DFB-Team, DFB-Auswahl, "@Nationalmannschaft", "@Nationalelf"]}
+- {id: oesterreichische-fussballnationalmannschaft, wikidata: Q163534, name: Österreichische Fußballnationalmannschaft, type: ORG, country: AT, description: Fußballnationalmannschaft der Männer, context: football,
+   aliases: [Österreichische Fußballnationalmannschaft, ÖFB-Team, ÖFB-Elf, ÖFB-Auswahl, "@Nationalmannschaft", "@Nationalteam"]}
+- {id: schweizer-fussballnationalmannschaft, wikidata: Q165141, name: Schweizer Fußballnationalmannschaft, type: ORG, country: CH, description: Fußballnationalmannschaft der Männer, context: football,
+   aliases: [Schweizer Fußballnationalmannschaft, Schweizer Nati, "@Nati", "@Nationalmannschaft"]}
+- {id: dfl, wikidata: Q28062486, name: DFL, type: ORG, country: DE, description: Deutsche Fußball Liga, context: football,
+   aliases: [DFL, Deutsche Fußball Liga]}
+- {id: oefb, wikidata: Q222108, name: ÖFB, type: ORG, country: AT, description: Österreichischer Fußball-Bund, context: football,
+   aliases: [ÖFB, Österreichischer Fußball-Bund]}
+- {id: sfv, wikidata: Q474181, name: Schweizerischer Fußballverband, type: ORG, country: CH, description: Schweizerischer Fußballverband, context: football,
+   aliases: [Schweizerischer Fußballverband, Schweizerischer Fussballverband, "=SFV"]}
 - {id: julian-nagelsmann, wikidata: Q21226404, name: Julian Nagelsmann, type: PER, country: DE, description: Bundestrainer der Fußballnationalmannschaft,
    aliases: [Julian Nagelsmann, Nagelsmann]}

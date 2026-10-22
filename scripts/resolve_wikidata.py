@@ -83,6 +83,9 @@ OVERRIDES: dict[str, str] = {
     "fc-basel": "Q189671",
     "bsc-young-boys": "Q190526",
     "fc-zuerich": "Q206692",
+    "dfl": "Q28062486",
+    # further clubs were resolved with a football-specific search (description must mention
+    # Fußball/Sportverein, women's/youth teams excluded) and checked by hand
 }
 
 

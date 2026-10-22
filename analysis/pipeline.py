@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import time
 from datetime import UTC, datetime
+from urllib.parse import unquote
 
 import yaml
 
@@ -123,47 +124,87 @@ def new_entity_write(e: Entity) -> Write:
 
 
 def seed(fs: Firestore, with_images: bool = True) -> dict:
+    """Write curated entities and events; only documents whose content changed are written."""
     reg = Registry.from_yaml()
-    existing = {d.id: d.data for d in fs.query("entities", select=["imageUrl", "mentions"])}
+    meta_fields = list(next(iter(reg.entities.values())).metadata().keys())
+    existing = {d.id: d.data for d in fs.query("entities", select=meta_fields)}
     if with_images:
-        _fill_images(reg, existing)
+        _fill_images(reg)
     writes = []
+    changed_images = 0
     for e in reg.entities.values():
         meta = e.metadata()
-        if e.id in existing:
-            if not e.imageUrl and existing[e.id].get("imageUrl"):
-                meta["imageUrl"] = existing[e.id]["imageUrl"]
-            writes.append(Write(f"entities/{e.id}", {**meta, "updatedAt": now()}, mask=[*meta.keys(), "updatedAt"]))
-        else:
+        cur = existing.get(e.id)
+        if cur is None:
             writes.append(new_entity_write(e))
+            continue
+        if not e.imageUrl and cur.get("imageUrl") and not with_images:
+            meta["imageUrl"] = cur["imageUrl"]
+        diff = [k for k in meta if cur.get(k) != meta[k]]
+        if diff:
+            changed_images += "imageUrl" in diff
+            writes.append(Write(f"entities/{e.id}", {**meta, "updatedAt": now()}, mask=[*diff, "updatedAt"]))
     events = yaml.safe_load((DATA_DIR / "events.yaml").read_text(encoding="utf-8"))
     unknown = [eid for ev in events for eid in ev.get("entityIds", []) if eid not in reg.entities]
     if unknown:
         raise ValueError(f"events reference unknown entities: {unknown}")
+    old_events = {d.id: d.data for d in fs.query("events")}
     for ev in events:
         data = {k: ev.get(k) for k in ("day", "title", "description", "entityIds", "url")}
         data["day"] = str(data["day"])
         data["entityIds"] = data["entityIds"] or []
-        writes.append(Write(f"events/{ev['id']}", data))
+        if old_events.get(ev["id"]) != data:
+            writes.append(Write(f"events/{ev['id']}", data))
     fs.commit(writes)
     new = len(reg.entities.keys() - existing.keys())
-    log.info("seeded %d entities (%d new) and %d events", len(reg.entities), new, len(events))
-    return {"entities": len(reg.entities), "newEntities": new, "events": len(events)}
+    out = {
+        "entities": len(reg.entities),
+        "newEntities": new,
+        "updatedEntities": sum(1 for w in writes if w.path.startswith("entities/")) - new,
+        "changedImages": changed_images,
+        "withImage": sum(1 for e in reg.entities.values() if e.imageUrl),
+        "events": len(events),
+    }
+    log.info("seed: %s", out)
+    return out
 
 
-def _fill_images(reg: Registry, existing: dict[str, dict]) -> None:
-    from .wikidata import WikidataClient, image_url
+def _fill_images(reg: Registry) -> None:
+    """Thumbnail (250 px) per entity from Wikidata in one SPARQL query: logo (P154) first for
+    organisations and parties, photo (P18) first for persons."""
+    import requests
 
-    qids = [e.wikidataId for e in reg.entities.values() if e.wikidataId]
-    try:
-        items = WikidataClient(min_interval=1.0).get_entities(qids)
-    except RuntimeError as e:
-        log.warning("could not fetch images: %s", e)
-        return
+    from .wikidata import USER_AGENT, commons_thumb
+
+    qids = sorted({e.wikidataId for e in reg.entities.values() if e.wikidataId})
+    files: dict[str, dict[str, str]] = {}
+    for i in range(0, len(qids), 150):
+        values = " ".join(f"wd:{q}" for q in qids[i : i + 150])
+        query = (
+            "SELECT ?item ?img ?logo WHERE { VALUES ?item { " + values + " } "
+            "OPTIONAL { ?item wdt:P18 ?img } OPTIONAL { ?item wdt:P154 ?logo } }"
+        )
+        try:
+            r = requests.post(
+                "https://query.wikidata.org/sparql",
+                data={"query": query},
+                headers={"Accept": "application/sparql-results+json", "User-Agent": USER_AGENT},
+                timeout=120,
+            )
+            r.raise_for_status()
+        except requests.RequestException as e:
+            log.warning("could not fetch images: %s", e)
+            return
+        for b in r.json()["results"]["bindings"]:
+            q = b["item"]["value"].rsplit("/", 1)[1]
+            d = files.setdefault(q, {})
+            for key in ("img", "logo"):
+                if key in b and key not in d:
+                    d[key] = unquote(b[key]["value"].rsplit("/", 1)[1])
     for e in reg.entities.values():
-        it = items.get(e.wikidataId or "")
-        if it:
-            e.imageUrl = image_url(it)
+        f = files.get(e.wikidataId or "", {})
+        order = ("img", "logo") if e.type == "PER" else ("logo", "img")
+        e.imageUrl = next((u for k in order if k in f and (u := commons_thumb(f[k]))), None)
 
 
 # --------------------------------------------------------------------------- run

@@ -64,7 +64,10 @@ class FakeFirestore:
         return self.batch_get([path]).get(path)
 
     def count(self, collection, where=None):
-        return sum(1 for _ in self.query(collection, where))
+        r = self.reads
+        n = sum(1 for _ in self.query(collection, where))
+        self.reads = r + 1 + n // 1000  # aggregation queries bill 1 read per 1000 index entries
+        return n
 
     def commit(self, writes):
         for i in range(0, len(writes), 500):

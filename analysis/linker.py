@@ -103,6 +103,37 @@ TITLES = {
 }
 
 
+# Words too common in entity names to tell candidates apart.
+GENERIC_WORDS = {
+    "partei",
+    "deutschland",
+    "deutsche",
+    "deutscher",
+    "union",
+    "verein",
+    "borussia",
+    "eintracht",
+    "fortuna",
+    "sport",
+    "club",
+    "national",
+    "group",
+    "holding",
+    "schweiz",
+    "österreich",
+    "gruene",
+    "grünen",
+    "freie",
+    "demokratische",
+    "sozialdemokratische",
+    "bundesliga",
+    "fussball",
+    "fußball",
+    "stadt",
+    "berliner",
+}
+
+
 @dataclass
 class Entity:
     id: str
@@ -174,6 +205,7 @@ class Registry:
         self.aliases: list[Alias] = []
         self.alias_index: dict[str, list[str]] = {}  # normalized surface -> entity ids
         self._compiled = False
+        self._name_word_cache: dict[str, set[str]] = {}
         alias_specs = alias_specs or {}
         for e in entities:
             self.add(e, alias_specs.get(e.id))
@@ -306,6 +338,13 @@ class Registry:
                 als = lookup.get(key, [])
                 if als:
                     candidates.append((m.start(), m.end(), m.group(0), als, m.group("suf")))
+        # The same span may match in both regexes (e.g. plain "RWE" the company, contextual "@RWE"
+        # the club): merge their aliases so the disambiguation sees all readings.
+        merged: dict[tuple[int, int], tuple[int, int, str, list[Alias], str | None]] = {}
+        for c in candidates:
+            k = (c[0], c[1])
+            merged[k] = (c[0], c[1], c[2], merged[k][3] + c[3], c[4]) if k in merged else c
+        candidates = list(merged.values())
         # Longest-first, non-overlapping.
         out: list[Match] = []
         for start, end, surface, als, suf in sorted(candidates, key=lambda c: (-(c[1] - c[0]), c[0])):
@@ -326,32 +365,50 @@ class Registry:
         return False
 
     def _choose(self, als, start, end, suf, ner_spans, words, lowered, country) -> str | None:
-        ok: list[Entity] = []
+        ok: list[tuple[Entity, int]] = []  # (entity, evidence: 2 = context/NER confirmed, 1 = plain)
         for a in als:
             e = self.entities[a.entity_id]
             if not self._suffix_ok(e, suf):
                 continue
+            ev = 1
             if a.mode == "weak":
                 ner_ok = any(s < end and start < t and _ner_compatible(tag, e.type) for s, t, tag, _score in ner_spans)
                 if not (ner_ok or (e.context and self._context_ok(e, words, lowered))):
                     continue
+                ev = 2
             elif a.mode == "ctx":
                 if not self._context_ok(e, words, lowered):
                     continue
-            ok.append(e)
+                ev = 2
+            ok.append((e, ev))
         if not ok:
             return None
-        if len(ok) > 1 and country:
-            same = [e for e in ok if e.country == country]
-            if same:
-                ok = same
-            else:
-                de = [e for e in ok if e.country == "DE"]
-                ok = de or ok
-        elif len(ok) > 1:
-            de = [e for e in ok if e.country == "DE"]
-            ok = de or ok
-        return ok[0].id
+        if len(ok) > 1:
+            # 1. distinctive words of a candidate elsewhere in the text ("Eintracht ... Braunschweig")
+            others = (lowered[:start] + " " + lowered[end:]) if lowered else ""
+            other_words = set(re.findall(r"[\w]+", others))
+            named = [(e, ev) for e, ev in ok if self._name_words(e) & other_words]
+            if named:
+                ok = named
+        if len(ok) > 1:
+            # 2. context/NER-confirmed readings beat plain ones ("RWE" + Spiel/Tor -> Rot-Weiss Essen)
+            best = max(ev for _, ev in ok)
+            ok = [(e, ev) for e, ev in ok if ev == best]
+        if len(ok) > 1:
+            # 3. the source country, then Germany
+            same = [x for x in ok if country and x[0].country == country]
+            ok = same or [x for x in ok if x[0].country == "DE"] or ok
+        return ok[0][0].id
+
+    def _name_words(self, e: Entity) -> set[str]:
+        cached = self._name_word_cache.get(e.id)
+        if cached is None:
+            ws: set[str] = set()
+            for n in [e.name, *e.aliases]:
+                ws |= {w for w in re.findall(r"[\w]+", n.casefold()) if len(w) >= 5 and w not in GENERIC_WORDS}
+            # words shared with many entities are not distinctive
+            cached = self._name_word_cache[e.id] = ws
+        return cached
 
     def lookup_surface(self, surface: str, ner_tag: str, country: str | None = None) -> str | None:
         """Exact (normalized) alias lookup for an NER span, with titles stripped."""

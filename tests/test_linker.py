@@ -134,3 +134,35 @@ def test_sentence_split_caps_length():
     spans = split_sentences(text)
     assert all(b - a <= 400 for a, b in spans)
     assert spans[0][0] == 0 and spans[-1][1] == len(text)
+
+
+def test_football_disambiguation():
+    assert ids("Der FCB hat das Spiel gewonnen.", country="CH") == ["fc-basel"]
+    assert ids("Der FCB hat das Spiel gewonnen.", country="DE") == ["fc-bayern-muenchen"]
+    assert ids("Leverkusen hat das Spiel gewonnen.") == ["bayer-04-leverkusen"]
+    assert ids("Die Eintracht hat das Spiel gewonnen.") == ["eintracht-frankfurt"]
+    assert ids("Die Eintracht hat das Spiel gewonnen, ganz Braunschweig feiert.")[0] == "eintracht-braunschweig"
+    assert ids("RWE erhöht die Strompreise.") == ["rwe"]
+    assert ids("RWE hat das Spiel gegen Aachen gewonnen.")[0] == "rot-weiss-essen"
+    assert ids("Schalke und der HSV im Abstiegskampf.") == ["fc-schalke-04", "hamburger-sv"]
+    assert ids("Die Fohlen haben gewonnen, Tor in der 90.") == ["borussia-moenchengladbach"]
+    assert ids("Union hat das Spiel in der Liga gewonnen.") == ["1-fc-union-berlin"]
+    assert ids("Die Union hat die Wahl verloren.") == ["cdu-csu"]
+    assert ids("Das ÖFB-Team und die DFB-Elf.") == [
+        "oesterreichische-fussballnationalmannschaft",
+        "deutsche-fussballnationalmannschaft",
+    ]
+    assert ids("Die Nationalmannschaft hat das Spiel verloren.", country="AT") == [
+        "oesterreichische-fussballnationalmannschaft"
+    ]
+    assert ids("Die Nati hat das Spiel gewonnen.", country="CH") == ["schweizer-fussballnationalmannschaft"]
+    assert ids("Rapid hat das Derby gegen die Austria verloren.", country="AT") == ["sk-rapid-wien", "fk-austria-wien"]
+
+
+def test_commons_thumb_url():
+    from analysis.wikidata import commons_thumb
+
+    u = commons_thumb("Example.jpg")
+    assert u == "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/Example.jpg/250px-Example.jpg"
+    assert commons_thumb("Logo FC.svg").endswith("/250px-Logo_FC.svg.png")
+    assert commons_thumb("Scan.tif") is None
