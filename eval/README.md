@@ -84,6 +84,26 @@ Throughput with 2 threads: 1.7 mentions/s for sentiment and about 7.5 comments/s
 comments (about 2,000 mentions) therefore take about 40–45 minutes, well within the 150-minute
 CI window.
 
+## Linking with the generated entities (Wikidata)
+
+`python scripts/eval_linking.py` re-links the texts of all 480 gold pairs (BERT NER, without
+article titles and without the Wikidata fallback) with the seed-only registry and with
+seed + `data/entities_generated.yaml`:
+
+| registry | gold pairs found | of them correct | precision on gold pairs | correct pairs lost |
+|---|---|---|---|---|
+| seed only | 439 / 480 | 425 | 96.8 % | 31 |
+| seed + generated (1,749) | 439 / 480 | 425 | 96.8 % | 31 |
+
+The 31 pairs that both miss come from the missing article titles (contextual aliases such as
+club names) and from the Wikidata fallback, which this offline check leaves out. The generated
+list loses no gold pair. On these comments it adds 10 new matches, and all 10 are correct
+(Reddig, Eralp, Giffey, Curio, Scheuer, Wittmann, Lidl, Edeka, Kaufland, Rewe). Earlier drafts
+of the list caused errors that the alias policy now prevents: "CL" was read as Lufthansa
+CityLine, "das erste" as Das Erste, "Deutsche" as Deutsche Grammophon, "rational" as
+Rational AG, "die grüne Wiese" as Dirk Wiese, and "Olav Scholz" was lost. The spot check of
+production matches after the relink is listed in the rollout notes below.
+
 ## Limitations
 
 * The best free CPU method reaches only **≈ 0.48 macro-F1** on stance toward the entity. Single labels are often wrong. The aggregates over many mentions (daily

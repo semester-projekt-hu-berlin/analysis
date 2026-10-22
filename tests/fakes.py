@@ -14,6 +14,7 @@ class FakeFirestore:
         self.reads = 0
         self.writes = 0
         self.commits: list[list[Write]] = []
+        self.versions: dict[str, int] = {}  # path -> write counter, served as updateTime
 
     # paths: "coll/id" (top-level) or "coll/id/sub/id"
     def _collection(self, collection: str, parent: str = "", all_descendants: bool = False):
@@ -32,13 +33,20 @@ class FakeFirestore:
             elif len(parts) == 2 and parts[0] == collection:
                 yield path, data
 
-    def query(self, collection, where=None, order_by=None, limit=None, select=None, parent="") -> Iterator[Doc]:
+    def query(
+        self, collection, where=None, order_by=None, limit=None, select=None, parent="", start_after=None
+    ) -> Iterator[Doc]:
         rows = []
         for path, data in self._collection(collection, parent):
             if all(_op(data.get(f), op, v) for f, op, v in where or []):
                 rows.append((path, data))
+        rows.sort(key=lambda r: r[0])
         for f, d in reversed(order_by or []):
             rows.sort(key=lambda r: (r[1].get(f) is None, r[1].get(f)), reverse=(d == "DESCENDING"))
+        if start_after is not None:  # ascending order only: (*order values, doc id)
+            fields = [f for f, _ in order_by or []]
+            key = tuple(start_after)
+            rows = [r for r in rows if (*(r[1].get(f) for f in fields), r[0].rsplit("/", 1)[1]) > key]
         if limit is not None:
             rows = rows[:limit]
         for path, data in rows:
@@ -57,7 +65,13 @@ class FakeFirestore:
         for p in paths:
             self.reads += 1
             d = self.docs.get(p)
-            out[p] = None if d is None else Doc(id=p.rsplit("/", 1)[1], path=p, data=copy.deepcopy(d))
+            out[p] = (
+                None
+                if d is None
+                else Doc(
+                    id=p.rsplit("/", 1)[1], path=p, data=copy.deepcopy(d), update_time=str(self.versions.get(p, 0))
+                )
+            )
         return out
 
     def get(self, path):
@@ -82,22 +96,39 @@ class FakeFirestore:
         if not writes:
             return
         for w in writes:
-            if w.exists is True and w.path not in self.docs:
+            if w.update_time is not None:
+                if w.path not in self.docs or str(self.versions.get(w.path, 0)) != w.update_time:
+                    raise RuntimeError(f"Firestore 400: FAILED_PRECONDITION {w.path}")
+            elif w.exists is True and w.path not in self.docs:
                 raise RuntimeError(f"precondition failed: {w.path}")
+            elif w.exists is False and w.path in self.docs:
+                raise RuntimeError(f"Firestore 409: ALREADY_EXISTS {w.path}")
         self.commits.append(list(writes))
         for w in writes:
             self.writes += 1
+            self.versions[w.path] = self.versions.get(w.path, 0) + 1
             if w.data is None:
                 self.docs.pop(w.path, None)
             elif w.mask is None:
                 self.docs[w.path] = copy.deepcopy(w.data)
             else:
-                cur = self.docs.setdefault(w.path, {})
+                doc = self.docs.setdefault(w.path, {})
                 for k in w.mask:
-                    if k in w.data:
-                        cur[k] = copy.deepcopy(w.data[k])
+                    *head, last = k.split(".")
+                    src, dst = w.data, doc
+                    for seg in head:
+                        src = src.get(seg) if isinstance(src, dict) else None
+                        dst = dst.setdefault(seg, {})
+                    if isinstance(src, dict) and last in src:
+                        dst[last] = copy.deepcopy(src[last])
                     else:
-                        cur.pop(k, None)
+                        dst.pop(last, None)
+            for f, v in (w.increments or {}).items():
+                cur = self.docs.setdefault(w.path, {})
+                *head, last = f.split(".")
+                for seg in head:
+                    cur = cur.setdefault(seg, {})
+                cur[last] = (cur.get(last) or 0) + v
 
 
 def _op(a, op, b):

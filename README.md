@@ -106,6 +106,35 @@ The default pipeline is entirely open-source and free. The HU LLM offer is not u
   match, type/description plausibility check, largest sitelink count) and checked by hand
   (44 manual overrides for homonyms such as "Daniel Günther" the Swedish singer; clubs via a
   football-specific search that excludes women's/youth teams).
+* **Generated list** [`data/entities_generated.yaml`](data/entities_generated.yaml), built by
+  `scripts/generate_entities.py` from a few large Wikidata SPARQL queries (descriptive
+  User-Agent, backoff on 429, results cached in `data/wikidata_cache/`; `--refresh` re-queries)
+  and loaded after the seed list (curated QIDs and aliases always win). It has 1,749 entities:
+  * **1,141 politicians**: 630 Bundestag members of the 21st term, 95 German MEPs, 130 current
+    office holders (federal cabinet, Ministerpräsident:innen, state ministers and senators,
+    Bundespräsident…), 168 federal and state party leaders, 138 living former chancellors,
+    federal ministers and heads of state governments, and 325 German politicians with ≥ 15
+    sitelinks (groups overlap). Description from the role, e.g. "Bundestagsabgeordnete (SPD)";
+    party from P102, preferring curated parties.
+  * **315 companies**: DAX/MDAX/SDAX/TecDAX members, German companies with > 10,000 employees
+    (P1128; public bodies such as Bundeswehr, police, churches or clinics are filtered out by
+    description), notable companies (≥ 25 sitelinks), and a brand list (Aldi, Kaufland, Penny,
+    Rossmann, MediaMarkt, Bertelsmann, Otto, Flixbus…). Legal forms are stripped for short
+    names ("Rational AG" → "Rational").
+  * **296 universities** (P31/P279* Q3918 in Germany, with abbreviations); universities of
+    applied sciences only with ≥ 10 sitelinks.
+
+  Alias policy, for linking precision: full names are plain aliases. A person's surname alone
+  is an **NER-only** alias (`!Reddig`: needs an overlapping NER PER span, context keywords are
+  not enough), and only if it is unique among all entities, not a curated alias, not in a list
+  of common surnames (Müller, Schmidt, Wagner, Klein, Fischer…) and not a frequent German word
+  (wordfreq zipf < 4.0, so no "Wiese"). Single-word company names that are common words
+  (Post, Bahn, Bild) are weak; ordinary words like "Rational" are case-sensitive; one- and
+  two-letter and very frequent words ("CL", "Deutsche") are dropped. Aliases shared by several
+  generated entities stay with the most notable one, and a less notable namesake is skipped.
+  In addition, a bare surname directly after a *different* known first name is not linked
+  ("Hermann Merz" is not Friedrich Merz; "Olav Scholz" is still Olaf Scholz).
+  Collision tests: `tests/test_collisions.py`. Precision check: `scripts/eval_linking.py`.
 * **Images** (`seed`): direct `upload.wikimedia.org` thumbnail URLs (250 px, the smallest
   standard width Wikimedia serves near the requested 160 px; 160 px returns HTTP 400). Persons:
   portrait (P18). Organisations, parties, clubs, media: logo only (P154, P8972, P158), never
@@ -235,6 +264,7 @@ python -m analysis run                  # analyze unanalyzed comments (≤ 20000
 python -m analysis run --ner flair      # Flair NER instead of BERT; --no-wikidata disables the fallback
 python -m analysis rescore              # re-run only the sentiment step for all mentions, re-aggregate
 python -m analysis seed-requests        # seed accepted entity_requests (also done at the start of `run`)
+python -m analysis relink --days 14     # add mentions of new (generated) entities to the last 14 days
 python -m analysis reaggregate --since 2026-10-20   # recompute only pairs from that day on (cheap)
 python -m analysis reaggregate          # full rebuild from all mentions (full scan, use rarely)
 python scripts/eval_sentiment.py score  # sentiment evaluation (see eval/README.md)
@@ -245,6 +275,31 @@ pytest -q && ruff check . && ruff format --check .
 
 Re-analysing everything with a new model version: set `analyzed = false` on the comments
 (their old `analysisVersion` is kept, so stale mentions are cleaned up) and run again.
+
+## Daily Firestore budget
+
+To keep the project under about €3.70 a month, every command follows the shared
+`meta/budget` contract (SCHEMA.md, [`analysis/budget.py`](analysis/budget.py)):
+
+* **Limits** (env): `DAILY_WRITE_LIMIT=60000` and `DAILY_READ_LIMIT=200000` for all
+  components combined; the analysis share is `ANALYSIS_DAILY_WRITE_LIMIT=30000` and
+  `ANALYSIS_DAILY_READ_LIMIT=120000`. A reserve (`ANALYSIS_AGG_RESERVE_WRITES=2000`,
+  `ANALYSIS_AGG_RESERVE_READS=10000`) is kept back for the aggregation.
+* **Start:** 1 read of `meta/budget` (counters of another Berlin day count as 0). If the share
+  or the combined limit is used up, the command logs a warning and exits 0.
+* **During a run:** the fetch is capped to what the budget can process (about 1.5 writes and 2
+  reads per comment), and before every batch the run checks the estimate against what is left
+  minus the reserve. When it stops, it finishes the current batch and always aggregates what it
+  processed, so the data stays consistent; unanalysed comments wait for the next run.
+* **End:** the run's reads and writes go into `meta/budget` in 1 write: an atomic increment on
+  the same day, or a reset for a new day (guarded by an `updateTime` precondition and retried,
+  so the crawler and the API never overwrite each other).
+* **One-off jobs** (`relink`, `rescore`, `reaggregate [--since]`) check the budget before each
+  step (a page of comments, a batch, a group of entities). When it runs out they aggregate what
+  they did and keep a cursor in `meta/analysis.jobs.<name>`. The next call continues from
+  there, and so does the regular `run` once its own backlog is done. A 14-day relink can
+  therefore spread over several days without manual work. `seed` and `seed-requests` are
+  counted too.
 
 ## Schedule (GitHub Actions)
 
@@ -267,7 +322,8 @@ Schleswig-Holstein; 25 Apr 2027 Landtagswahl Nordrhein-Westfalen (dates from
 
 ```
 analysis/
-  firestore.py   REST client (typed values, runQuery with cursor paging, batchGet, commit)
+  firestore.py   REST client (typed values, runQuery with cursor paging, batchGet, commit,
+                 updateTime preconditions, increment transforms)
   textutil.py    cleaning, sentence split, slugs, searchTokens, Berlin day keys
   linker.py      registry, alias modes, gazetteer, disambiguation
   wikidata.py    Wikidata client, public-figure filter, hashed lookup cache
@@ -275,8 +331,9 @@ analysis/
   sentiment.py   target window, sentiment models, label/score mapping
   analyze.py     comments → mentions (pure, no I/O)
   aggregate.py   day docs, deltas, rolling windows, trending (pure)
-  pipeline.py    Firestore orchestration: run, reaggregate, seed
-data/            entities.yaml, events.yaml
-scripts/         resolve_wikidata.py, eval_sentiment.py
+  budget.py      daily Firestore budget (meta/budget)
+  pipeline.py    Firestore orchestration: run, relink, rescore, reaggregate, seed (resumable jobs)
+data/            entities.yaml (curated), entities_generated.yaml (Wikidata), wikidata_cache/, events.yaml
+scripts/         generate_entities.py, eval_linking.py, resolve_wikidata.py, eval_sentiment.py
 tests/           pytest (fakes for Firestore and models)
 ```

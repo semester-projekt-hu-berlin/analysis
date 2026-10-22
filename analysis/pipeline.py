@@ -12,6 +12,7 @@ import yaml
 
 from . import aggregate as agg
 from .analyze import Stats, analyze_comments
+from .budget import Budget
 from .firestore import Firestore, Write
 from .linker import DATA_DIR, Entity, Registry
 from .textutil import today_berlin
@@ -291,15 +292,50 @@ def run(
     use_wikidata: bool = True,
     max_wikidata_lookups: int = 150,
     agg_every: int = 2000,
+    budget: Budget | None = None,
 ) -> dict:
+    """Analyse unanalysed comments within the daily Firestore budget (see analysis/budget.py)."""
+    budget = budget or Budget.load(fs)
+    why = budget.exhausted()
+    if why:
+        log.warning("daily Firestore budget: %s - skipping this run", why)
+        return {"comments": 0, "skipped": why, "budget": budget.summary()}
+    try:
+        out = _run(fs, budget, limit, batch, ner_backend, sentiment_key, use_wikidata, max_wikidata_lookups, agg_every)
+        if out.get("backlogDone") and not out.get("stopped"):
+            # backlog cleared: spend what is left of today's budget on unfinished one-off jobs
+            out["jobs"] = continue_jobs(fs, budget, ner_backend=ner_backend, sentiment_key=sentiment_key)
+    finally:
+        budget.record()
+    out["budget"] = budget.summary()
+    log.info("run summary: %s", out)
+    return out
+
+
+# estimated Firestore operations per analysed comment (refined from the run's own numbers)
+EST_WRITES_PER_COMMENT = 1.5
+EST_READS_PER_COMMENT = 2.0
+
+
+def _run(fs, budget, limit, batch, ner_backend, sentiment_key, use_wikidata, max_wikidata_lookups, agg_every):
     from .ner import load_ner
     from .sentiment import load_sentiment
 
     t0 = time.time()
     requests_info = seed_entity_requests(fs)
-    comments = fetch_unanalyzed(fs, limit)
-    log.info("%d unanalyzed comments", len(comments))
     entity_docs = load_entity_docs(fs)
+    # only fetch what the remaining budget can process (fetching costs 1 read per comment)
+    fit = int(
+        min(
+            (budget.remaining_writes() - budget.reserve_writes) / EST_WRITES_PER_COMMENT,
+            (budget.remaining_reads() - budget.reserve_reads) / EST_READS_PER_COMMENT,
+        )
+    )
+    if fit < limit:
+        log.warning("daily Firestore budget allows about %d comments this run (limit %d)", max(0, fit), limit)
+        limit = max(0, fit)
+    comments = fetch_unanalyzed(fs, limit) if limit > 0 else []
+    log.info("%d unanalyzed comments", len(comments))
     # (entity, day) pairs whose mentions were written by a run that stopped before aggregating.
     state = fs.get(STATE_DOC)
     pending = {tuple(p.split("|", 1)) for p in ((state.data.get("pendingPairs") or []) if state else [])}
@@ -307,7 +343,7 @@ def run(
         info = aggregate_pairs(fs, pending, entity_docs)
         if pending:
             fs.commit([Write(STATE_DOC, {"pendingPairs": []}, mask=["pendingPairs"])])
-        return {"comments": 0, "recoveredPairs": len(pending), **info}
+        return {"comments": 0, "recoveredPairs": len(pending), "backlogDone": limit > 0, **info}
     registry = build_registry(entity_docs)
     ner = load_ner(ner_backend)
     sentiment = load_sentiment(sentiment_key)
@@ -324,9 +360,18 @@ def run(
     changed_entities = 0
     last_agg = 0
     known_entities = set(entity_docs)
+    stopped = None
+    w_start, r_start = fs.writes, fs.reads
 
     for i in range(0, len(comments), batch):
         chunk = comments[i : i + batch]
+        # budget: estimate the batch from the run's own rates so far; finish the run gracefully
+        per_w = max(EST_WRITES_PER_COMMENT, (fs.writes - w_start) / i) if i else EST_WRITES_PER_COMMENT
+        per_r = max(1.0, (fs.reads - r_start) / i) if i else EST_READS_PER_COMMENT
+        if not budget.allows(writes=int(per_w * len(chunk)), reads=int(per_r * len(chunk))):
+            stopped = f"daily Firestore budget reached after {i} comments"
+            log.warning("%s; the remaining %d wait for the next run", stopped, len(comments) - i)
+            break
         ctx = article_context(fs, {c.get("articleId") for c in chunk if c.get("articleId")})
         result = analyze_comments(
             chunk, registry, ner, sentiment, source_country=countries, article_context=ctx, wikidata=wd, stats=stats
@@ -394,6 +439,14 @@ def run(
         fs.commit([Write(STATE_DOC, {"pendingPairs": []}, mask=["pendingPairs"])])
         if wd is not None:
             wd.save()
+    if to_aggregate:
+        # stopped early: always aggregate what was processed (the reserve is kept for this)
+        info = aggregate_pairs(fs, to_aggregate, entity_docs)
+        changed_entities += info["changedEntities"]
+        all_days |= {d for _, d in to_aggregate}
+        fs.commit([Write(STATE_DOC, {"pendingPairs": []}, mask=["pendingPairs"])])
+        if wd is not None:
+            wd.save()
     summary = {
         "comments": stats.comments,
         "sentences": stats.sentences,
@@ -409,20 +462,24 @@ def run(
         "seconds": round(time.time() - t0, 1),
         "changedEntities": changed_entities,
         "entityRequests": requests_info,
+        "stopped": stopped,
+        "backlogDone": stopped is None and len(comments) < limit,
     }
-    log.info("run summary: %s", summary)
     return summary
 
 
 # --------------------------------------------------------------------------- aggregation
 
 
-def aggregate_pairs(fs: Firestore, pairs: set[tuple[str, str]], entity_docs: dict[str, dict]) -> dict:
+def aggregate_pairs(
+    fs: Firestore, pairs: set[tuple[str, str]], entity_docs: dict[str, dict], refresh: bool = True
+) -> dict:
     """Recompute the day docs of the affected (entity, day) pairs from their mentions.
 
     Reads only the mentions of those pairs (query entityId == X AND day == D) and the old day
     docs; entity totals change by (new - old) in the same atomic commit as the day docs.
-    Then slide rolling windows, rewrite trending and stats.
+    Then slide rolling windows, rewrite trending and stats (skipped with refresh=False, for the
+    intermediate steps of long jobs).
     """
     today = today_berlin()
     pairs = {(e, d) for e, d in pairs if e in entity_docs and entity_docs[e].get("allowlisted", True)}
@@ -449,7 +506,8 @@ def aggregate_pairs(fs: Firestore, pairs: set[tuple[str, str]], entity_docs: dic
             new_docs[(e, day)] = nd
     _commit_entity_changes(fs, changes, new_docs, entity_docs, today)
     n_comm = aggregate_community(fs, community, entity_docs, today)
-    refresh_rolling(fs, entity_docs, set(changes))
+    if refresh:
+        refresh_rolling(fs, entity_docs, set(changes))
     return {
         "changedEntities": len(changes),
         "changedDays": sum(len(v) for v in changes.values()),
@@ -598,25 +656,106 @@ def refresh_rolling(fs: Firestore, entity_docs: dict[str, dict], already: set[st
     )
 
 
+# --------------------------------------------------------------------------- one-off jobs
+# rescore, relink and reaggregate respect the daily budget: they stop at the remaining budget,
+# aggregate what they processed, and keep a cursor in meta/analysis.jobs.<name>, so the next
+# invocation (or the regular `run`, once its backlog is done) continues where they stopped.
+
+JOB_AGG_PAIRS = 400  # long jobs aggregate their (entity, day) pairs in steps of this size
+JOB_NAMES = ("relink", "rescore", "reaggregate_since", "reaggregate")
+
+
+def _jobs(fs: Firestore) -> dict:
+    st = fs.get(STATE_DOC)
+    return dict((st.data.get("jobs") or {}) if st else {})
+
+
+def _save_job(fs: Firestore, name: str, data: dict | None) -> None:
+    """Persist a job's state in meta/analysis.jobs.<name>; None removes it (job finished)."""
+    fs.commit([Write(STATE_DOC, {"jobs": {name: data}} if data is not None else {}, mask=[f"jobs.{name}"])])
+
+
+def _pairs_in(job: dict) -> set[tuple[str, str]]:
+    return {tuple(p.split("|", 1)) for p in job.get("pairs") or []}  # type: ignore[misc]
+
+
+def _pairs_out(pairs: set[tuple[str, str]]) -> list[str]:
+    return sorted(f"{e}|{d}" for e, d in pairs)
+
+
+def _budgeted(fs: Firestore, budget: Budget | None, fn, *args) -> dict:
+    """Run a job with the daily budget; loads and records it unless the caller (run) owns it."""
+    own = budget is None
+    if own:
+        budget = Budget.load(fs)
+        why = budget.exhausted()
+        if why:
+            log.warning("daily Firestore budget: %s - job not started", why)
+            return {"skipped": why, "budget": budget.summary()}
+    try:
+        out = fn(fs, budget, *args)
+    finally:
+        if own:
+            budget.record()
+    out["budget"] = budget.summary()
+    return out
+
+
+def continue_jobs(fs: Firestore, budget: Budget, ner_backend: str = "bert", sentiment_key: str = "cal") -> dict:
+    """Continue unfinished one-off jobs with what is left of today's budget (called by `run`)."""
+    jobs = _jobs(fs)
+    out: dict = {}
+    for name in JOB_NAMES:
+        job = jobs.get(name)
+        if not job:
+            continue
+        if not budget.allows(writes=200, reads=1000):
+            out[name] = "waiting for budget"
+            continue
+        log.info("continuing unfinished job %s", name)
+        if name == "relink":
+            out[name] = relink(
+                fs, ner_backend=ner_backend, sentiment_key=job.get("sentiment") or sentiment_key, budget=budget
+            )
+        elif name == "rescore":
+            out[name] = rescore(fs, sentiment_key=job.get("sentiment") or sentiment_key, budget=budget)
+        elif name == "reaggregate_since":
+            out[name] = reaggregate_since(fs, job["since"], budget=budget)
+        else:
+            out[name] = reaggregate(fs, budget=budget)
+    return out
+
+
 def rescore(
     fs: Firestore,
     sentiment_key: str = "cal",
     ner_version: str | None = None,
     batch: int = 400,
+    budget: Budget | None = None,
     **model_kw,
 ) -> dict:
     """Re-run only the sentiment step for all existing mentions (NER/linking results are kept).
 
     The mention positions are recovered with the gazetteer (or the stored surface); labels,
     scores and confidences are rewritten where they change, the comments get the new
-    analysisVersion, and the affected (entity, day) pairs are re-aggregated.
+    analysisVersion, and the affected (entity, day) pairs are re-aggregated. Resumable
+    (cursor: last comment id).
     """
+    return _budgeted(fs, budget, _rescore, sentiment_key, ner_version, batch, model_kw)
+
+
+def _rescore(fs, budget, sentiment_key, ner_version, batch, model_kw) -> dict:
     from .analyze import mention_window
     from .linker import Match
     from .sentiment import combine, load_sentiment
     from .textutil import clean_text, split_sentences
 
     t0 = time.time()
+    job = _jobs(fs).get("rescore") or {}
+    if job and job.get("sentiment") != sentiment_key:
+        log.warning("unfinished rescore with %s replaced by a rescore with %s", job.get("sentiment"), sentiment_key)
+        job = {}
+    job = {"sentiment": sentiment_key, "cursor": "", "changed": 0, "mentions": 0, "startedAt": now(), **job}
     entity_docs = load_entity_docs(fs)
     registry = build_registry(entity_docs)
     countries = source_countries(fs)
@@ -624,11 +763,17 @@ def rescore(
     by_comment: dict[str, list] = {}
     for d in fs.query("mentions", select=["commentId", "entityId", "surface", "label", "score", "confidence", "day"]):
         by_comment.setdefault(d.data["commentId"], []).append(d)
-    cids = sorted(by_comment)
-    changed_pairs: set[tuple[str, str]] = set()
-    n_changed = n_mentions = 0
+    cids = [c for c in sorted(by_comment) if c > job["cursor"]]
+    changed_pairs = _pairs_in(job)
+    n_changed, n_mentions = job["changed"], job["mentions"]
+    done, stopped = True, None
     for i in range(0, len(cids), batch):
         chunk = cids[i : i + batch]
+        n_m = sum(len(by_comment[c]) for c in chunk)
+        if not budget.allows(writes=n_m + len(chunk) + 2, reads=len(chunk)):
+            done, stopped = False, f"daily Firestore budget reached after {i} of {len(cids)} comments"
+            log.warning("rescore: %s", stopped)
+            break
         docs = fs.batch_get([f"comments/{c}" for c in chunk], mask=["text", "sourceId", "analysisVersion"])
         items: list[tuple[str, str]] = []
         plan: list[tuple[str, object, list[int]]] = []
@@ -658,6 +803,7 @@ def rescore(
         scored = model.predict(items) if items else []
         groups: list[list[Write]] = []
         version_of: dict[str, str] = {}
+        batch_pairs: set[tuple[str, str]] = set()
         for cid, md, idxs in plan:
             label, score, conf = combine([scored[k] for k in idxs])
             n_mentions += 1
@@ -673,22 +819,33 @@ def rescore(
                         )
                     ]
                 )
-                changed_pairs.add((md.data["entityId"], md.data["day"]))
+                batch_pairs.add((md.data["entityId"], md.data["day"]))
             cd = docs[f"comments/{cid}"]
             old_v = cd.data.get("analysisVersion") or ""
             ner_part = ner_version or (old_v.split("+", 1)[0] if old_v else "unknown")
             version_of[cid] = f"{ner_part}+{model.version}+link@1"
         for cid, v in version_of.items():
             groups.append([Write(f"comments/{cid}", {"analysisVersion": v}, mask=["analysisVersion"])])
+        if batch_pairs - changed_pairs:  # remember the pairs before the labels change (crash safety)
+            changed_pairs |= batch_pairs
+            _save_job(fs, "rescore", {**job, "pairs": _pairs_out(changed_pairs)})
         fs.commit_groups(groups)
+        job.update(cursor=chunk[-1], changed=n_changed, mentions=n_mentions)
+        if len(changed_pairs) >= JOB_AGG_PAIRS:
+            aggregate_pairs(fs, changed_pairs, entity_docs, refresh=False)
+            changed_pairs = set()
+        _save_job(fs, "rescore", {**job, "pairs": _pairs_out(changed_pairs)})
         log.info("rescore %d/%d comments, %d/%d mentions changed", i + len(chunk), len(cids), n_changed, n_mentions)
     info = aggregate_pairs(fs, changed_pairs, entity_docs)
+    _save_job(fs, "rescore", None if done else {**job, "pairs": []})
     return {
         "comments": len(cids),
         "mentions": n_mentions,
         "changed": n_changed,
         "version": model.version,
         "seconds": round(time.time() - t0, 1),
+        "done": done,
+        "stopped": stopped,
         **info,
     }
 
@@ -720,13 +877,21 @@ def relink(
     ner_backend: str = "bert",
     sentiment_key: str = "cal",
     batch: int = 250,
+    page: int = 1000,
+    budget: Budget | None = None,
 ) -> dict:
     """Add mentions of newly added entities to already analysed comments (last `days` days).
 
     Only comments whose text contains an alias of a new entity are re-run (NER + linking);
     sentiment is computed only for the new (comment, entity) pairs, existing mentions keep their
     labels (their coEntityIds are extended). Afterwards the affected pairs are aggregated.
+    Resumable: the comments are scanned in pages (day, id) and the cursor, the entity set and
+    the cutoff day are kept in meta/analysis.jobs.relink until the scan is complete.
     """
+    return _budgeted(fs, budget, _relink, days, entity_ids, ner_backend, sentiment_key, batch, page)
+
+
+def _relink(fs, budget, days, entity_ids, ner_backend, sentiment_key, batch, page) -> dict:
     from datetime import date, timedelta
 
     from .ner import load_ner
@@ -736,82 +901,173 @@ def relink(
     t0 = time.time()
     entity_docs = load_entity_docs(fs)
     registry = build_registry(entity_docs)
-    if entity_ids is None:  # default: generated entities without any mention yet
-        entity_ids = {
-            eid
-            for eid, e in registry.entities.items()
-            if e.source == "generated" and not (entity_docs.get(eid) or {}).get("mentions")
+    job = _jobs(fs).get("relink")
+    if job:
+        log.info("relink: resuming (cutoff %s, cursor %s)", job.get("cutoff"), job.get("cursor"))
+    else:
+        if entity_ids is None:  # default: generated entities without any mention yet
+            entity_ids = {
+                eid
+                for eid, e in registry.entities.items()
+                if e.source == "generated" and not (entity_docs.get(eid) or {}).get("mentions")
+            }
+        cutoff = (date.fromisoformat(today_berlin()) - timedelta(days=days - 1)).isoformat()
+        job = {
+            "cutoff": cutoff,
+            "entityIds": sorted(e for e in entity_ids if e in registry.entities),
+            "sentiment": sentiment_key,
+            "cursor": None,
+            "scanned": 0,
+            "candidates": 0,
+            "newMentions": 0,
+            "startedAt": now(),
         }
-    new = {eid for eid in entity_ids if eid in registry.entities}
+    new = {e for e in job["entityIds"] if e in registry.entities}
     names = {registry.entities[e].name for e in new}
     alias_texts = sorted({a.text.casefold() for a in registry.aliases if a.entity_id in new}, key=len, reverse=True)
     if not alias_texts:
+        _save_job(fs, "relink", None)
         return {"newEntities": 0}
     prefilter = re.compile(r"(?<![\w])(" + "|".join(re.escape(a) for a in alias_texts) + r")", re.IGNORECASE)
-    cutoff = (date.fromisoformat(today_berlin()) - timedelta(days=days - 1)).isoformat()
-    candidates = []
-    scanned = 0
-    for d in fs.query("comments", where=[("day", "GREATER_THAN_OR_EQUAL", cutoff)], select=COMMENT_FIELDS):
-        scanned += 1
-        if d.data.get("analysisVersion") and prefilter.search(clean_text(d.data.get("text") or "")):
-            candidates.append({"id": d.id, **d.data})
-    log.info("relink: %d new entities, %d comments scanned, %d candidates", len(new), scanned, len(candidates))
-    ner = load_ner(ner_backend)
-    sentiment = _OnlyFor(load_sentiment(sentiment_key), names)
+    ner = sentiment = None
     countries = source_countries(fs)
-    pairs: set[tuple[str, str]] = set()
-    added = 0
-    for i in range(0, len(candidates), batch):
-        chunk = candidates[i : i + batch]
-        ctx = article_context(fs, {c.get("articleId") for c in chunk if c.get("articleId")})
-        result = analyze_comments(chunk, registry, ner, sentiment, source_country=countries, article_context=ctx)
+    pairs = _pairs_in(job)
+    done, stopped = False, None
+    w0, r0, seen0 = fs.writes, fs.reads, 0
+    while True:
+        # estimate a page from this invocation's own rates (first page: 1 read per comment + 10 %)
+        per_w = (fs.writes - w0) / seen0 if seen0 else 0.1
+        per_r = (fs.reads - r0) / seen0 if seen0 else 1.2
+        if not budget.allows(writes=int(per_w * page) + 3, reads=int(per_r * page) + 1):
+            stopped = f"daily Firestore budget reached after {job['scanned']} comments"
+            log.warning("relink: %s; continuing on the next run", stopped)
+            break
+        docs = list(
+            fs.query(
+                "comments",
+                where=[("day", "GREATER_THAN_OR_EQUAL", job["cutoff"])],
+                order_by=[("day", "ASCENDING")],
+                select=COMMENT_FIELDS,
+                limit=page,
+                start_after=job["cursor"],
+            )
+        )
+        seen0 += len(docs)
+        candidates = [
+            {"id": d.id, **d.data}
+            for d in docs
+            if d.data.get("analysisVersion") and prefilter.search(clean_text(d.data.get("text") or ""))
+        ]
+        if candidates and ner is None:
+            ner = load_ner(ner_backend)
+            sentiment = _OnlyFor(load_sentiment(job.get("sentiment") or sentiment_key), names)
+        page_pairs: set[tuple[str, str]] = set()
         groups: list[list[Write]] = []
-        for c in chunk:
-            ms = result[c["id"]]
-            fresh = [m for m in ms if m["entityId"] in new]
-            if not fresh:
-                continue
-            all_ids = {m["entityId"] for m in ms}
-            g = [Write(f"mentions/{m['commentId']}_{m['entityId']}", m) for m in fresh]
-            for d in fs.query(
-                "mentions", where=[("commentId", "EQUAL", c["id"])], select=["entityId", "coEntityIds", "day"]
-            ):
-                if d.data.get("entityId") in new:
+        for i in range(0, len(candidates), batch):
+            chunk = candidates[i : i + batch]
+            ctx = article_context(fs, {c.get("articleId") for c in chunk if c.get("articleId")})
+            result = analyze_comments(chunk, registry, ner, sentiment, source_country=countries, article_context=ctx)
+            for c in chunk:
+                ms = result[c["id"]]
+                fresh = [m for m in ms if m["entityId"] in new]
+                if not fresh:
                     continue
-                co = sorted(set(d.data.get("coEntityIds") or []) | ({m["entityId"] for m in fresh} & all_ids))
-                if co != sorted(d.data.get("coEntityIds") or []):
-                    g.append(Write(d.path, {"coEntityIds": co}, mask=["coEntityIds"]))
-                    pairs.add((d.data["entityId"], d.data["day"]))
-            pairs |= {(m["entityId"], m["day"]) for m in fresh}
-            added += len(fresh)
-            groups.append(g)
+                all_ids = {m["entityId"] for m in ms}
+                g = [Write(f"mentions/{m['commentId']}_{m['entityId']}", m) for m in fresh]
+                for d in fs.query(
+                    "mentions", where=[("commentId", "EQUAL", c["id"])], select=["entityId", "coEntityIds", "day"]
+                ):
+                    if d.data.get("entityId") in new:
+                        continue
+                    co = sorted(set(d.data.get("coEntityIds") or []) | ({m["entityId"] for m in fresh} & all_ids))
+                    if co != sorted(d.data.get("coEntityIds") or []):
+                        g.append(Write(d.path, {"coEntityIds": co}, mask=["coEntityIds"]))
+                        page_pairs.add((d.data["entityId"], d.data["day"]))
+                page_pairs |= {(m["entityId"], m["day"]) for m in fresh}
+                job["newMentions"] += len(fresh)
+                groups.append(g)
+        if page_pairs - pairs:  # remember the pairs before the mentions land (crash safety)
+            pairs |= page_pairs
+            _save_job(fs, "relink", {**job, "pairs": _pairs_out(pairs)})
         fs.commit_groups(groups)
-        log.info("relink %d/%d comments, %d new mentions", i + len(chunk), len(candidates), added)
-    entity_docs = load_entity_docs(fs)
-    info = aggregate_pairs(fs, pairs, entity_docs)
+        job["scanned"] += len(docs)
+        job["candidates"] += len(candidates)
+        if docs:
+            job["cursor"] = [docs[-1].data.get("day"), docs[-1].id]
+        if len(pairs) >= JOB_AGG_PAIRS:
+            aggregate_pairs(fs, pairs, entity_docs, refresh=False)
+            pairs = set()
+        log.info(
+            "relink: %d comments scanned, %d candidates, %d new mentions",
+            job["scanned"],
+            job["candidates"],
+            job["newMentions"],
+        )
+        if len(docs) < page:
+            done = True
+            break
+        _save_job(fs, "relink", {**job, "pairs": _pairs_out(pairs)})
+    info = aggregate_pairs(fs, pairs, load_entity_docs(fs) if done else entity_docs)
+    _save_job(fs, "relink", None if done else {**job, "pairs": []})
     return {
         "newEntities": len(new),
-        "scanned": scanned,
-        "candidates": len(candidates),
-        "newMentions": added,
+        "scanned": job["scanned"],
+        "candidates": job["candidates"],
+        "newMentions": job["newMentions"],
         "seconds": round(time.time() - t0, 1),
+        "done": done,
+        "stopped": stopped,
         **info,
     }
 
 
-def reaggregate_since(fs: Firestore, since: str) -> dict:
-    """Recompute only the (entity, day) pairs with mentions on or after `since` (cheap repair)."""
+def reaggregate_since(fs: Firestore, since: str, budget: Budget | None = None) -> dict:
+    """Recompute only the (entity, day) pairs with mentions on or after `since` (cheap repair).
+
+    Resumable: pairs are processed in sorted order, the last done pair is the cursor."""
+    return _budgeted(fs, budget, _reaggregate_since, since)
+
+
+def _reaggregate_since(fs, budget, since) -> dict:
+    job = _jobs(fs).get("reaggregate_since") or {}
+    if job.get("since") != since:
+        job = {"since": since, "cursor": "", "startedAt": now()}
     entity_docs = load_entity_docs(fs)
-    pairs = {
-        (d.data.get("entityId", ""), d.data.get("day", ""))
-        for d in fs.query("mentions", where=[("day", "GREATER_THAN_OR_EQUAL", since)], select=["entityId", "day"])
-    }
-    return {"pairs": len(pairs), **aggregate_pairs(fs, pairs, entity_docs)}
+    keys = sorted(
+        {
+            f"{d.data.get('entityId', '')}|{d.data.get('day', '')}"
+            for d in fs.query("mentions", where=[("day", "GREATER_THAN_OR_EQUAL", since)], select=["entityId", "day"])
+        }
+    )
+    todo = [k for k in keys if k > job["cursor"]]
+    done, stopped, changed = True, None, 0
+    for i in range(0, len(todo), JOB_AGG_PAIRS):
+        chunk = todo[i : i + JOB_AGG_PAIRS]
+        if not budget.allows(writes=2 * len(chunk) + 2, reads=3 * len(chunk)):
+            done, stopped = False, f"daily Firestore budget reached after {i} of {len(todo)} pairs"
+            log.warning("reaggregate --since: %s", stopped)
+            break
+        info = aggregate_pairs(fs, {tuple(k.split("|", 1)) for k in chunk}, entity_docs, refresh=False)  # type: ignore[misc]
+        changed += info["changedDays"]
+        job["cursor"] = chunk[-1]
+        _save_job(fs, "reaggregate_since", job)
+    refresh_rolling(fs, entity_docs, set())
+    _save_job(fs, "reaggregate_since", None if done else job)
+    return {"pairs": len(todo), "changedDays": changed, "done": done, "stopped": stopped}
 
 
-def reaggregate(fs: Firestore) -> dict:
-    """Rebuild every day doc and all entity counters from scratch from `mentions` (full scan)."""
+def reaggregate(fs: Firestore, budget: Budget | None = None) -> dict:
+    """Rebuild every day doc and all entity counters from scratch from `mentions` (full scan).
+
+    Writes go per entity (its day docs and totals together); resumable with the last finished
+    entity as cursor. Community docs, rolling windows and meta are rebuilt once all are done.
+    """
+    return _budgeted(fs, budget, _reaggregate)
+
+
+def _reaggregate(fs, budget) -> dict:
     today = today_berlin()
+    job = _jobs(fs).get("reaggregate") or {"cursor": "", "startedAt": now()}
     entity_docs = load_entity_docs(fs)
     mentions = [d.data for d in fs.query("mentions", select=MENTION_FIELDS)]
     mentions = [
@@ -832,24 +1088,52 @@ def reaggregate(fs: Firestore) -> dict:
     by_entity: dict[str, dict[str, dict]] = {}
     for (e, day), doc in docs.items():
         by_entity.setdefault(e, {})[day] = doc
-    writes: list[Write] = []
     wanted = {f"entities/{e}/days/{d}" for e, d in docs}
+    stale: dict[str, list[str]] = {}
     for path in existing_days:
         if path not in wanted:
-            writes.append(Write(path, None))
-    for (e, day), doc in docs.items():
-        writes.append(Write(f"entities/{e}/days/{day}", doc))
+            stale.setdefault(path.split("/")[1], []).append(path)
     ts = now()
-    for eid, d in entity_docs.items():
-        upd = agg.totals_from_days(by_entity.get(eid, {}), today) if eid in by_entity else {**ZERO_STATS}
-        if eid not in by_entity and not d.get("mentions") and not d.get("recentDays"):
-            continue  # already zero: save a write
-        upd["updatedAt"] = ts
-        d.update(upd)
-        writes.append(Write(f"entities/{eid}", upd, mask=ENTITY_STAT_FIELDS))
-    # Small commits: a full rebuild does not need cross-document atomicity.
-    for i in range(0, len(writes), 100):
-        fs.commit_atomic(writes[i : i + 100])
+    groups: list[tuple[str, list[Write]]] = []
+    for eid in sorted(set(entity_docs) | set(stale)):
+        if eid <= job["cursor"]:
+            continue
+        g = [Write(p, None) for p in stale.get(eid, [])]
+        g += [Write(f"entities/{eid}/days/{day}", doc) for day, doc in sorted(by_entity.get(eid, {}).items())]
+        d = entity_docs.get(eid)
+        if d is not None and (eid in by_entity or d.get("mentions") or d.get("recentDays")):
+            upd = agg.totals_from_days(by_entity[eid], today) if eid in by_entity else {**ZERO_STATS}
+            upd["updatedAt"] = ts
+            d.update(upd)
+            g.append(Write(f"entities/{eid}", upd, mask=ENTITY_STAT_FIELDS))
+        if g:
+            groups.append((eid, g))
+    done, stopped, n_writes = True, None, 0
+    pack: list[Write] = []
+    last = job["cursor"]
+
+    def flush() -> None:
+        nonlocal pack
+        for i in range(0, len(pack), 100):  # a full rebuild does not need cross-entity atomicity
+            fs.commit_atomic(pack[i : i + 100])
+        pack = []
+        job["cursor"] = last
+        _save_job(fs, "reaggregate", job)
+
+    for eid, g in groups:
+        if not budget.allows(writes=len(pack) + len(g) + 2):
+            done, stopped = False, f"daily Firestore budget reached before entity {eid}"
+            log.warning("reaggregate: %s", stopped)
+            break
+        pack.extend(g)
+        n_writes += len(g)
+        last = eid
+        if len(pack) >= 400:
+            flush()
+    if pack or not done:
+        flush()
+    if not done:
+        return {"dayDocs": len(docs), "writes": n_writes, "done": False, "stopped": stopped}
     community: dict[tuple[str, str], list[dict]] = {}
     for d in fs.run_query(
         {
@@ -863,9 +1147,11 @@ def reaggregate(fs: Firestore) -> dict:
         community.setdefault((m["entityId"], m["day"]), []).append(m)
     aggregate_community(fs, community, entity_docs, today)
     refresh_rolling(fs, entity_docs, set(entity_docs))
+    _save_job(fs, "reaggregate", None)
     return {
         "mentions": len(mentions),
         "dayDocs": len(docs),
         "entitiesWithMentions": len(by_entity),
-        "deletedDayDocs": len(existing_days) - len(wanted & set(existing_days)),
+        "deletedDayDocs": sum(len(v) for v in stale.values()),
+        "done": True,
     }

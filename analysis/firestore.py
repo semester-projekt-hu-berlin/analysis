@@ -117,6 +117,8 @@ class Write:
     data: dict | None = None  # None -> delete
     mask: list[str] | None = None  # update only these fields (merge semantics)
     exists: bool | None = None  # precondition
+    update_time: str | None = None  # precondition: document unchanged since this updateTime
+    increments: dict[str, int | float] | None = None  # field transforms (atomic increments)
 
     def to_json(self, root: str) -> dict:
         name = f"{root}/{self.path}"
@@ -126,7 +128,13 @@ class Write:
             w = {"update": {"name": name, "fields": to_fields(self.data)}}
             if self.mask is not None:
                 w["updateMask"] = {"fieldPaths": [quote_field_path(p) for p in self.mask]}
-        if self.exists is not None:
+        if self.increments:
+            w["updateTransforms"] = [
+                {"fieldPath": quote_field_path(f), "increment": to_value(v)} for f, v in self.increments.items()
+            ]
+        if self.update_time is not None:
+            w["currentDocument"] = {"updateTime": self.update_time}
+        elif self.exists is not None:
             w["currentDocument"] = {"exists": self.exists}
         return w
 
@@ -144,6 +152,7 @@ class Doc:
     id: str
     path: str  # relative path
     data: dict = field(default_factory=dict)
+    update_time: str | None = None  # server updateTime (for optimistic preconditions)
 
 
 def load_credentials():
@@ -199,7 +208,12 @@ class Firestore:
     def _doc(self, raw: dict) -> Doc:
         name = raw["name"]
         rel = name.split("/documents/", 1)[1]
-        return Doc(id=rel.rsplit("/", 1)[1], path=rel, data=from_fields(raw.get("fields", {})))
+        return Doc(
+            id=rel.rsplit("/", 1)[1],
+            path=rel,
+            data=from_fields(raw.get("fields", {})),
+            update_time=raw.get("updateTime"),
+        )
 
     # ---- reads
     def run_query(self, query: dict, parent: str = "") -> Iterator[Doc]:
@@ -256,7 +270,9 @@ class Firestore:
         limit: int | None = None,
         select: list[str] | None = None,
         parent: str = "",
+        start_after: list | None = None,
     ) -> Iterator[Doc]:
+        """`start_after`: cursor (values of the order_by fields, then the document id), ascending order."""
         q: dict = {"from": [{"collectionId": collection}]}
         filters = []
         for f, op, v in where or []:
@@ -273,6 +289,13 @@ class Firestore:
             q["select"] = {"fields": [{"fieldPath": quote_field_path(f)} for f in select]}
         if limit is not None:
             q["limit"] = limit
+        if start_after is not None:
+            *vals, doc_id = start_after
+            prefix = f"{self.root}/{parent}/" if parent else f"{self.root}/"
+            q["startAt"] = {
+                "values": [to_value(v) for v in vals] + [{"referenceValue": f"{prefix}{collection}/{doc_id}"}],
+                "before": False,
+            }
         return self.run_query(q, parent=parent)
 
     def batch_get(self, paths: Iterable[str], mask: list[str] | None = None) -> dict[str, Doc | None]:

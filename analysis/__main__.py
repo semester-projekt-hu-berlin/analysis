@@ -68,16 +68,30 @@ def main(argv: list[str] | None = None) -> int:
         )
     elif args.cmd == "relink":
         out = relink(fs, days=args.days)
-    elif args.cmd == "seed-requests":
-        from .entity_requests import process_entity_requests
-
-        out = process_entity_requests(fs)
     elif args.cmd == "rescore":
         out = rescore(fs, sentiment_key=args.sentiment)
     elif args.cmd == "reaggregate":
         out = reaggregate_since(fs, args.since) if args.since else reaggregate(fs)
     else:
-        out = seed(fs, with_images=not args.no_images)
+        # seeding only writes changed documents; it is counted in the daily budget too
+        from .budget import Budget
+
+        budget = Budget.load(fs)
+        why = budget.exhausted()
+        if why:
+            logging.getLogger("analysis").warning("daily Firestore budget: %s - skipping %s", why, args.cmd)
+            out = {"skipped": why}
+        else:
+            try:
+                if args.cmd == "seed-requests":
+                    from .entity_requests import process_entity_requests
+
+                    out = process_entity_requests(fs)
+                else:
+                    out = seed(fs, with_images=not args.no_images)
+            finally:
+                budget.record()
+            out["budget"] = budget.summary()
     out["firestoreReads"] = fs.reads
     out["firestoreWrites"] = fs.writes
     json.dump(out, sys.stdout, ensure_ascii=False, default=str)
