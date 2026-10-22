@@ -314,15 +314,33 @@ class Firestore:
         return 0
 
     # ---- writes
-    def commit(self, writes: list[Write]) -> None:
-        """Commit writes in atomic batches of <= 500."""
-        for chunk in chunked(writes, MAX_WRITES_PER_COMMIT):
-            self.commit_atomic(chunk)
+    def commit(self, writes: list[Write], size: int = 100) -> None:
+        """Commit writes that do not need to be atomic together, in small batches.
 
-    def commit_atomic(self, writes: list[Write]) -> None:
+        Batches that hit 429 (quota / write throttling) are split in halves before backing off,
+        so progress continues while the project is near its write rate limits.
+        """
+        for chunk in chunked(writes, min(size, MAX_WRITES_PER_COMMIT)):
+            self._commit_splitting(chunk)
+
+    def _commit_splitting(self, writes: list[Write]) -> None:
+        if len(writes) == 1:
+            self.commit_atomic(writes)
+            return
+        try:
+            self.commit_atomic(writes, retries=3)
+        except RuntimeError as e:
+            if "429" not in str(e):
+                raise
+            mid = len(writes) // 2
+            log.warning("429 on a commit of %d writes, splitting", len(writes))
+            self._commit_splitting(writes[:mid])
+            self._commit_splitting(writes[mid:])
+
+    def commit_atomic(self, writes: list[Write], retries: int = 10) -> None:
         if not writes:
             return
         if len(writes) > MAX_WRITES_PER_COMMIT:
             raise ValueError("too many writes for one atomic commit")
-        self._post(f"{self.base}:commit", {"writes": [w.to_json(self.root) for w in writes]})
+        self._post(f"{self.base}:commit", {"writes": [w.to_json(self.root) for w in writes]}, retries=retries)
         self.writes += len(writes)

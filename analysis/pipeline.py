@@ -218,6 +218,8 @@ def run(
     countries = source_countries(fs)
     stats = Stats()
     affected_days: set[str] = set(pending)
+    all_days: set[str] = set()
+    changed_entities = 0
     stale_entities: dict[str, set[str]] = {}  # day -> entity ids that lost a mention
     known_entities = set(entity_docs)
 
@@ -270,12 +272,19 @@ def run(
             stats.ner_seconds,
             stats.sentiment_seconds,
         )
-    if wd is not None:
-        wd.save()
-    affected_days.discard("")
-    agg_info = aggregate_days(fs, affected_days, entity_docs, stale_entities)
-    if pending:
-        fs.commit([Write(STATE_DOC, {"pendingDays": []}, mask=["pendingDays"])])
+        # Aggregate after every batch so the dashboard fills progressively.
+        agg_info = aggregate_days(fs, set(affected_days), entity_docs, stale_entities)
+        changed_entities += agg_info["changedEntities"]
+        stale_entities = {}
+        all_days |= affected_days
+        affected_days = set()
+        if pending:
+            fs.commit([Write(STATE_DOC, {"pendingDays": []}, mask=["pendingDays"])])
+            pending = set()
+        if wd is not None:
+            wd.save()
+    affected_days = all_days
+    agg_info = {"changedEntities": changed_entities}
     summary = {
         "comments": stats.comments,
         "sentences": stats.sentences,
@@ -351,7 +360,7 @@ def _commit_entity_changes(fs, changes, new_docs, entity_docs, today) -> None:
             for i in range(0, len(group) - 1, 499):
                 fs.commit_atomic(group[i : i + 499])
             continue
-        if len(pending) + len(group) > 500:
+        if len(pending) + len(group) > 100:
             fs.commit_atomic(pending)
             pending = []
         pending.extend(group)
@@ -422,10 +431,14 @@ def reaggregate(fs: Firestore) -> dict:
     ts = now()
     for eid, d in entity_docs.items():
         upd = agg.totals_from_days(by_entity.get(eid, {}), today) if eid in by_entity else {**ZERO_STATS}
+        if eid not in by_entity and not d.get("mentions") and not d.get("recentDays"):
+            continue  # already zero: save a write
         upd["updatedAt"] = ts
         d.update(upd)
         writes.append(Write(f"entities/{eid}", upd, mask=ENTITY_STAT_FIELDS))
-    fs.commit(writes)
+    # Small commits: a full rebuild does not need cross-document atomicity.
+    for i in range(0, len(writes), 100):
+        fs.commit_atomic(writes[i : i + 100])
     refresh_rolling(fs, entity_docs, set(entity_docs))
     return {
         "mentions": len(mentions),
