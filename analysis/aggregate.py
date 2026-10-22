@@ -227,6 +227,8 @@ def trending(entities: dict[str, dict], today: str | None = None) -> dict:
                 "avgSentiment7d": a7,
                 "delta": delta,
                 "relative7d": e.get("relative7d"),
+                "imageUrl": e.get("imageUrl"),
+                "imageKind": e.get("imageKind"),
                 "spark": sparkline(e.get("recentDays") or {}, today) if today else [None] * SPARK_DAYS,
                 "_prev": int(e.get("mentionsPrev7d") or 0),
             }
@@ -361,6 +363,8 @@ def peer_ranks(entities: dict[str, dict]) -> tuple[dict[str, dict], dict[str, li
                     "avgSentiment7d": e.get("avgSentiment7d"),
                     "relative7d": e.get("relative7d"),
                     "mentions7d": int(e.get("mentions7d") or 0),
+                    "imageUrl": e.get("imageUrl"),
+                    "imageKind": e.get("imageKind"),
                 }
             )
     return fields, strip

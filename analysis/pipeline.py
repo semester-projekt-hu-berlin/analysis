@@ -571,10 +571,17 @@ def refresh_rolling(fs: Firestore, entity_docs: dict[str, dict], already: set[st
     trend["baselineBySource7d"] = by_source
     total_mentions = fs.count("mentions") - fs.count("mentions", [("sourceId", "EQUAL", agg.COMMUNITY)])
     tracked = sum(1 for d in entity_docs.values() if d.get("allowlisted") and (d.get("mentions") or 0) > 0)
+    peers = {"updatedAt": ts, "baseline7d": baseline, "byType": strip}
+    # meta/trending and meta/peers are only written when their content changed
+    cur = fs.batch_get(["meta/trending", "meta/peers"])
+    meta_writes = []
+    for path, doc in (("meta/trending", trend), ("meta/peers", peers)):
+        old = cur.get(path)
+        if old is None or _strip_ts(old.data) != _strip_ts(doc):
+            meta_writes.append(Write(path, doc))
     fs.commit(
         [
-            Write("meta/trending", trend),
-            Write("meta/peers", {"updatedAt": ts, "baseline7d": baseline, "byType": strip}),
+            *meta_writes,
             Write(
                 "meta/stats",
                 {
@@ -683,6 +690,10 @@ def rescore(
         "seconds": round(time.time() - t0, 1),
         **info,
     }
+
+
+def _strip_ts(d: dict) -> dict:
+    return {k: v for k, v in d.items() if k != "updatedAt"}
 
 
 def reaggregate_since(fs: Firestore, since: str) -> dict:

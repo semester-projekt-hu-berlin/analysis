@@ -325,3 +325,19 @@ def test_entity_requests(fs):
     assert "entities/max-mustermann" not in fs.docs
     # processed requests are not processed again
     assert process_entity_requests(fs, client=client) == {"requests": 0}
+
+
+def test_meta_carries_images_and_is_written_only_on_change(fs, monkeypatch):
+    monkeypatch.setattr(pipeline.agg, "TOP_MIN_MENTIONS", 1)
+    monkeypatch.setattr(pipeline.agg, "PEERS_MIN_MENTIONS", 1)
+    fs.docs["entities/friedrich-merz"]["imageUrl"] = "https://upload.wikimedia.org/x/250px-Merz.jpg"
+    fs.docs["entities/friedrich-merz"]["imageKind"] = "portrait"
+    pipeline.run(fs, limit=100, use_wikidata=False)
+    top = next(x for x in fs.docs["meta/trending"]["top"] if x["entityId"] == "friedrich-merz")
+    assert top["imageUrl"].endswith("250px-Merz.jpg") and top["imageKind"] == "portrait"
+    peer = next(x for x in fs.docs["meta/peers"]["byType"]["PER"] if x["id"] == "friedrich-merz")
+    assert peer["imageKind"] == "portrait"
+    n = len(fs.commits)
+    pipeline.run(fs, limit=100, use_wikidata=False)  # nothing new
+    written = [w.path for c in fs.commits[n:] for w in c]
+    assert "meta/trending" not in written and "meta/peers" not in written
