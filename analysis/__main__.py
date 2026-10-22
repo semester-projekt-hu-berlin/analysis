@@ -50,7 +50,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             import torch
 
-            torch.set_num_threads(max(1, os.cpu_count() or 1))
+            torch.set_num_threads(int(os.environ.get("ANALYSIS_THREADS") or max(1, os.cpu_count() or 1)))
         except ImportError:
             pass
         out = run(
