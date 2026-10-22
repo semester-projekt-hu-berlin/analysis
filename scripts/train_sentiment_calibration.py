@@ -3,7 +3,8 @@
 Features per (comment, entity) pair, on the clause window:
   * NLI logits for "Der Kommentar äußert sich positiv über {name}." and "… negativ …" (2 passes)
   * probabilities of mdraw/german-news-sentiment-bert (1 pass)
-A multinomial logistic regression (L2, class weights = balanced^0.75) maps them to pos/neu/neg.
+A multinomial logistic regression (L2, class weights = balanced^0.75, small neutral bias) maps
+them to pos/neu/neg. Features: NLI logits for the hypotheses in HYPOTHESES plus the classifier.
 Reports 5-fold cross-validation (3 repetitions) and the fixed dev -> test split.
 
     python scripts/train_sentiment_calibration.py
@@ -29,6 +30,10 @@ from analysis.sentiment import CALIBRATION_FILE, _Nli, _Single  # noqa: E402
 NLI_MODEL = "MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7"
 L2 = 0.1
 CLASS_WEIGHT_POWER = 0.75
+HYPOTHESES = ("pos", "neg", "judge")
+# additive logit bias (pos, neu, neg); the neutral bias was chosen by 5-fold CV inside the dev split
+BIAS = (0.0, 0.1, 0.0)
+VERSION = 2
 CLASSES = ["pos", "neu", "neg"]
 
 
@@ -45,7 +50,7 @@ def features(items: list[dict]) -> torch.Tensor:
     with torch.inference_mode():
         for b in range(0, len(items), 16):
             batch = [(i["clause"], i["name"]) for i in items[b : b + 16]]
-            nl = nli.logits(torch, batch, ("pos", "neg"))
+            nl = nli.logits(torch, batch, HYPOTHESES)
             cp = clf.probs(torch, [x[0] for x in batch])
             rows += [a + list(c) for a, c in zip(nl, cp, strict=True)]
     return torch.tensor(rows)
@@ -89,7 +94,7 @@ def per_class_f1(gold: list[str], pred: list[str]) -> dict[str, float]:
 def main() -> None:
     ev = load_eval()
     items = ev.load_items()
-    cache = ROOT / "eval" / "calfeatures.local.pt"
+    cache = ROOT / "eval" / f"calfeatures-{'-'.join(HYPOTHESES)}-{len(items)}.local.pt"
     if cache.exists():
         x = torch.load(cache)
     else:
@@ -106,39 +111,27 @@ def main() -> None:
         for k in range(5):
             te = torch.tensor(folds[k])
             tr = torch.tensor([j for f in range(5) if f != k for j in folds[f]])
-            p[te] = predict(train(x[tr], y[tr]), x[te])
+            p[te] = predict(train(x[tr], y[tr]), x[te], BIAS)
         scores.append(ev.macro_f1(gold, [CLASSES[v] for v in p.tolist()]))
     cv = sum(scores) / len(scores)
     dev = torch.tensor([int(hashlib.sha1(i["id"].encode()).hexdigest(), 16) % 2 == 0 for i in items])
     dev_params = train(x[dev], y[dev])
-    dev_gold = [g for g, d in zip(gold, dev.tolist(), strict=True) if d]
     test_gold = [g for g, d in zip(gold, dev.tolist(), strict=True) if not d]
-    pt = [CLASSES[v] for v in predict(dev_params, x[~dev]).tolist()]
+    pt = [CLASSES[v] for v in predict(dev_params, x[~dev], BIAS).tolist()]
     test_f1 = ev.macro_f1(test_gold, pt)
     print(f"5-fold CV macro-F1 {cv:.3f}; dev->test macro-F1 {test_f1:.3f} (n_test={len(test_gold)})")
     print("  test per class:", per_class_f1(test_gold, pt))
-    # Operating point: additive logit biases for pos/neg, chosen on DEV (in-sample fit of the dev
-    # model, so this mainly trades precision for recall of the rare positive class).
-    grid = [round(-0.5 + 0.25 * k, 2) for k in range(7)]
-    best = max(
-        ((bp, bn) for bp in grid for bn in grid),
-        key=lambda bb: ev.macro_f1(
-            dev_gold, [CLASSES[v] for v in predict(dev_params, x[dev], (bb[0], 0, bb[1])).tolist()]
-        ),
-    )
-    pb = [CLASSES[v] for v in predict(dev_params, x[~dev], (best[0], 0, best[1])).tolist()]
-    print(
-        f"  dev-tuned biases pos={best[0]} neg={best[1]}: test macro-F1 {ev.macro_f1(test_gold, pb):.3f}",
-        per_class_f1(test_gold, pb),
-    )
     params = train(x, y)
-    fit = Counter(CLASSES[v] for v in predict(params, x).tolist())
+    fit = Counter(CLASSES[v] for v in predict(params, x, BIAS).tolist())
     print("fit distribution", dict(fit), "gold", dict(Counter(gold)))
     mu, sd, w, b = params
     CALIBRATION_FILE.write_text(
         json.dumps(
             {
-                "features": [f"nli_{h}_{k}" for h in ("pos", "neg") for k in ("entail", "neutral", "contradiction")]
+                "version": VERSION,
+                "hypotheses": list(HYPOTHESES),
+                "bias": list(BIAS),
+                "features": [f"nli_{h}_{k}" for h in HYPOTHESES for k in ("entail", "neutral", "contradiction")]
                 + ["news_pos", "news_neu", "news_neg"],
                 "classes": CLASSES,
                 "mean": mu.tolist(),

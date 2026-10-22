@@ -114,6 +114,8 @@ class _Nli:
         "pos": "Der Kommentar äußert sich positiv über {name}.",
         "neu": "Der Kommentar äußert sich neutral über {name}.",
         "neg": "Der Kommentar äußert sich negativ über {name}.",
+        # target vs. context: is the entity judged at all, or only mentioned in passing?
+        "judge": "Der Kommentar bewertet {name}.",
     }
 
     def __init__(self, name: str, max_length: int):
@@ -163,11 +165,13 @@ CALIBRATION_FILE = Path(__file__).resolve().parents[1] / "data" / "sentiment_cal
 
 
 class CalibratedSentiment:
-    """Default target sentiment ("cal"): 3 model passes per mention.
+    """Default target sentiment ("cal"): 4 model passes per mention.
 
-    Features: the NLI model's logits for "… positiv über {name}" and "… negativ über {name}"
-    (2 passes, target-aware) plus the news-sentiment classifier's probabilities (1 pass) on the
-    clause window. A multinomial logistic regression trained on the hand-labelled pairs
+    Features: the NLI model's logits for "… positiv über {name}", "… negativ über {name}" and
+    "Der Kommentar bewertet {name}" (3 passes, target-aware; the last one separates the judged
+    target from entities that are only context: victims, comparisons, places) plus the
+    news-sentiment classifier's probabilities (1 pass) on the clause window. A multinomial
+    logistic regression trained on the hand-labelled pairs
     (data/sentiment_calibration.json, see eval/README.md) maps them to pos/neu/neg.
     """
 
@@ -185,9 +189,10 @@ class CalibratedSentiment:
         self.mean = torch.tensor(cal["mean"])
         self.std = torch.tensor(cal["std"])
         self.W = torch.tensor(cal["W"])
-        self.b = torch.tensor(cal["b"])
+        self.b = torch.tensor(cal["b"]) + torch.tensor(cal.get("bias", [0.0, 0.0, 0.0]))
+        self.hypotheses = tuple(cal.get("hypotheses", ["pos", "neg"]))
         self.batch_size = batch_size
-        self.version = "sent-cal@1"
+        self.version = f"sent-cal@{cal.get('version', 1)}"
         log.info("loaded calibrated sentiment in %.1fs", time.time() - t)
 
     def probs(self, items: list) -> list[tuple[float, float, float]]:
@@ -198,7 +203,7 @@ class CalibratedSentiment:
             for s in range(0, len(order), self.batch_size):
                 idxs = order[s : s + self.batch_size]
                 batch = [items[i] for i in idxs]
-                nl = self.nli.logits(self.torch, batch, ("pos", "neg"))
+                nl = self.nli.logits(self.torch, batch, self.hypotheses)
                 cp = self.clf.probs(self.torch, [x[0] for x in batch])
                 x = self.torch.tensor([a + list(c) for a, c in zip(nl, cp, strict=True)])
                 p = self.torch.softmax((x - self.mean) / self.std @ self.W + self.b, dim=-1).tolist()
