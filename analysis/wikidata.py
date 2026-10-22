@@ -1,0 +1,293 @@
+"""Wikidata access and the strict public-figure filter.
+
+Used (a) when seeding, to fetch images/check ids, and (b) as an optional fallback
+linker for PER/ORG spans that are not in the curated seed list. A fallback candidate
+becomes an allowlisted entity only if it passes `public_figure_check`, so private
+persons named in comments can never be allowlisted:
+
+* the Wikidata label or an alias must match the surface form exactly,
+* persons: instance of human (Q5), full name (>= 2 tokens) in the comment, at least one
+  occupation (P106) or position held (P39) and >= MIN_PERSON_SITELINKS Wikipedia/
+  sitelinks (a proxy for notability),
+* organisations: instance of one of ORG_CLASSES and >= MIN_ORG_SITELINKS sitelinks.
+
+The lookup cache is keyed by a SHA-1 of the surface form, so surface strings from
+comments (which might be private names) are never written to disk in clear text.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import logging
+import os
+import time
+from pathlib import Path
+from urllib.parse import quote
+
+import requests
+
+from .textutil import normalize_surface
+
+log = logging.getLogger(__name__)
+
+API = "https://www.wikidata.org/w/api.php"
+USER_AGENT = (
+    "MeinungspulsAnalysis/1.0 (HU Berlin student project 'Stimmungsanalyse im Web'; "
+    "https://github.com/semester-projekt-hu-berlin/analysis)"
+)
+
+MIN_PERSON_SITELINKS = 15
+MIN_ORG_SITELINKS = 10
+
+HUMAN = "Q5"
+DISAMBIGUATION = "Q4167410"
+ORG_CLASSES = {
+    "Q7278": "political party",
+    "Q4830453": "business",
+    "Q6881511": "enterprise",
+    "Q891723": "public company",
+    "Q783794": "company",
+    "Q786820": "automobile manufacturer",
+    "Q46970": "airline",
+    "Q22687": "bank",
+    "Q66344": "central bank",
+    "Q476028": "association football club",
+    "Q847017": "sports club",
+    "Q43229": "organization",
+    "Q484652": "international organization",
+    "Q245065": "intergovernmental organization",
+    "Q327333": "government agency",
+    "Q192350": "ministry",
+    "Q178790": "trade union",
+    "Q163740": "nonprofit organization",
+    "Q79913": "non-governmental organization",
+    "Q11032": "newspaper",
+    "Q1002697": "periodical",
+    "Q192283": "news agency",
+    "Q1126006": "public broadcaster",
+    "Q15265344": "broadcaster",
+    "Q11204": "legislature",
+    "Q35749": "parliament",
+    "Q41487": "court",
+    "Q190752": "supreme court",
+    "Q1640824": "constitutional court",
+    "Q772547": "armed forces",
+    "Q3918": "university",
+    "Q7210356": "political organization",
+    "Q17149090": "armed organization",
+    "Q4438121": "sports organization",
+    "Q15911314": "association",
+}
+
+
+def _cache_dir() -> Path:
+    return Path(os.environ.get("ANALYSIS_CACHE_DIR", Path.cwd() / ".cache"))
+
+
+class WikidataClient:
+    def __init__(self, session: requests.Session | None = None, min_interval: float = 1.0):
+        self.session = session or requests.Session()
+        self.session.headers["User-Agent"] = USER_AGENT
+        self.min_interval = min_interval
+        self._last = 0.0
+        self.calls = 0
+
+    def _get(self, params: dict) -> dict:
+        params = {**params, "format": "json"}
+        for attempt in range(8):
+            wait = self.min_interval - (time.monotonic() - self._last)
+            if wait > 0:
+                time.sleep(wait)
+            self._last = time.monotonic()
+            try:
+                r = self.session.get(API, params=params, timeout=30)
+                self.calls += 1
+                if r.status_code == 200:
+                    return r.json()
+                log.warning("wikidata %s", r.status_code)
+                if r.status_code == 429:
+                    # Respect the server's Retry-After (Wikimedia rate limits per UA+IP).
+                    time.sleep(min(120, float(r.headers.get("retry-after") or 10)))
+                    continue
+            except requests.RequestException as e:
+                log.warning("wikidata error %s", e)
+            time.sleep(2**attempt)
+        raise RuntimeError("Wikidata API unavailable")
+
+    def search(self, text: str, limit: int = 5, language: str = "de") -> list[dict]:
+        res = self._get(
+            {
+                "action": "wbsearchentities",
+                "search": text,
+                "language": language,
+                "uselang": language,
+                "type": "item",
+                "limit": limit,
+            }
+        )
+        return res.get("search", [])
+
+    def get_entities(self, ids: list[str]) -> dict[str, dict]:
+        out: dict[str, dict] = {}
+        for i in range(0, len(ids), 50):
+            res = self._get(
+                {
+                    "action": "wbgetentities",
+                    "ids": "|".join(ids[i : i + 50]),
+                    "props": "labels|aliases|descriptions|claims|sitelinks",
+                    "languages": "de|en",
+                }
+            )
+            out.update({k: v for k, v in res.get("entities", {}).items() if "missing" not in v})
+        return out
+
+    @staticmethod
+    def claim_ids(item: dict, prop: str) -> list[str]:
+        out = []
+        for c in item.get("claims", {}).get(prop, []):
+            v = c.get("mainsnak", {}).get("datavalue", {}).get("value")
+            if isinstance(v, dict) and "id" in v:
+                out.append(v["id"])
+        return out
+
+    @staticmethod
+    def claim_strings(item: dict, prop: str) -> list[str]:
+        out = []
+        for c in item.get("claims", {}).get(prop, []):
+            v = c.get("mainsnak", {}).get("datavalue", {}).get("value")
+            if isinstance(v, str):
+                out.append(v)
+        return out
+
+
+def label(item: dict, lang: str = "de") -> str | None:
+    for lg in (lang, "en"):
+        v = item.get("labels", {}).get(lg, {}).get("value")
+        if v:
+            return v
+    return None
+
+
+def description(item: dict, lang: str = "de") -> str:
+    for lg in (lang, "en"):
+        v = item.get("descriptions", {}).get(lg, {}).get("value")
+        if v:
+            return v
+    return ""
+
+
+def all_names(item: dict) -> list[str]:
+    names = []
+    for lg in ("de", "en"):
+        v = item.get("labels", {}).get(lg, {}).get("value")
+        if v:
+            names.append(v)
+        names.extend(a["value"] for a in item.get("aliases", {}).get(lg, []))
+    return list(dict.fromkeys(names))
+
+
+def image_url(item: dict, width: int = 320) -> str | None:
+    files = WikidataClient.claim_strings(item, "P18")
+    if not files:
+        return None
+    return f"https://commons.wikimedia.org/wiki/Special:FilePath/{quote(files[0].replace(' ', '_'))}?width={width}"
+
+
+def public_figure_check(item: dict, surface: str, ner_type: str) -> tuple[bool, str]:
+    """Strict filter deciding whether a Wikidata item may be allowlisted for `surface`."""
+    p31 = set(WikidataClient.claim_ids(item, "P31"))
+    if DISAMBIGUATION in p31:
+        return False, "disambiguation"
+    names = {normalize_surface(n) for n in all_names(item)}
+    if normalize_surface(surface) not in names:
+        return False, "label mismatch"
+    sitelinks = len(item.get("sitelinks", {}))
+    if ner_type == "PER":
+        if HUMAN not in p31:
+            return False, "not human"
+        if len(surface.split()) < 2:
+            return False, "surname only"
+        if not (WikidataClient.claim_ids(item, "P106") or WikidataClient.claim_ids(item, "P39")):
+            return False, "no occupation/position"
+        if sitelinks < MIN_PERSON_SITELINKS:
+            return False, f"only {sitelinks} sitelinks"
+        return True, "public person"
+    if ner_type == "ORG":
+        if HUMAN in p31:
+            return False, "is a human"
+        if not p31 & ORG_CLASSES.keys():
+            return False, "not an organisation class"
+        if sitelinks < MIN_ORG_SITELINKS:
+            return False, f"only {sitelinks} sitelinks"
+        if len(surface) < 3:
+            return False, "too short"
+        return True, "public organisation"
+    return False, f"type {ner_type} not tracked"
+
+
+class WikidataLinker:
+    """Cached fallback linker: surface (+NER type) -> public Wikidata item or None."""
+
+    def __init__(self, client: WikidataClient | None = None, max_lookups: int = 150, path: Path | None = None):
+        self.client = client or WikidataClient()
+        self.max_lookups = max_lookups
+        self.lookups = 0
+        self.path = path or (_cache_dir() / "wikidata.json")
+        self.cache: dict[str, str] = {}  # sha1(surface|type) -> qid or ""
+        self.items: dict[str, dict] = {}  # qid -> compact public item info
+        try:
+            raw = json.loads(self.path.read_text(encoding="utf-8"))
+            self.cache = raw.get("lookups", {})
+            self.items = raw.get("items", {})
+        except (OSError, ValueError):
+            pass
+
+    @staticmethod
+    def key(surface: str, ner_type: str) -> str:
+        return hashlib.sha1(f"{normalize_surface(surface)}|{ner_type}".encode()).hexdigest()
+
+    def save(self) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = self.path.with_suffix(".tmp")
+        tmp.write_text(json.dumps({"lookups": self.cache, "items": self.items}), encoding="utf-8")
+        tmp.replace(self.path)
+
+    def lookup(self, surface: str, ner_type: str) -> dict | None:
+        k = self.key(surface, ner_type)
+        if k in self.cache:
+            qid = self.cache[k]
+            return self.items.get(qid) if qid else None
+        if self.lookups >= self.max_lookups:
+            return None
+        self.lookups += 1
+        result = None
+        try:
+            hits = self.client.search(surface, limit=5)
+            ids = [h["id"] for h in hits]
+            items = self.client.get_entities(ids) if ids else {}
+            for qid in ids:
+                it = items.get(qid)
+                if not it:
+                    continue
+                ok, _why = public_figure_check(it, surface, ner_type)
+                if ok:
+                    result = {
+                        "qid": qid,
+                        "name": label(it) or surface,
+                        "description": description(it)[:120],
+                        "aliases": all_names(it)[:12],
+                        "type": "PER"
+                        if ner_type == "PER"
+                        else ("PARTY" if "Q7278" in self.client.claim_ids(it, "P31") else "ORG"),
+                        "imageUrl": image_url(it),
+                    }
+                    break
+        except RuntimeError as e:
+            log.warning("wikidata lookup failed: %s", e)
+            self.lookups -= 1
+            return None
+        self.cache[k] = result["qid"] if result else ""
+        if result:
+            self.items[result["qid"]] = result
+        return result

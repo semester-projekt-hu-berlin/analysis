@@ -1,0 +1,18 @@
+# secrets — never commit service account keys
+*.json.key
+sa.json
+*service-account*.json
+*-sa.json
+secrets/
+.env
+.env.*
+credentials*.json
+
+# local state
+.venv/
+.cache/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+eval/*.local.*

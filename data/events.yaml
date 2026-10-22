@@ -1,0 +1,32 @@
+# Real-world events used to annotate spikes in the dashboard.
+# Only events whose date was verified are listed (see README, "Events").
+- id: 2026-11-03-us-midterms
+  day: "2026-11-03"
+  title: US-Zwischenwahlen (Midterms)
+  description: Wahl aller 435 Sitze des Repräsentantenhauses, eines Drittels des Senats sowie zahlreicher Gouverneure.
+  entityIds: [donald-trump, jd-vance, us-demokraten, us-republikaner, us-kongress]
+  url: https://en.wikipedia.org/wiki/2026_United_States_elections
+- id: 2027-01-30-bundesversammlung
+  day: "2027-01-30"
+  title: Wahl des Bundespräsidenten
+  description: Die 18. Bundesversammlung wählt die Nachfolge von Frank-Walter Steinmeier, dessen Amtszeit am 18. März 2027 endet.
+  entityIds: [frank-walter-steinmeier]
+  url: https://www.bundestag.de/parlament/aufgaben/bundesversammlung
+- id: 2027-04-18-landtagswahl-saarland
+  day: "2027-04-18"
+  title: Landtagswahl im Saarland
+  description: Wahl des Landtags des Saarlandes.
+  entityIds: [anke-rehlinger]
+  url: https://www.wahlrecht.de/termine.htm
+- id: 2027-04-18-landtagswahl-schleswig-holstein
+  day: "2027-04-18"
+  title: Landtagswahl in Schleswig-Holstein
+  description: Wahl des 21. Landtags von Schleswig-Holstein.
+  entityIds: [daniel-guenther, ssw]
+  url: https://www.wahlrecht.de/termine.htm
+- id: 2027-04-25-landtagswahl-nrw
+  day: "2027-04-25"
+  title: Landtagswahl in Nordrhein-Westfalen
+  description: Wahl des Landtags von Nordrhein-Westfalen.
+  entityIds: [hendrik-wuest]
+  url: https://www.wahlrecht.de/termine.htm

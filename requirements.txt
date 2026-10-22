@@ -1,0 +1,7 @@
+# Install CPU-only torch first:
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+flair==0.15.1
+transformers==4.57.6
+google-auth==2.62.0
+requests>=2.32
+PyYAML>=6.0

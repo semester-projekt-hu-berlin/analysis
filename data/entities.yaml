@@ -1,0 +1,554 @@
+# Curated seed list of PUBLIC persons and organisations.
+#
+# Only entities in this file (or Wikidata items passing the strict public-figure
+# filter in analysis/wikidata.py) are ever allowlisted and aggregated.
+#
+# Alias syntax:
+#   "Merz"        plain alias, matched case-insensitively at word boundaries
+#   "=SAP"        case-sensitive
+#   "~Reiche"     weak/ambiguous: case-sensitive AND only accepted if the NER model
+#                 tags an overlapping PER (persons) / ORG (organisations) span, or a
+#                 keyword of the entity's `context` occurs in the comment / article title
+#   "@Leverkusen" contextual: case-sensitive AND only accepted if a keyword of the
+#                 entity's `context` occurs in the comment or the article title
+# The display name is always an alias as well. `country` breaks ties between
+# entities sharing an alias (e.g. "Grüne" on an Austrian vs. a German site).
+# `wikidata` was resolved with scripts/resolve_wikidata.py and checked by hand.
+
+contexts:
+  football: [Bundesliga, Fußball, Fussball, Tor, Tore, Spiel, Spiele, Spieltag, Trainer, Elfmeter, Abstieg,
+    Aufstieg, Meister, Meisterschaft, Champions League, Europa League, Pokal, DFB-Pokal, Stürmer, Verteidiger,
+    Torwart, Keeper, Kader, Saison, Transfer, Liga, Kicker, Stadion, Derby, Tabelle, Abwehr, Mittelfeld,
+    Schiri, Schiedsrichter, Elf, Kick, Punkte, Sieg, Niederlage, Remis, Unentschieden, gewonnen, verloren]
+  us: [USA, US, Amerika, amerikanisch, amerikanische, amerikanischen, Trump, Biden, Harris, Kongress, Senat,
+    Repräsentantenhaus, Midterms, Zwischenwahlen, Washington, Weißes Haus, MAGA, Wahlkampf]
+  business: [Aktie, Aktien, Konzern, Unternehmen, Firma, Vorstand, Börse, DAX, Gewinn, Umsatz, Stellen,
+    Mitarbeiter, Werk, Werke, Chef, CEO, Kunden, Produkt, Produkte, Pharma, Medikament, Dividende, Quartal]
+  politics: [Partei, Parteien, Wahl, Wahlen, Regierung, Koalition, Bundestag, Minister, Ministerin, Kanzler,
+    Opposition, Fraktion, Politik, Politiker, Abgeordnete, Abgeordneten, Umfrage, Umfragen, Landtag,
+    CDU, CSU, SPD, AfD, FDP, Grüne, Grünen, Linke, BSW, Merz, Söder, Ampel, Groko, Wähler, Wahlkampf, Kanzleramt]
+
+entities:
+# ------------------------------------------------------------------ German parties
+- {id: cdu, wikidata: Q49762, name: CDU, type: PARTY, country: DE, description: Christlich Demokratische Union Deutschlands,
+   aliases: [CDU, Christdemokraten, CDUler, CDU'ler]}
+- {id: csu, wikidata: Q49763, name: CSU, type: PARTY, country: DE, description: Christlich-Soziale Union in Bayern,
+   aliases: [CSU, CSUler]}
+- {id: cdu-csu, wikidata: Q708725, name: CDU/CSU, type: PARTY, country: DE, description: Union aus CDU und CSU (Bundestagsfraktion),
+   aliases: [CDU/CSU, CDU-CSU, CDU und CSU, Unionsparteien, Unionsfraktion, "~Union"], context: politics}
+- {id: spd, wikidata: Q49768, name: SPD, type: PARTY, country: DE, description: Sozialdemokratische Partei Deutschlands,
+   aliases: [SPD, Sozialdemokraten, Sozis, Sozi, SPDler, SPD'ler]}
+- {id: afd, wikidata: Q6721203, name: AfD, type: PARTY, country: DE, description: Alternative für Deutschland,
+   aliases: [AfD, Alternative für Deutschland, AfDler, AfD'ler]}
+- {id: gruene, wikidata: Q49766, name: Bündnis 90/Die Grünen, type: PARTY, country: DE, description: Partei Bündnis 90/Die Grünen,
+   aliases: [Bündnis 90/Die Grünen, Bündnis 90, "=Grünen", "=Grüne", Grünenpartei, Die Grünen]}
+- {id: die-linke, wikidata: Q49764, name: Die Linke, type: PARTY, country: DE, description: Partei Die Linke,
+   aliases: [Die Linke, Linkspartei, "=Linke", "=Linken"]}
+- {id: fdp, wikidata: Q13124, name: FDP, type: PARTY, country: DE, description: Freie Demokratische Partei,
+   aliases: [FDP, Freidemokraten, FDPler, "~Liberale", "~Liberalen"], context: politics}
+- {id: bsw, wikidata: Q123121346, name: BSW, type: PARTY, country: DE, description: Bündnis Soziale Gerechtigkeit und Wirtschaftliche Vernunft (vormals Bündnis Sahra Wagenknecht),
+   aliases: [BSW, Bündnis Sahra Wagenknecht]}
+- {id: freie-waehler, wikidata: Q327389, name: Freie Wähler, type: PARTY, country: DE, description: Partei Freie Wähler,
+   aliases: [Freie Wähler, Freien Wähler, "=FW"]}
+- {id: ssw, wikidata: Q161545, name: SSW, type: PARTY, country: DE, description: Südschleswigscher Wählerverband,
+   aliases: [SSW, Südschleswigscher Wählerverband]}
+- {id: volt, wikidata: Q106205950, name: Volt, type: PARTY, country: DE, description: Volt Deutschland, aliases: ["~Volt"], context: politics}
+# ------------------------------------------------------------------ Austrian parties
+- {id: oevp, wikidata: Q186867, name: ÖVP, type: PARTY, country: AT, description: Österreichische Volkspartei,
+   aliases: [ÖVP, OEVP]}
+- {id: spoe, wikidata: Q179111, name: SPÖ, type: PARTY, country: AT, description: Sozialdemokratische Partei Österreichs,
+   aliases: [SPÖ, SPOE]}
+- {id: fpoe, wikidata: Q131692, name: FPÖ, type: PARTY, country: AT, description: Freiheitliche Partei Österreichs,
+   aliases: [FPÖ, FPOE, Freiheitliche, Freiheitlichen]}
+- {id: neos, wikidata: Q13564543, name: NEOS, type: PARTY, country: AT, description: NEOS – Das Neue Österreich, aliases: [NEOS, Neos]}
+- {id: gruene-at, wikidata: Q193178, name: Die Grünen (Österreich), type: PARTY, country: AT, description: Die Grünen – Die Grüne Alternative (Österreich),
+   aliases: ["=Grünen", "=Grüne", Die Grünen]}
+# ------------------------------------------------------------------ US parties
+- {id: us-demokraten, wikidata: Q29552, name: Demokratische Partei (USA), type: PARTY, country: US, description: Demokratische Partei der USA,
+   aliases: [Democrats, Democratic Party, "@Demokraten", "@Dems"], context: us}
+- {id: us-republikaner, wikidata: Q29468, name: Republikanische Partei (USA), type: PARTY, country: US, description: Republikanische Partei der USA,
+   aliases: [GOP, Republicans, Republican Party, Republikaner]}
+# ------------------------------------------------------------------ Federal government (Kabinett Merz)
+- {id: friedrich-merz, wikidata: Q566257, name: Friedrich Merz, type: PER, country: DE, description: Bundeskanzler (CDU),
+   aliases: [Friedrich Merz, Merz, Fritze Merz, Bundeskanzler Merz, Kanzler Merz]}
+- {id: lars-klingbeil, wikidata: Q1806261, name: Lars Klingbeil, type: PER, country: DE, description: Vizekanzler und Bundesfinanzminister (SPD),
+   aliases: [Lars Klingbeil, Klingbeil]}
+- {id: alexander-dobrindt, wikidata: Q85783, name: Alexander Dobrindt, type: PER, country: DE, description: Bundesinnenminister (CSU),
+   aliases: [Alexander Dobrindt, Dobrindt]}
+- {id: johann-wadephul, wikidata: Q1696501, name: Johann Wadephul, type: PER, country: DE, description: Bundesaußenminister (CDU),
+   aliases: [Johann Wadephul, Wadephul]}
+- {id: boris-pistorius, wikidata: Q893758, name: Boris Pistorius, type: PER, country: DE, description: Bundesverteidigungsminister (SPD),
+   aliases: [Boris Pistorius, Pistorius]}
+- {id: katherina-reiche, wikidata: Q108126, name: Katherina Reiche, type: PER, country: DE, description: Bundeswirtschaftsministerin (CDU),
+   aliases: [Katherina Reiche, "~Reiche"]}
+- {id: stefanie-hubig, wikidata: Q20172451, name: Stefanie Hubig, type: PER, country: DE, description: Bundesjustizministerin (SPD),
+   aliases: [Stefanie Hubig, Hubig]}
+- {id: baerbel-bas, wikidata: Q1019016, name: Bärbel Bas, type: PER, country: DE, description: SPD-Politikerin,
+   aliases: [Bärbel Bas, "~Bas"]}
+- {id: karin-prien, wikidata: Q1729523, name: Karin Prien, type: PER, country: DE, description: Bundesbildungs- und Familienministerin (CDU),
+   aliases: [Karin Prien, Prien]}
+- {id: nina-warken, wikidata: Q15644599, name: Nina Warken, type: PER, country: DE, description: Chefin des Bundeskanzleramts (CDU),
+   aliases: [Nina Warken, Warken]}
+- {id: patrick-schnieder, wikidata: Q1373882, name: Patrick Schnieder, type: PER, country: DE, description: Bundesminister (CDU),
+   aliases: [Patrick Schnieder, "~Schnieder"]}
+- {id: carsten-schneider, wikidata: Q1045665, name: Carsten Schneider, type: PER, country: DE, description: Bundesumweltminister (SPD),
+   aliases: [Carsten Schneider]}
+- {id: alois-rainer, wikidata: Q15434505, name: Alois Rainer, type: PER, country: DE, description: Bundeslandwirtschaftsminister (CSU),
+   aliases: [Alois Rainer]}
+- {id: dorothee-baer, wikidata: Q85851, name: Dorothee Bär, type: PER, country: DE, description: Bundesforschungsministerin (CSU),
+   aliases: [Dorothee Bär, Doro Bär]}
+- {id: reem-alabali-radovan, wikidata: Q108731156, name: Reem Alabali Radovan, type: PER, country: DE, description: Bundesentwicklungsministerin (SPD),
+   aliases: [Reem Alabali Radovan, Reem Alabali-Radovan, Alabali-Radovan, Alabali Radovan]}
+- {id: verena-hubertz, wikidata: Q108742673, name: Verena Hubertz, type: PER, country: DE, description: Bundesbauministerin (SPD),
+   aliases: [Verena Hubertz, Hubertz]}
+- {id: karsten-wildberger, wikidata: Q106901329, name: Karsten Wildberger, type: PER, country: DE, description: Bundesdigitalminister (CDU),
+   aliases: [Karsten Wildberger, Wildberger]}
+- {id: thorsten-frei, wikidata: Q2429104, name: Thorsten Frei, type: PER, country: DE, description: CDU-Politiker,
+   aliases: [Thorsten Frei]}
+- {id: wolfram-weimer, wikidata: Q2592191, name: Wolfram Weimer, type: PER, country: DE, description: Staatsminister für Kultur und Medien,
+   aliases: [Wolfram Weimer, Weimer]}
+# ------------------------------------------------------------------ Party and parliamentary leaders, other federal politicians
+- {id: markus-soeder, wikidata: Q50664, name: Markus Söder, type: PER, country: DE, description: Bayerischer Ministerpräsident und CSU-Vorsitzender,
+   aliases: [Markus Söder, Söder, Soeder]}
+- {id: alice-weidel, wikidata: Q27975838, name: Alice Weidel, type: PER, country: DE, description: AfD-Bundessprecherin und Fraktionsvorsitzende,
+   aliases: [Alice Weidel, Weidel]}
+- {id: tino-chrupalla, wikidata: Q40895143, name: Tino Chrupalla, type: PER, country: DE, description: AfD-Bundessprecher,
+   aliases: [Tino Chrupalla, Chrupalla]}
+- {id: felix-banaszak, wikidata: Q17591264, name: Felix Banaszak, type: PER, country: DE, description: Bundesvorsitzender der Grünen,
+   aliases: [Felix Banaszak, Banaszak]}
+- {id: franziska-brantner, wikidata: Q76265, name: Franziska Brantner, type: PER, country: DE, description: Bundesvorsitzende der Grünen,
+   aliases: [Franziska Brantner, Brantner]}
+- {id: ines-schwerdtner, wikidata: Q112428905, name: Ines Schwerdtner, type: PER, country: DE, description: Bundesvorsitzende der Linken,
+   aliases: [Ines Schwerdtner, Schwerdtner]}
+- {id: jan-van-aken, wikidata: Q107176, name: Jan van Aken, type: PER, country: DE, description: Bundesvorsitzender der Linken,
+   aliases: [Jan van Aken, van Aken]}
+- {id: heidi-reichinnek, wikidata: Q61965546, name: Heidi Reichinnek, type: PER, country: DE, description: Fraktionsvorsitzende der Linken im Bundestag,
+   aliases: [Heidi Reichinnek, Reichinnek]}
+- {id: sahra-wagenknecht, wikidata: Q77193, name: Sahra Wagenknecht, type: PER, country: DE, description: Gründerin des BSW,
+   aliases: [Sahra Wagenknecht, Wagenknecht]}
+- {id: amira-mohamed-ali, wikidata: Q41080910, name: Amira Mohamed Ali, type: PER, country: DE, description: BSW-Politikerin,
+   aliases: [Amira Mohamed Ali, Mohamed Ali]}
+- {id: christian-duerr, wikidata: Q102641, name: Christian Dürr, type: PER, country: DE, description: FDP-Bundesvorsitzender,
+   aliases: [Christian Dürr, "~Dürr"]}
+- {id: christian-lindner, wikidata: Q85806, name: Christian Lindner, type: PER, country: DE, description: Ehemaliger Bundesfinanzminister (FDP),
+   aliases: [Christian Lindner, Lindner]}
+- {id: wolfgang-kubicki, wikidata: Q2590313, name: Wolfgang Kubicki, type: PER, country: DE, description: FDP-Politiker,
+   aliases: [Wolfgang Kubicki, Kubicki]}
+- {id: hubert-aiwanger, wikidata: Q1633044, name: Hubert Aiwanger, type: PER, country: DE, description: Bayerischer Wirtschaftsminister (Freie Wähler),
+   aliases: [Hubert Aiwanger, Aiwanger]}
+- {id: jens-spahn, wikidata: Q86294, name: Jens Spahn, type: PER, country: DE, description: Vorsitzender der Unionsfraktion im Bundestag,
+   aliases: [Jens Spahn, Spahn]}
+- {id: matthias-miersch, wikidata: Q1910150, name: Matthias Miersch, type: PER, country: DE, description: Vorsitzender der SPD-Bundestagsfraktion,
+   aliases: [Matthias Miersch, Miersch]}
+- {id: katharina-droege, wikidata: Q15795521, name: Katharina Dröge, type: PER, country: DE, description: Fraktionsvorsitzende der Grünen im Bundestag,
+   aliases: [Katharina Dröge, Dröge]}
+- {id: britta-hasselmann, wikidata: Q920726, name: Britta Haßelmann, type: PER, country: DE, description: Fraktionsvorsitzende der Grünen im Bundestag,
+   aliases: [Britta Haßelmann, Haßelmann, Hasselmann]}
+- {id: julia-kloeckner, wikidata: Q88158, name: Julia Klöckner, type: PER, country: DE, description: Bundestagspräsidentin (CDU),
+   aliases: [Julia Klöckner, Klöckner, Kloeckner]}
+- {id: carsten-linnemann, wikidata: Q1045606, name: Carsten Linnemann, type: PER, country: DE, description: Bundesgesundheitsminister (CDU),
+   aliases: [Carsten Linnemann, Linnemann]}
+- {id: philipp-amthor, wikidata: Q40998607, name: Philipp Amthor, type: PER, country: DE, description: CDU-Politiker,
+   aliases: [Philipp Amthor, Amthor]}
+- {id: roderich-kiesewetter, wikidata: Q107989, name: Roderich Kiesewetter, type: PER, country: DE, description: CDU-Politiker,
+   aliases: [Roderich Kiesewetter, Kiesewetter]}
+- {id: ralf-stegner, wikidata: Q89578, name: Ralf Stegner, type: PER, country: DE, description: SPD-Politiker,
+   aliases: [Ralf Stegner, Stegner]}
+- {id: kevin-kuehnert, wikidata: Q43567875, name: Kevin Kühnert, type: PER, country: DE, description: Ehemaliger SPD-Generalsekretär,
+   aliases: [Kevin Kühnert, Kühnert]}
+- {id: saskia-esken, wikidata: Q15813082, name: Saskia Esken, type: PER, country: DE, description: Ehemalige SPD-Vorsitzende,
+   aliases: [Saskia Esken, Esken]}
+- {id: olaf-scholz, wikidata: Q61053, name: Olaf Scholz, type: PER, country: DE, description: Ehemaliger Bundeskanzler (SPD),
+   aliases: [Olaf Scholz, Scholz]}
+- {id: angela-merkel, wikidata: Q567, name: Angela Merkel, type: PER, country: DE, description: Ehemalige Bundeskanzlerin (CDU),
+   aliases: [Angela Merkel, Merkel]}
+- {id: gerhard-schroeder, wikidata: Q2530, name: Gerhard Schröder, type: PER, country: DE, description: Ehemaliger Bundeskanzler (SPD),
+   aliases: [Gerhard Schröder, Gerd Schröder, Altkanzler Schröder]}
+- {id: robert-habeck, wikidata: Q109943, name: Robert Habeck, type: PER, country: DE, description: Ehemaliger Bundeswirtschaftsminister (Grüne),
+   aliases: [Robert Habeck, Habeck]}
+- {id: annalena-baerbock, wikidata: Q564328, name: Annalena Baerbock, type: PER, country: DE, description: Ehemalige Bundesaußenministerin (Grüne),
+   aliases: [Annalena Baerbock, Baerbock]}
+- {id: karl-lauterbach, wikidata: Q105676, name: Karl Lauterbach, type: PER, country: DE, description: Ehemaliger Bundesgesundheitsminister (SPD),
+   aliases: [Karl Lauterbach, Lauterbach]}
+- {id: nancy-faeser, wikidata: Q1288810, name: Nancy Faeser, type: PER, country: DE, description: Ehemalige Bundesinnenministerin (SPD),
+   aliases: [Nancy Faeser, Faeser]}
+- {id: cem-oezdemir, wikidata: Q12839, name: Cem Özdemir, type: PER, country: DE, description: Ministerpräsident von Baden-Württemberg (Grüne),
+   aliases: [Cem Özdemir, Özdemir, Oezdemir]}
+- {id: ricarda-lang, wikidata: Q42841188, name: Ricarda Lang, type: PER, country: DE, description: Grünen-Politikerin,
+   aliases: [Ricarda Lang]}
+- {id: omid-nouripour, wikidata: Q71635, name: Omid Nouripour, type: PER, country: DE, description: Bundestagsvizepräsident (Grüne),
+   aliases: [Omid Nouripour, Nouripour]}
+- {id: anton-hofreiter, wikidata: Q103519, name: Anton Hofreiter, type: PER, country: DE, description: Grünen-Politiker,
+   aliases: [Anton Hofreiter, Hofreiter, Toni Hofreiter]}
+- {id: gregor-gysi, wikidata: Q65126, name: Gregor Gysi, type: PER, country: DE, description: Politiker der Linken,
+   aliases: [Gregor Gysi, Gysi]}
+- {id: bodo-ramelow, wikidata: Q104678, name: Bodo Ramelow, type: PER, country: DE, description: Bundestagsvizepräsident (Linke),
+   aliases: [Bodo Ramelow, Ramelow]}
+- {id: bjoern-hoecke, wikidata: Q18176756, name: Björn Höcke, type: PER, country: DE, description: AfD-Landesvorsitzender Thüringen,
+   aliases: [Björn Höcke, Höcke, Hoecke, Bernd Höcke]}
+- {id: maximilian-krah, wikidata: Q64073803, name: Maximilian Krah, type: PER, country: DE, description: AfD-Politiker,
+   aliases: [Maximilian Krah, Krah]}
+- {id: beatrix-von-storch, wikidata: Q14924803, name: Beatrix von Storch, type: PER, country: DE, description: AfD-Politikerin,
+   aliases: [Beatrix von Storch, von Storch]}
+- {id: hans-georg-maassen, wikidata: Q1576999, name: Hans-Georg Maaßen, type: PER, country: DE, description: Vorsitzender der Werteunion,
+   aliases: [Hans-Georg Maaßen, Maaßen, Maassen]}
+# ------------------------------------------------------------------ Bundespräsident and candidates for 30 Jan 2027
+- {id: frank-walter-steinmeier, wikidata: Q76658, name: Frank-Walter Steinmeier, type: PER, country: DE, description: Bundespräsident,
+   aliases: [Frank-Walter Steinmeier, Steinmeier, Bundespräsident Steinmeier]}
+- {id: ilse-aigner, wikidata: Q153460, name: Ilse Aigner, type: PER, country: DE, description: Präsidentin des Bayerischen Landtags (CSU),
+   aliases: [Ilse Aigner, Aigner]}
+- {id: udo-di-fabio, wikidata: Q103075, name: Udo Di Fabio, type: PER, country: DE, description: Ehemaliger Bundesverfassungsrichter,
+   aliases: [Udo Di Fabio, Di Fabio]}
+# ------------------------------------------------------------------ Ministerpräsidenten and state politicians
+- {id: hendrik-wuest, wikidata: Q1387541, name: Hendrik Wüst, type: PER, country: DE, description: Ministerpräsident von Nordrhein-Westfalen (CDU),
+   aliases: [Hendrik Wüst, "=Wüst", Wuest]}
+- {id: daniel-guenther, wikidata: Q969340, name: Daniel Günther, type: PER, country: DE, description: Ministerpräsident von Schleswig-Holstein (CDU),
+   aliases: [Daniel Günther, "~Günther"]}
+- {id: anke-rehlinger, wikidata: Q556844, name: Anke Rehlinger, type: PER, country: DE, description: Ministerpräsidentin des Saarlandes (SPD),
+   aliases: [Anke Rehlinger, Rehlinger]}
+- {id: boris-rhein, wikidata: Q118885, name: Boris Rhein, type: PER, country: DE, description: Ministerpräsident von Hessen (CDU),
+   aliases: [Boris Rhein]}
+- {id: manuela-schwesig, wikidata: Q72845, name: Manuela Schwesig, type: PER, country: DE, description: Ministerpräsidentin von Mecklenburg-Vorpommern (SPD),
+   aliases: [Manuela Schwesig, Schwesig]}
+- {id: michael-kretschmer, wikidata: Q1928299, name: Michael Kretschmer, type: PER, country: DE, description: Ministerpräsident von Sachsen (CDU),
+   aliases: [Michael Kretschmer, Kretschmer]}
+- {id: mario-voigt, wikidata: Q1899065, name: Mario Voigt, type: PER, country: DE, description: Ministerpräsident von Thüringen (CDU),
+   aliases: [Mario Voigt, "~Voigt"]}
+- {id: kai-wegner, wikidata: Q1721361, name: Kai Wegner, type: PER, country: DE, description: Regierender Bürgermeister von Berlin (CDU),
+   aliases: [Kai Wegner, "~Wegner"]}
+- {id: peter-tschentscher, wikidata: Q971774, name: Peter Tschentscher, type: PER, country: DE, description: Erster Bürgermeister von Hamburg (SPD),
+   aliases: [Peter Tschentscher, Tschentscher]}
+- {id: dietmar-woidke, wikidata: Q99660, name: Dietmar Woidke, type: PER, country: DE, description: Ministerpräsident von Brandenburg (SPD),
+   aliases: [Dietmar Woidke, Woidke]}
+- {id: alexander-schweitzer, wikidata: Q2643014, name: Alexander Schweitzer, type: PER, country: DE, description: "Bundesminister (SPD), ehemaliger Ministerpräsident von Rheinland-Pfalz",
+   aliases: [Alexander Schweitzer]}
+- {id: olaf-lies, wikidata: Q120630, name: Olaf Lies, type: PER, country: DE, description: Ministerpräsident von Niedersachsen (SPD),
+   aliases: [Olaf Lies]}
+- {id: winfried-kretschmann, wikidata: Q61051, name: Winfried Kretschmann, type: PER, country: DE, description: Ehemaliger Ministerpräsident von Baden-Württemberg (Grüne),
+   aliases: [Winfried Kretschmann, Kretschmann]}
+- {id: manuel-hagel, wikidata: Q23661873, name: Manuel Hagel, type: PER, country: DE, description: Stellvertretender Ministerpräsident von Baden-Württemberg (CDU),
+   aliases: [Manuel Hagel]}
+- {id: andreas-bovenschulte, wikidata: Q496300, name: Andreas Bovenschulte, type: PER, country: DE, description: Bürgermeister von Bremen (SPD),
+   aliases: [Andreas Bovenschulte, Bovenschulte]}
+- {id: reiner-haseloff, wikidata: Q69355, name: Reiner Haseloff, type: PER, country: DE, description: Ehemaliger Ministerpräsident von Sachsen-Anhalt (CDU),
+   aliases: [Reiner Haseloff, Haseloff]}
+- {id: sven-schulze, wikidata: Q17093506, name: Sven Schulze, type: PER, country: DE, description: Ministerpräsident von Sachsen-Anhalt (CDU),
+   aliases: [Sven Schulze]}
+- {id: ulrich-siegmund, wikidata: Q23565989, name: Ulrich Siegmund, type: PER, country: DE, description: AfD-Politiker (Sachsen-Anhalt),
+   aliases: [Ulrich Siegmund, "~Siegmund"]}
+# ------------------------------------------------------------------ Austria
+- {id: christian-stocker, wikidata: Q64576653, name: Christian Stocker, type: PER, country: AT, description: Österreichischer Bundeskanzler (ÖVP),
+   aliases: [Christian Stocker, "~Stocker"]}
+- {id: andreas-babler, wikidata: Q20030152, name: Andreas Babler, type: PER, country: AT, description: Österreichischer Vizekanzler und SPÖ-Vorsitzender,
+   aliases: [Andreas Babler, Babler]}
+- {id: beate-meinl-reisinger, wikidata: Q15787318, name: Beate Meinl-Reisinger, type: PER, country: AT, description: Österreichische Außenministerin (NEOS),
+   aliases: [Beate Meinl-Reisinger, Meinl-Reisinger]}
+- {id: herbert-kickl, wikidata: Q1395041, name: Herbert Kickl, type: PER, country: AT, description: FPÖ-Bundesparteiobmann,
+   aliases: [Herbert Kickl, Kickl]}
+- {id: alexander-van-der-bellen, wikidata: Q78869, name: Alexander Van der Bellen, type: PER, country: AT, description: Österreichischer Bundespräsident,
+   aliases: [Alexander Van der Bellen, Van der Bellen, "=VdB"]}
+- {id: karl-nehammer, wikidata: Q42860944, name: Karl Nehammer, type: PER, country: AT, description: Ehemaliger österreichischer Bundeskanzler (ÖVP),
+   aliases: [Karl Nehammer, Nehammer]}
+- {id: sebastian-kurz, wikidata: Q2262885, name: Sebastian Kurz, type: PER, country: AT, description: Ehemaliger österreichischer Bundeskanzler (ÖVP),
+   aliases: [Sebastian Kurz, "~Kurz"]}
+- {id: werner-kogler, wikidata: Q2561778, name: Werner Kogler, type: PER, country: AT, description: Grünen-Politiker (Österreich),
+   aliases: [Werner Kogler, Kogler]}
+- {id: leonore-gewessler, wikidata: Q64954602, name: Leonore Gewessler, type: PER, country: AT, description: Bundessprecherin der österreichischen Grünen,
+   aliases: [Leonore Gewessler, Gewessler]}
+- {id: michael-ludwig, wikidata: Q1560091, name: Michael Ludwig, type: PER, country: AT, description: Bürgermeister von Wien (SPÖ),
+   aliases: [Michael Ludwig, Bürgermeister Ludwig]}
+- {id: karoline-edtstadler, wikidata: Q45815517, name: Karoline Edtstadler, type: PER, country: AT, description: Landeshauptfrau von Salzburg (ÖVP),
+   aliases: [Karoline Edtstadler, Edtstadler]}
+- {id: johanna-mikl-leitner, wikidata: Q87130, name: Johanna Mikl-Leitner, type: PER, country: AT, description: Landeshauptfrau von Niederösterreich (ÖVP),
+   aliases: [Johanna Mikl-Leitner, Mikl-Leitner]}
+# ------------------------------------------------------------------ USA (midterms 3 Nov 2026)
+- {id: donald-trump, wikidata: Q22686, name: Donald Trump, type: PER, country: US, description: Präsident der Vereinigten Staaten,
+   aliases: [Donald Trump, Trump, Donald J. Trump, Präsident Trump, Trumpel]}
+- {id: jd-vance, wikidata: Q28935729, name: JD Vance, type: PER, country: US, description: Vizepräsident der Vereinigten Staaten,
+   aliases: [JD Vance, J.D. Vance, Vance]}
+- {id: marco-rubio, wikidata: Q324546, name: Marco Rubio, type: PER, country: US, description: US-Außenminister,
+   aliases: [Marco Rubio, Rubio]}
+- {id: pete-hegseth, wikidata: Q7172014, name: Pete Hegseth, type: PER, country: US, description: US-Verteidigungsminister,
+   aliases: [Pete Hegseth, Hegseth]}
+- {id: robert-f-kennedy-jr, wikidata: Q25310, name: Robert F. Kennedy Jr., type: PER, country: US, description: US-Gesundheitsminister,
+   aliases: [Robert F. Kennedy Jr., Robert F. Kennedy, RFK Jr., RFK]}
+- {id: elon-musk, wikidata: Q317521, name: Elon Musk, type: PER, country: US, description: "Unternehmer (Tesla, SpaceX, X)",
+   aliases: [Elon Musk, Musk]}
+- {id: joe-biden, wikidata: Q6279, name: Joe Biden, type: PER, country: US, description: Ehemaliger US-Präsident,
+   aliases: [Joe Biden, Biden]}
+- {id: kamala-harris, wikidata: Q10853588, name: Kamala Harris, type: PER, country: US, description: Ehemalige US-Vizepräsidentin,
+   aliases: [Kamala Harris, Kamala, "~Harris"]}
+- {id: barack-obama, wikidata: Q76, name: Barack Obama, type: PER, country: US, description: Ehemaliger US-Präsident,
+   aliases: [Barack Obama, Obama]}
+- {id: gavin-newsom, wikidata: Q461391, name: Gavin Newsom, type: PER, country: US, description: Gouverneur von Kalifornien,
+   aliases: [Gavin Newsom, Newsom]}
+- {id: alexandria-ocasio-cortez, wikidata: Q55223040, name: Alexandria Ocasio-Cortez, type: PER, country: US, description: US-Kongressabgeordnete (Demokraten),
+   aliases: [Alexandria Ocasio-Cortez, Ocasio-Cortez, AOC]}
+- {id: bernie-sanders, wikidata: Q359442, name: Bernie Sanders, type: PER, country: US, description: US-Senator,
+   aliases: [Bernie Sanders, Bernie, "~Sanders"]}
+- {id: zohran-mamdani, wikidata: Q28034971, name: Zohran Mamdani, type: PER, country: US, description: Bürgermeister von New York City,
+   aliases: [Zohran Mamdani, Mamdani]}
+- {id: mike-johnson, wikidata: Q19880665, name: Mike Johnson, type: PER, country: US, description: Sprecher des US-Repräsentantenhauses,
+   aliases: [Mike Johnson, "@Johnson"], context: us}
+- {id: hakeem-jeffries, wikidata: Q5640425, name: Hakeem Jeffries, type: PER, country: US, description: Minderheitsführer im US-Repräsentantenhaus,
+   aliases: [Hakeem Jeffries, Jeffries]}
+- {id: chuck-schumer, wikidata: Q380900, name: Chuck Schumer, type: PER, country: US, description: Minderheitsführer im US-Senat,
+   aliases: [Chuck Schumer, Schumer]}
+- {id: john-thune, wikidata: Q462981, name: John Thune, type: PER, country: US, description: Mehrheitsführer im US-Senat,
+   aliases: [John Thune, Thune]}
+- {id: ron-desantis, wikidata: Q3105215, name: Ron DeSantis, type: PER, country: US, description: Gouverneur von Florida,
+   aliases: [Ron DeSantis, DeSantis]}
+- {id: josh-shapiro, wikidata: Q6289368, name: Josh Shapiro, type: PER, country: US, description: Gouverneur von Pennsylvania,
+   aliases: [Josh Shapiro, "@Shapiro"], context: us}
+- {id: jb-pritzker, wikidata: Q6103950, name: JB Pritzker, type: PER, country: US, description: Gouverneur von Illinois,
+   aliases: [JB Pritzker, J. B. Pritzker, Pritzker]}
+- {id: pete-buttigieg, wikidata: Q7173106, name: Pete Buttigieg, type: PER, country: US, description: Ehemaliger US-Verkehrsminister,
+   aliases: [Pete Buttigieg, Buttigieg]}
+- {id: marjorie-taylor-greene, wikidata: Q98380406, name: Marjorie Taylor Greene, type: PER, country: US, description: US-Politikerin (Republikaner),
+   aliases: [Marjorie Taylor Greene, MTG]}
+- {id: jeffrey-epstein, wikidata: Q2904131, name: Jeffrey Epstein, type: PER, country: US, description: Verstorbener US-Investor und verurteilter Sexualstraftäter,
+   aliases: [Jeffrey Epstein, Epstein]}
+- {id: us-kongress, wikidata: Q11268, name: US-Kongress, type: ORG, country: US, description: Parlament der Vereinigten Staaten,
+   aliases: [US-Kongress, Kongress der Vereinigten Staaten, "@Kongress"], context: us}
+- {id: us-supreme-court, wikidata: Q11201, name: Supreme Court, type: ORG, country: US, description: Oberster Gerichtshof der USA,
+   aliases: [Supreme Court, US-Supreme-Court, Oberster Gerichtshof der USA]}
+- {id: fed, wikidata: Q53536, name: Federal Reserve, type: ORG, country: US, description: US-Notenbank,
+   aliases: [Federal Reserve, US-Notenbank, "=Fed"]}
+- {id: ice, wikidata: Q943091, name: ICE, type: ORG, country: US, description: US-Einwanderungs- und Zollbehörde,
+   aliases: [Immigration and Customs Enforcement, "@ICE"], context: us}
+# ------------------------------------------------------------------ International politics
+- {id: wladimir-putin, wikidata: Q7747, name: Wladimir Putin, type: PER, description: Präsident Russlands,
+   aliases: [Wladimir Putin, Vladimir Putin, Putin]}
+- {id: wolodymyr-selenskyj, wikidata: Q3874799, name: Wolodymyr Selenskyj, type: PER, description: Präsident der Ukraine,
+   aliases: [Wolodymyr Selenskyj, Selenskyj, Selenski, Selensky, Selenskij, Zelensky, Zelenskyy, Zelenskyj]}
+- {id: xi-jinping, wikidata: Q15031, name: Xi Jinping, type: PER, description: Staatspräsident der Volksrepublik China,
+   aliases: [Xi Jinping, "~Xi"]}
+- {id: benjamin-netanjahu, wikidata: Q43723, name: Benjamin Netanjahu, type: PER, description: Israelischer Politiker (Likud),
+   aliases: [Benjamin Netanjahu, Netanjahu, Netanyahu, Bibi Netanjahu]}
+- {id: emmanuel-macron, wikidata: Q3052772, name: Emmanuel Macron, type: PER, description: Präsident Frankreichs,
+   aliases: [Emmanuel Macron, Macron]}
+- {id: keir-starmer, wikidata: Q6383803, name: Keir Starmer, type: PER, description: "Britischer Politiker (Labour), ehemaliger Premierminister",
+   aliases: [Keir Starmer, Starmer]}
+- {id: giorgia-meloni, wikidata: Q451791, name: Giorgia Meloni, type: PER, description: Ministerpräsidentin Italiens,
+   aliases: [Giorgia Meloni, Meloni]}
+- {id: viktor-orban, wikidata: Q57641, name: Viktor Orbán, type: PER, description: "Ungarischer Politiker (Fidesz), ehemaliger Ministerpräsident",
+   aliases: [Viktor Orbán, Viktor Orban, Orbán, Orban]}
+- {id: recep-tayyip-erdogan, wikidata: Q39259, name: Recep Tayyip Erdoğan, type: PER, description: Präsident der Türkei,
+   aliases: [Recep Tayyip Erdoğan, Recep Tayyip Erdogan, Erdoğan, Erdogan]}
+- {id: ursula-von-der-leyen, wikidata: Q60772, name: Ursula von der Leyen, type: PER, description: Präsidentin der Europäischen Kommission,
+   aliases: [Ursula von der Leyen, von der Leyen, "=VdL"]}
+- {id: kaja-kallas, wikidata: Q11869065, name: Kaja Kallas, type: PER, description: Hohe Vertreterin der EU für Außen- und Sicherheitspolitik,
+   aliases: [Kaja Kallas, Kallas]}
+- {id: mark-rutte, wikidata: Q57792, name: Mark Rutte, type: PER, description: NATO-Generalsekretär,
+   aliases: [Mark Rutte, Rutte]}
+- {id: antonio-guterres, wikidata: Q311440, name: António Guterres, type: PER, description: UN-Generalsekretär,
+   aliases: [António Guterres, Antonio Guterres, Guterres]}
+- {id: marine-le-pen, wikidata: Q12927, name: Marine Le Pen, type: PER, description: Französische Politikerin (Rassemblement National),
+   aliases: [Marine Le Pen, Le Pen]}
+- {id: jordan-bardella, wikidata: Q40655898, name: Jordan Bardella, type: PER, description: Vorsitzender des Rassemblement National,
+   aliases: [Jordan Bardella, Bardella]}
+- {id: donald-tusk, wikidata: Q946, name: Donald Tusk, type: PER, description: Ministerpräsident Polens,
+   aliases: [Donald Tusk, Tusk]}
+- {id: robert-fico, wikidata: Q57606, name: Robert Fico, type: PER, description: Ministerpräsident der Slowakei,
+   aliases: [Robert Fico, Fico]}
+- {id: javier-milei, wikidata: Q52395487, name: Javier Milei, type: PER, description: Präsident Argentiniens,
+   aliases: [Javier Milei, Milei]}
+- {id: luiz-inacio-lula-da-silva, wikidata: Q37181, name: Luiz Inácio Lula da Silva, type: PER, description: Präsident Brasiliens,
+   aliases: [Luiz Inácio Lula da Silva, Lula da Silva, Lula]}
+- {id: narendra-modi, wikidata: Q1058, name: Narendra Modi, type: PER, description: Premierminister Indiens,
+   aliases: [Narendra Modi, "~Modi"]}
+- {id: kim-jong-un, wikidata: Q56226, name: Kim Jong-un, type: PER, description: Machthaber Nordkoreas,
+   aliases: [Kim Jong-un, Kim Jong Un]}
+- {id: ali-chamenei, wikidata: Q57336, name: Ali Chamenei, type: PER, description: Ehemaliger Oberster Führer des Iran (1939–2026),
+   aliases: [Ali Chamenei, Chamenei, Khamenei, Ali Khamenei]}
+- {id: sergej-lawrow, wikidata: Q58217, name: Sergej Lawrow, type: PER, description: Russischer Diplomat und Politiker,
+   aliases: [Sergej Lawrow, Lawrow, Lavrov]}
+- {id: mark-carney, wikidata: Q192533, name: Mark Carney, type: PER, description: Premierminister Kanadas,
+   aliases: [Mark Carney, Carney]}
+- {id: pedro-sanchez, wikidata: Q6070218, name: Pedro Sánchez, type: PER, description: Ministerpräsident Spaniens,
+   aliases: [Pedro Sánchez, Pedro Sanchez]}
+- {id: geert-wilders, wikidata: Q105338, name: Geert Wilders, type: PER, description: Niederländischer Politiker (PVV),
+   aliases: [Geert Wilders, Wilders]}
+- {id: papst-leo-xiv, wikidata: Q6109517, name: Papst Leo XIV., type: PER, description: Oberhaupt der römisch-katholischen Kirche,
+   aliases: [Papst Leo XIV., Papst Leo, Leo XIV.]}
+- {id: hamas, wikidata: Q38799, name: Hamas, type: ORG, description: Islamistische Organisation, aliases: [Hamas]}
+- {id: hisbollah, wikidata: Q41053, name: Hisbollah, type: ORG, description: Libanesische schiitische Miliz und Partei, aliases: [Hisbollah, Hezbollah]}
+- {id: taliban, wikidata: Q42418, name: Taliban, type: ORG, description: Islamistische Bewegung in Afghanistan, aliases: [Taliban]}
+# ------------------------------------------------------------------ Institutions
+- {id: bundestag, wikidata: Q154797, name: Bundestag, type: ORG, country: DE, description: Deutscher Bundestag,
+   aliases: [Bundestag, Deutscher Bundestag, Deutschen Bundestag]}
+- {id: bundesrat, wikidata: Q146138, name: Bundesrat, type: ORG, country: DE, description: Länderkammer Deutschlands, aliases: [Bundesrat]}
+- {id: bundesregierung, wikidata: Q313827, name: Bundesregierung, type: ORG, country: DE, description: Regierung der Bundesrepublik Deutschland,
+   aliases: [Bundesregierung, Merz-Regierung, Regierung Merz, schwarz-rote Koalition, Schwarz-Rot, GroKo]}
+- {id: bundesverfassungsgericht, wikidata: Q32766, name: Bundesverfassungsgericht, type: ORG, country: DE, description: Verfassungsgericht der Bundesrepublik,
+   aliases: [Bundesverfassungsgericht, BVerfG, Verfassungsgericht]}
+- {id: bundeswehr, wikidata: Q56010, name: Bundeswehr, type: ORG, country: DE, description: Streitkräfte der Bundesrepublik, aliases: [Bundeswehr]}
+- {id: bundesbank, wikidata: Q162222, name: Deutsche Bundesbank, type: ORG, country: DE, description: Zentralbank Deutschlands, aliases: [Bundesbank, Deutsche Bundesbank]}
+- {id: verfassungsschutz, wikidata: Q310522, name: Bundesamt für Verfassungsschutz, type: ORG, country: DE, description: Inlandsnachrichtendienst,
+   aliases: [Verfassungsschutz, Bundesamt für Verfassungsschutz, BfV]}
+- {id: bnd, wikidata: Q272969, name: Bundesnachrichtendienst, type: ORG, country: DE, description: Auslandsnachrichtendienst, aliases: [BND, Bundesnachrichtendienst]}
+- {id: bundesagentur-fuer-arbeit, wikidata: Q1478016, name: Bundesagentur für Arbeit, type: ORG, country: DE, description: Bundesbehörde für Arbeitsmarkt,
+   aliases: [Bundesagentur für Arbeit, Arbeitsagentur, Jobcenter]}
+- {id: deutsche-bahn, wikidata: Q9322, name: Deutsche Bahn, type: ORG, country: DE, description: Staatliches Eisenbahnunternehmen,
+   aliases: [Deutsche Bahn, "=DB", "~Bahn"], context: business}
+- {id: ard, wikidata: Q49653, name: ARD, type: ORG, country: DE, description: Arbeitsgemeinschaft der öffentlich-rechtlichen Rundfunkanstalten,
+   aliases: [ARD, Tagesschau, Tagesthemen]}
+- {id: zdf, wikidata: Q48989, name: ZDF, type: ORG, country: DE, description: Zweites Deutsches Fernsehen, aliases: [ZDF]}
+- {id: orf, wikidata: Q262386, name: ORF, type: ORG, country: AT, description: Österreichischer Rundfunk, aliases: [ORF]}
+- {id: verdi, wikidata: Q547951, name: Verdi, type: ORG, country: DE, description: Vereinte Dienstleistungsgewerkschaft, aliases: [Verdi, ver.di]}
+- {id: ig-metall, wikidata: Q694821, name: IG Metall, type: ORG, country: DE, description: Industriegewerkschaft Metall, aliases: [IG Metall]}
+- {id: gdl, wikidata: Q553062, name: GDL, type: ORG, country: DE, description: Gewerkschaft Deutscher Lokomotivführer, aliases: [GDL]}
+- {id: eu, wikidata: Q458, name: Europäische Union, type: ORG, description: Staatenverbund europäischer Länder,
+   aliases: [Europäische Union, Europäischen Union, EU]}
+- {id: eu-kommission, wikidata: Q8880, name: Europäische Kommission, type: ORG, description: Exekutive der EU,
+   aliases: [Europäische Kommission, EU-Kommission, Kommission der EU]}
+- {id: europaeisches-parlament, wikidata: Q8889, name: Europäisches Parlament, type: ORG, description: Parlament der EU,
+   aliases: [Europäisches Parlament, Europäischen Parlament, Europaparlament, EU-Parlament]}
+- {id: ezb, wikidata: Q8901, name: Europäische Zentralbank, type: ORG, description: Zentralbank des Euroraums,
+   aliases: [Europäische Zentralbank, EZB]}
+- {id: nato, wikidata: Q7184, name: NATO, type: ORG, description: Nordatlantikpakt, aliases: [NATO, Nato]}
+- {id: uno, wikidata: Q1065, name: Vereinte Nationen, type: ORG, description: Internationale Organisation,
+   aliases: [Vereinte Nationen, Vereinten Nationen, UNO, "=UN"]}
+- {id: who, wikidata: Q7817, name: Weltgesundheitsorganisation, type: ORG, description: Sonderorganisation der UN für Gesundheit,
+   aliases: [Weltgesundheitsorganisation, "=WHO"]}
+- {id: iwf, wikidata: Q7804, name: Internationaler Währungsfonds, type: ORG, description: Internationale Finanzorganisation,
+   aliases: [Internationaler Währungsfonds, Internationalen Währungsfonds, IWF]}
+- {id: dfb, wikidata: Q154191, name: DFB, type: ORG, country: DE, description: Deutscher Fußball-Bund, aliases: [DFB, Deutscher Fußball-Bund]}
+- {id: uefa, wikidata: Q35572, name: UEFA, type: ORG, description: Europäischer Fußballverband, aliases: [UEFA, Uefa]}
+- {id: fifa, wikidata: Q253414, name: FIFA, type: ORG, description: Weltfußballverband, aliases: [FIFA, Fifa]}
+# ------------------------------------------------------------------ Media frequently discussed in comments
+- {id: der-spiegel, wikidata: Q131478, name: DER SPIEGEL, type: ORG, country: DE, description: Nachrichtenmagazin, aliases: [Spiegel Online, SPON, "~Spiegel"], context: politics}
+- {id: bild, wikidata: Q156203, name: Bild, type: ORG, country: DE, description: Boulevardzeitung, aliases: [Bild-Zeitung, Bildzeitung, "~Bild"], context: politics}
+# ------------------------------------------------------------------ DAX companies
+- {id: adidas, wikidata: Q3895, name: Adidas, type: ORG, country: DE, description: Sportartikelhersteller, aliases: [Adidas]}
+- {id: airbus, wikidata: Q67, name: Airbus, type: ORG, description: Luft- und Raumfahrtkonzern, aliases: [Airbus]}
+- {id: allianz, wikidata: Q487292, name: Allianz, type: ORG, country: DE, description: Versicherungskonzern, aliases: ["~Allianz"], context: business}
+- {id: basf, wikidata: Q9401, name: BASF, type: ORG, country: DE, description: Chemiekonzern, aliases: [BASF]}
+- {id: bayer, wikidata: Q152051, name: Bayer, type: ORG, country: DE, description: Pharma- und Agrarchemiekonzern, aliases: [Bayer AG, "@Bayer"], context: business}
+- {id: beiersdorf, wikidata: Q201691, name: Beiersdorf, type: ORG, country: DE, description: Konsumgüterkonzern, aliases: [Beiersdorf]}
+- {id: bmw, wikidata: Q26678, name: BMW, type: ORG, country: DE, description: Automobilhersteller, aliases: [BMW]}
+- {id: brenntag, wikidata: Q828445, name: Brenntag, type: ORG, country: DE, description: Chemiehändler, aliases: [Brenntag]}
+- {id: commerzbank, wikidata: Q157617, name: Commerzbank, type: ORG, country: DE, description: Bank, aliases: [Commerzbank]}
+- {id: continental, wikidata: Q163241, name: Continental, type: ORG, country: DE, description: Automobilzulieferer, aliases: ["~Continental", "@Conti"], context: business}
+- {id: daimler-truck, wikidata: Q1157624, name: Daimler Truck, type: ORG, country: DE, description: Nutzfahrzeughersteller, aliases: [Daimler Truck]}
+- {id: deutsche-bank, wikidata: Q66048, name: Deutsche Bank, type: ORG, country: DE, description: Bank, aliases: [Deutsche Bank]}
+- {id: deutsche-boerse, wikidata: Q157852, name: Deutsche Börse, type: ORG, country: DE, description: Börsenbetreiber, aliases: [Deutsche Börse]}
+- {id: dhl-group, wikidata: Q157645, name: DHL Group, type: ORG, country: DE, description: Logistikkonzern (Deutsche Post), aliases: [DHL Group, DHL, Deutsche Post]}
+- {id: deutsche-telekom, wikidata: Q9396, name: Deutsche Telekom, type: ORG, country: DE, description: Telekommunikationskonzern, aliases: [Deutsche Telekom, Telekom]}
+- {id: eon, wikidata: Q270223, name: E.ON, type: ORG, country: DE, description: Energiekonzern, aliases: [E.ON, Eon]}
+- {id: fresenius, wikidata: Q705361, name: Fresenius, type: ORG, country: DE, description: Gesundheitskonzern, aliases: [Fresenius]}
+- {id: fresenius-medical-care, wikidata: Q650259, name: Fresenius Medical Care, type: ORG, country: DE, description: Dialyseanbieter, aliases: [Fresenius Medical Care, FMC]}
+- {id: hannover-rueck, wikidata: Q657359, name: Hannover Rück, type: ORG, country: DE, description: Rückversicherer, aliases: [Hannover Rück, Hannover Re]}
+- {id: heidelberg-materials, wikidata: Q632233, name: Heidelberg Materials, type: ORG, country: DE, description: Baustoffkonzern, aliases: [Heidelberg Materials]}
+- {id: henkel, wikidata: Q276507, name: Henkel, type: ORG, country: DE, description: Konsumgüter- und Klebstoffkonzern, aliases: [Henkel]}
+- {id: infineon, wikidata: Q311394, name: Infineon, type: ORG, country: DE, description: Halbleiterhersteller, aliases: [Infineon]}
+- {id: mercedes-benz-group, wikidata: Q27530, name: Mercedes-Benz Group, type: ORG, country: DE, description: Automobilhersteller,
+   aliases: [Mercedes-Benz Group, Mercedes-Benz, Mercedes, Daimler]}
+- {id: merck, wikidata: Q156959, name: Merck, type: ORG, country: DE, description: Pharma- und Chemiekonzern (Darmstadt), aliases: [Merck KGaA, "~Merck"], context: business}
+- {id: mtu-aero-engines, wikidata: Q128929, name: MTU Aero Engines, type: ORG, country: DE, description: Triebwerkshersteller, aliases: [MTU Aero Engines, "=MTU"]}
+- {id: munich-re, wikidata: Q166637, name: Munich Re, type: ORG, country: DE, description: Rückversicherer, aliases: [Munich Re, Münchener Rück, Münchner Rück]}
+- {id: porsche, wikidata: Q40993, name: Porsche, type: ORG, country: DE, description: Sportwagenhersteller, aliases: [Porsche AG, Porsche]}
+- {id: porsche-se, wikidata: Q2104551, name: Porsche SE, type: ORG, country: DE, description: Holdinggesellschaft (Volkswagen-Großaktionär), aliases: [Porsche SE]}
+- {id: qiagen, wikidata: Q315287, name: Qiagen, type: ORG, description: Biotechnologieunternehmen, aliases: [Qiagen]}
+- {id: rheinmetall, wikidata: Q161544, name: Rheinmetall, type: ORG, country: DE, description: Rüstungskonzern, aliases: [Rheinmetall]}
+- {id: rwe, wikidata: Q138133, name: RWE, type: ORG, country: DE, description: Energiekonzern, aliases: [RWE]}
+- {id: sap, wikidata: Q552581, name: SAP, type: ORG, country: DE, description: Softwarekonzern, aliases: ["=SAP"]}
+- {id: sartorius, wikidata: Q175835, name: Sartorius, type: ORG, country: DE, description: Labor- und Pharmazulieferer, aliases: [Sartorius]}
+- {id: siemens, wikidata: Q81230, name: Siemens, type: ORG, country: DE, description: Technologiekonzern, aliases: [Siemens AG, Siemens]}
+- {id: siemens-energy, wikidata: Q89189545, name: Siemens Energy, type: ORG, country: DE, description: Energietechnikkonzern, aliases: [Siemens Energy]}
+- {id: siemens-healthineers, wikidata: Q472451, name: Siemens Healthineers, type: ORG, country: DE, description: Medizintechnikkonzern, aliases: [Siemens Healthineers, Healthineers]}
+- {id: symrise, wikidata: Q73251, name: Symrise, type: ORG, country: DE, description: Duft- und Aromenhersteller, aliases: [Symrise]}
+- {id: volkswagen, wikidata: Q156578, name: Volkswagen, type: ORG, country: DE, description: Automobilkonzern, aliases: [Volkswagen, "=VW", Volkswagen AG]}
+- {id: vonovia, wikidata: Q1202053, name: Vonovia, type: ORG, country: DE, description: Wohnungskonzern, aliases: [Vonovia]}
+- {id: zalando, wikidata: Q136570, name: Zalando, type: ORG, country: DE, description: Online-Modehändler, aliases: [Zalando]}
+- {id: scout24, wikidata: Q110964820, name: Scout24, type: ORG, country: DE, description: Online-Marktplatzbetreiber, aliases: [Scout24, Immoscout, ImmoScout24]}
+- {id: gea-group, wikidata: Q446895, name: GEA Group, type: ORG, country: DE, description: Maschinenbaukonzern, aliases: [GEA Group]}
+- {id: covestro, wikidata: Q812142, name: Covestro, type: ORG, country: DE, description: Kunststoffhersteller, aliases: [Covestro]}
+# ------------------------------------------------------------------ Other large companies often discussed
+- {id: tesla, wikidata: Q478214, name: Tesla, type: ORG, country: US, description: Elektroautohersteller, aliases: [Tesla]}
+- {id: apple, wikidata: Q312, name: Apple, type: ORG, country: US, description: Technologiekonzern, aliases: [Apple]}
+- {id: google, wikidata: Q95, name: Google, type: ORG, country: US, description: Internetkonzern (Alphabet), aliases: [Google, Alphabet]}
+- {id: meta-platforms, wikidata: Q380, name: Meta Platforms, type: ORG, country: US, description: "Internetkonzern (Facebook, Instagram)",
+   aliases: [Meta Platforms, Facebook, "~Meta"], context: business}
+- {id: microsoft, wikidata: Q2283, name: Microsoft, type: ORG, country: US, description: Softwarekonzern, aliases: [Microsoft]}
+- {id: amazon, wikidata: Q3884, name: Amazon, type: ORG, country: US, description: Online-Händler und Technologiekonzern, aliases: [Amazon]}
+- {id: openai, wikidata: Q21708200, name: OpenAI, type: ORG, country: US, description: KI-Unternehmen, aliases: [OpenAI, Open AI]}
+- {id: nvidia, wikidata: Q182477, name: Nvidia, type: ORG, country: US, description: Halbleiterhersteller, aliases: [Nvidia, NVIDIA]}
+- {id: tiktok, wikidata: Q48938223, name: TikTok, type: ORG, description: Videoplattform (ByteDance), aliases: [TikTok, Tiktok]}
+- {id: spacex, wikidata: Q193701, name: SpaceX, type: ORG, country: US, description: Raumfahrtunternehmen, aliases: [SpaceX]}
+- {id: lufthansa, wikidata: Q9325, name: Lufthansa, type: ORG, country: DE, description: Fluggesellschaft, aliases: [Lufthansa]}
+- {id: thyssenkrupp, wikidata: Q137910, name: Thyssenkrupp, type: ORG, country: DE, description: Industriekonzern, aliases: [Thyssenkrupp, ThyssenKrupp]}
+- {id: intel, wikidata: Q248, name: Intel, type: ORG, country: US, description: Halbleiterhersteller, aliases: [Intel]}
+# ------------------------------------------------------------------ Football clubs (Bundesliga, 2. Bundesliga, Austria)
+- {id: fc-bayern-muenchen, wikidata: Q15789, name: FC Bayern München, type: ORG, country: DE, description: Fußballverein, context: football,
+   aliases: [FC Bayern München, FC Bayern, Bayern München, FCB, "@Bayern"]}
+- {id: borussia-dortmund, wikidata: Q41420, name: Borussia Dortmund, type: ORG, country: DE, description: Fußballverein, context: football,
+   aliases: [Borussia Dortmund, BVB, "@Dortmund"]}
+- {id: bayer-04-leverkusen, wikidata: Q104761, name: Bayer 04 Leverkusen, type: ORG, country: DE, description: Fußballverein, context: football,
+   aliases: [Bayer 04 Leverkusen, Bayer Leverkusen, Bayer 04, Werkself, "@Leverkusen", "@Bayer"]}
+- {id: rb-leipzig, wikidata: Q702455, name: RB Leipzig, type: ORG, country: DE, description: Fußballverein, context: football,
+   aliases: [RB Leipzig, RBL, "@Leipzig"]}
+- {id: vfb-stuttgart, wikidata: Q4512, name: VfB Stuttgart, type: ORG, country: DE, description: Fußballverein, context: football,
+   aliases: [VfB Stuttgart, VfB, "@Stuttgart"]}
+- {id: eintracht-frankfurt, wikidata: Q38245, name: Eintracht Frankfurt, type: ORG, country: DE, description: Fußballverein, context: football,
+   aliases: [Eintracht Frankfurt, "=SGE", "@Eintracht", "@Frankfurt"]}
+- {id: sc-freiburg, wikidata: Q106394, name: SC Freiburg, type: ORG, country: DE, description: Fußballverein, context: football,
+   aliases: [SC Freiburg, "@Freiburg"]}
+- {id: vfl-wolfsburg, wikidata: Q101859, name: VfL Wolfsburg, type: ORG, country: DE, description: Fußballverein, context: football,
+   aliases: [VfL Wolfsburg, "@Wolfsburg"]}
+- {id: borussia-moenchengladbach, wikidata: Q101959, name: Borussia Mönchengladbach, type: ORG, country: DE, description: Fußballverein, context: football,
+   aliases: [Borussia Mönchengladbach, Gladbach, "@Mönchengladbach", "@Borussia"]}
+- {id: 1-fc-union-berlin, wikidata: Q141971, name: 1. FC Union Berlin, type: ORG, country: DE, description: Fußballverein, context: football,
+   aliases: [1. FC Union Berlin, Union Berlin, Eisern Union, "@Union"]}
+- {id: werder-bremen, wikidata: Q51976, name: SV Werder Bremen, type: ORG, country: DE, description: Fußballverein, context: football,
+   aliases: [SV Werder Bremen, Werder Bremen, Werder, "@Bremen"]}
+- {id: tsg-hoffenheim, wikidata: Q22707, name: TSG 1899 Hoffenheim, type: ORG, country: DE, description: Fußballverein, context: football,
+   aliases: [TSG 1899 Hoffenheim, TSG Hoffenheim, Hoffenheim]}
+- {id: 1-fsv-mainz-05, wikidata: Q105254, name: 1. FSV Mainz 05, type: ORG, country: DE, description: Fußballverein, context: football,
+   aliases: [1. FSV Mainz 05, Mainz 05, "@Mainz"]}
+- {id: fc-augsburg, wikidata: Q15755, name: FC Augsburg, type: ORG, country: DE, description: Fußballverein, context: football,
+   aliases: [FC Augsburg, "@Augsburg"]}
+- {id: 1-fc-heidenheim, wikidata: Q162251, name: 1. FC Heidenheim, type: ORG, country: DE, description: Fußballverein, context: football,
+   aliases: [1. FC Heidenheim, "@Heidenheim"]}
+- {id: fc-st-pauli, wikidata: Q6463, name: FC St. Pauli, type: ORG, country: DE, description: Fußballverein, context: football,
+   aliases: [FC St. Pauli, "@St. Pauli"]}
+- {id: 1-fc-koeln, wikidata: Q104770, name: 1. FC Köln, type: ORG, country: DE, description: Fußballverein, context: football,
+   aliases: [1. FC Köln, FC Köln, Effzeh, "@Köln"]}
+- {id: hamburger-sv, wikidata: Q51974, name: Hamburger SV, type: ORG, country: DE, description: Fußballverein, context: football,
+   aliases: [Hamburger SV, HSV]}
+- {id: fc-schalke-04, wikidata: Q32494, name: FC Schalke 04, type: ORG, country: DE, description: Fußballverein, context: football,
+   aliases: [FC Schalke 04, Schalke 04, Schalke, S04]}
+- {id: hertha-bsc, wikidata: Q102720, name: Hertha BSC, type: ORG, country: DE, description: Fußballverein, context: football,
+   aliases: [Hertha BSC, "@Hertha"]}
+- {id: vfl-bochum, wikidata: Q105861, name: VfL Bochum, type: ORG, country: DE, description: Fußballverein, context: football,
+   aliases: [VfL Bochum, "@Bochum"]}
+- {id: holstein-kiel, wikidata: Q157828, name: Holstein Kiel, type: ORG, country: DE, description: Fußballverein, context: football,
+   aliases: [Holstein Kiel, "@Kiel"]}
+- {id: sv-darmstadt-98, wikidata: Q479351, name: SV Darmstadt 98, type: ORG, country: DE, description: Fußballverein, context: football,
+   aliases: [SV Darmstadt 98, Darmstadt 98, "@Darmstadt"]}
+- {id: fortuna-duesseldorf, wikidata: Q151747, name: Fortuna Düsseldorf, type: ORG, country: DE, description: Fußballverein, context: football,
+   aliases: [Fortuna Düsseldorf, "@Fortuna", "@Düsseldorf"]}
+- {id: hannover-96, wikidata: Q33748, name: Hannover 96, type: ORG, country: DE, description: Fußballverein, context: football,
+   aliases: [Hannover 96]}
+- {id: 1-fc-nuernberg, wikidata: Q15786, name: 1. FC Nürnberg, type: ORG, country: DE, description: Fußballverein, context: football,
+   aliases: [1. FC Nürnberg, FC Nürnberg, "@Nürnberg"]}
+- {id: 1-fc-kaiserslautern, wikidata: Q8466, name: 1. FC Kaiserslautern, type: ORG, country: DE, description: Fußballverein, context: football,
+   aliases: [1. FC Kaiserslautern, "@Kaiserslautern", "@Lautern"]}
+- {id: sc-paderborn-07, wikidata: Q160532, name: SC Paderborn 07, type: ORG, country: DE, description: Fußballverein, context: football,
+   aliases: [SC Paderborn 07, SC Paderborn, "@Paderborn"]}
+- {id: sv-elversberg, wikidata: Q692691, name: SV Elversberg, type: ORG, country: DE, description: Fußballverein, context: football,
+   aliases: [SV Elversberg, Elversberg]}
+- {id: 1-fc-magdeburg, wikidata: Q155730, name: 1. FC Magdeburg, type: ORG, country: DE, description: Fußballverein, context: football,
+   aliases: [1. FC Magdeburg, "@Magdeburg"]}
+- {id: karlsruher-sc, wikidata: Q105853, name: Karlsruher SC, type: ORG, country: DE, description: Fußballverein, context: football,
+   aliases: [Karlsruher SC, "=KSC"]}
+- {id: red-bull-salzburg, wikidata: Q994811, name: FC Red Bull Salzburg, type: ORG, country: AT, description: Fußballverein, context: football,
+   aliases: [FC Red Bull Salzburg, Red Bull Salzburg, "@Salzburg"]}
+- {id: sk-rapid-wien, wikidata: Q131215, name: SK Rapid Wien, type: ORG, country: AT, description: Fußballverein, context: football,
+   aliases: [SK Rapid Wien, Rapid Wien, "@Rapid"]}
+- {id: fk-austria-wien, wikidata: Q131209, name: FK Austria Wien, type: ORG, country: AT, description: Fußballverein, context: football,
+   aliases: [FK Austria Wien, Austria Wien]}
+- {id: sk-sturm-graz, wikidata: Q124007617, name: SK Sturm Graz, type: ORG, country: AT, description: Fußballverein, context: football,
+   aliases: [SK Sturm Graz, Sturm Graz]}
+- {id: julian-nagelsmann, wikidata: Q21226404, name: Julian Nagelsmann, type: PER, country: DE, description: Bundestrainer der Fußballnationalmannschaft,
+   aliases: [Julian Nagelsmann, Nagelsmann]}

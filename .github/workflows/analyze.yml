@@ -1,0 +1,78 @@
+name: Analyze comments
+
+on:
+  schedule:
+    - cron: "30 * * * *" # hourly at minute 30 (the crawler runs on the hour)
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: Max comments to analyze in this run
+        default: "3000"
+      ner:
+        description: NER backend (flair | bert | none)
+        default: flair
+      reaggregate:
+        description: Rebuild all aggregates from mentions afterwards
+        type: boolean
+        default: false
+
+concurrency:
+  group: analysis # never run two pipelines against Firestore at the same time
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    env:
+      FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      HF_HOME: ${{ github.workspace }}/.hf-cache
+      FLAIR_CACHE_ROOT: ${{ github.workspace }}/.flair-cache
+      ANALYSIS_CACHE_DIR: ${{ github.workspace }}/.cache
+      TOKENIZERS_PARALLELISM: "false"
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check secret
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "::error::Secret FIREBASE_SERVICE_ACCOUNT is not available to this repository."
+            exit 1
+          fi
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install (CPU-only torch)
+        run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -r requirements.txt
+
+      - name: Cache models (Hugging Face + Flair)
+        uses: actions/cache@v4
+        with:
+          path: |
+            .hf-cache
+            .flair-cache
+          key: models-v1-flair-ner-german-guhr-sentiment
+
+      - name: Cache Wikidata lookups
+        uses: actions/cache@v4
+        with:
+          path: .cache
+          key: wikidata-${{ github.run_id }}
+          restore-keys: wikidata-
+
+      - name: Analyze
+        run: python -m analysis run --limit "${{ inputs.limit || '3000' }}" --ner "${{ inputs.ner || 'flair' }}"
+
+      - name: Reaggregate
+        if: ${{ inputs.reaggregate }}
+        run: python -m analysis reaggregate

@@ -1,0 +1,31 @@
+name: Seed entities and events
+
+on:
+  push:
+    branches: [main]
+    paths: ["data/entities.yaml", "data/events.yaml"]
+  workflow_dispatch:
+
+concurrency:
+  group: analysis
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install google-auth requests PyYAML
+      - name: Seed
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then echo "::warning::FIREBASE_SERVICE_ACCOUNT not set, skipping"; exit 0; fi
+          python -m analysis seed
