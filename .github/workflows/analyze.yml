@@ -9,8 +9,8 @@ on:
         description: Max comments to analyze in this run
         default: "20000"
       ner:
-        description: NER backend (flair | bert | none)
-        default: flair
+        description: NER backend (bert | flair | none)
+        default: bert
       reaggregate:
         description: Rebuild all aggregates from mentions afterwards
         type: boolean
@@ -61,7 +61,7 @@ jobs:
           path: |
             .hf-cache
             .flair-cache
-          key: models-v2-flair-ner-german-news-guhr-sentiment
+          key: models-v3-bert-flair-ner-news-guhr-sentiment
           restore-keys: models-
 
       - name: Cache Wikidata lookups
@@ -72,7 +72,7 @@ jobs:
           restore-keys: wikidata-
 
       - name: Analyze
-        run: python -m analysis run --limit "${{ inputs.limit || '20000' }}" --ner "${{ inputs.ner || 'flair' }}"
+        run: python -m analysis run --limit "${{ inputs.limit || '20000' }}" --ner "${{ inputs.ner || 'bert' }}"
 
       - name: Reaggregate
         if: ${{ inputs.reaggregate }}

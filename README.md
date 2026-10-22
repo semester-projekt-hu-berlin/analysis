@@ -10,58 +10,76 @@ The data contract is [`infrastructure/SCHEMA.md`](https://github.com/semester-pr
 ## Pipeline
 
 ```
- Firestore comments (analyzed == false, oldest crawledAt first, ≤ 3000 per run)
-        │   only articleId, sourceId, text, publishedAt, day are read (field mask)
+ Firestore comments (analyzed == false, oldest crawledAt first, ≤ 20000 per run, batches of 250)
+        │   only articleId, sourceId, text, publishedAt, day, analysis fields are read (field mask)
         ▼
  clean (URLs, whitespace, 2000-char cap) ─► sentence split (segtok, ≤ 400 chars)
         │
         ▼
- NER  ── Flair flair/ner-german (PER / ORG / LOC / MISC), batched over all sentences of a run
+ NER  ── German BERT NER (default) or Flair flair/ner-german (PER / ORG / LOC / MISC), batched;
+        │   skipped for sentences without an upper-case letter or shorter than 4 characters
         │
         ▼
  Entity linking
-   1. gazetteer over data/entities.yaml (331 curated entities, ~780 aliases)
+   1. gazetteer over data/entities.yaml (384 curated entities, ~1100 aliases)
         plain alias  ─ always             "Merz", "Sozis", "AfD-Wähler"
         weak alias   ─ needs NER span     "Reiche" (PER) vs. "die Reiche Elite"
         context alias─ needs keywords     "Leverkusen" + Spiel/Tor/Bundesliga… (comment or article title)
-        country tie-break                 "Grüne" on derstandard.at → Austrian Greens
+        tie-breaks                        other name words in the text ("Eintracht … Braunschweig"),
+                                          context-confirmed reading beats plain ("RWE" + Spiel → Rot-Weiss Essen),
+                                          source country ("Grüne"/"FCB" on derstandard.at / blick.ch)
    2. NER span not covered → exact alias lookup (titles stripped: "Kanzler Merz" → "Merz")
    3. still unknown PER/ORG → Wikidata fallback with strict public-figure filter (cached, capped)
         │
         ▼
- Target sentiment ─ window = sentence of the mention, narrowed to the clause if the sentence
-        │           mentions several entities ("Merz macht das gut, aber die SPD hat versagt")
-        │           → German sentiment BERT → label pos/neu/neg, score P(pos)−P(neg), confidence
+ Target sentiment ─ window = sentence of the mention plus neighbouring sentences without other
+        │           entities; narrowed to the clause if the sentence mentions several entities
+        │           ("Merz macht das gut, aber die SPD hat versagt")
+        │           → ensemble of two German sentiment BERTs, score = P(pos) − P(neg),
+        │             label pos/neg if |score| > 0.2 else neu, confidence = P(label)
         ▼
  mentions/{commentId}_{entityId}  (surface span only, never the comment text)
  comments/{id}: analyzed=true, analyzedAt, analysisVersion
         │
         ▼
- Aggregation (idempotent)
-   for every affected day: recompute entities/{id}/days/{day} from ALL mentions of that day
+ Aggregation (idempotent, every 2000 comments and at the end of a run)
+   for every affected (entity, day) pair: recompute entities/{id}/days/{day} from the mentions
+     of that pair (query entityId == X AND day == D; coMentions from mentions.coEntityIds)
    entity totals += (new day doc − old day doc), committed atomically with the day docs
-   rolling mentions7d / avgSentiment7d / mentionsPrev7d / avgSentimentPrev7d
-   meta/trending (top 50, risers / fallers ≥ 20 mentions in both windows), meta/stats
+   rolling mentions7d / avgSentiment7d / mentionsPrev7d / avgSentimentPrev7d from recentDays
+   meta/trending (top 50 with 30-day sparkline, risers / fallers ≥ 20 mentions in both windows),
+   meta/stats
 ```
 
-All Firestore access goes through the REST API (`runQuery`, `batchGet`, `commit` with ≤ 500
-writes per batch, `runAggregationQuery` for counts) using a service account and
+All Firestore access goes through the REST API (`runQuery`, `batchGet`, `commit` in batches
+of ≤ 100 writes, `runAggregationQuery` for counts; every request has a 120 s timeout and
+exponential backoff, and batches that hit 429 are split in halves) using a service account and
 `AuthorizedSession` — no gRPC (the development sandbox cannot use it; REST also works in CI).
 
 ## Models and why
 
 | Step | Model | Why |
 |---|---|---|
-| NER | [`flair/ner-german`](https://huggingface.co/flair/ner-german) (Flair 0.15, BiLSTM-CRF over contextual string embeddings, CoNLL-03 German F1 ≈ 87) | Course recommendation; robust on noisy, lowercased comment text; CPU-only. |
-| NER (alt.) | `domischwimmbeck/bert-base-german-cased-fine-tuned-ner` (`--ner bert`) | ≈ 2.9× faster; same spans on our smoke tests. Switch if runs get too slow. |
-| Sentiment | [`oliverguhr/german-sentiment-bert`](https://huggingface.co/oliverguhr/german-sentiment-bert) (`--sentiment guhr`) | Trained on 1.8 M German texts incl. social-media comments; free, CPU-friendly (≈ 57 windows/s). See evaluation for the comparison with alternatives. |
+| NER (default) | `domischwimmbeck/bert-base-german-cased-fine-tuned-ner` (`--ner bert`, GermEval 2014) | ≈ 2.9× faster than Flair on CPU (52 vs 18 sentences/s), same spans on our smoke tests. The runs are twice a day with a half-day backlog, so CPU time matters. |
+| NER (alt.) | [`flair/ner-german`](https://huggingface.co/flair/ner-german) (`--ner flair`; Flair 0.15, BiLSTM-CRF, CoNLL-03 German F1 ≈ 87) | Course recommendation; kept as an option. |
+| Sentiment (default `ens`) | mean of [`mdraw/german-news-sentiment-bert`](https://huggingface.co/mdraw/german-news-sentiment-bert) and [`oliverguhr/german-sentiment-bert`](https://huggingface.co/oliverguhr/german-sentiment-bert) on raw text, threshold 0.2 on P(pos) − P(neg) | Best macro-F1 on our hand-labelled comments (0.44 vs 0.27 for the Guhr model alone with argmax, see [eval](eval/README.md)). Free, CPU-friendly. |
 
-**Benchmark** (this sandbox, 4 CPU threads, CPU torch 2.x): Flair NER 18 sentences/s,
-BERT NER 52 sentences/s, sentiment 55–57 windows/s. A typical comment has 2–4 sentences, so an
-hourly run with a few hundred new comments takes 1–3 minutes plus ≈ 1 minute of model loading;
-the default cap of 3000 comments per run (~9000 sentences) stays below ~12 minutes of NER on a
-4-vCPU GitHub runner. Length caps (2000 chars per comment, 400 per sentence, 256 tokens per
-sentiment window) bound the worst case.
+**Throughput** (measured on production data in this 4-CPU sandbox, CPU torch, BERT NER + `ens`
+sentiment): about 200 comments/min including linking and Firestore I/O (Flair: about 140/min).
+With twice-daily runs (4–8k new comments) that is 20–40 min on a 4-vCPU runner and up to about
+80 min on a 2-vCPU runner; the job timeout is 150 min. Length caps (2000 chars per comment,
+400 per sentence, 1000 per sentiment window, 256 tokens) bound the worst case.
+
+**Firestore cost** (`python scripts/bench_firestore_ops.py`, in-memory Firestore with counters,
+4000 synthetic comments over two days):
+
+| | reads / 1000 comments | writes / 1000 comments |
+|---|---|---|
+| before (day-wide recompute after every 250 comments) | 6338 | 2148 |
+| after (pair-wise recompute every 2000 comments, unchanged docs not written, no mention lookup for new comments) | 2581 | 2004 |
+
+Of the remaining reads, 1000 are the comments themselves. The writes are about one per comment
+(the `analyzed` flag) plus one per mention.
 
 The default pipeline is entirely open-source and free. The HU LLM offer is not used.
 
@@ -74,12 +92,21 @@ The default pipeline is entirely open-source and free. The HU LLM offer is not u
   Prien, Julia Klöckner, Boris Rhein); major Austrian politicians; the US president,
   vice-president, cabinet and leading figures of the 2026 midterms; key international leaders;
   institutions (Bundestag, Bundesrat, BVerfG, EU, Commission, EP, ECB, NATO, UN, …), DAX
-  companies plus large tech companies, Bundesliga / 2. Bundesliga / Austrian clubs. Because the
-  crawler also covers derstandard.at (AT) and blick.ch (CH), Austrian and Swiss parties,
-  Bundesrät:innen, institutions, companies and clubs are included as well.
+  companies plus large tech companies. Football: all clubs of the Bundesliga and 2. Bundesliga
+  2026/27, popular 3. Liga and traditional clubs, the Austrian Bundesliga and the Swiss Super
+  League, big international clubs, the German/Austrian/Swiss national teams, DFB, DFL, ÖFB, SFV,
+  UEFA, FIFA (91 football entities, with nicknames like "Werkself", "Fohlen", "Knappen",
+  "Effzeh"). Because the crawler also covers derstandard.at (AT) and blick.ch (CH), Austrian and
+  Swiss parties, Bundesrät:innen, institutions and companies are included as well.
   Every entry has a Wikidata id, resolved with `scripts/resolve_wikidata.py` (SPARQL, label
   match, type/description plausibility check, largest sitelink count) and checked by hand
-  (43 manual overrides for homonyms such as "Daniel Günther" the Swedish singer).
+  (44 manual overrides for homonyms such as "Daniel Günther" the Swedish singer; clubs via a
+  football-specific search that excludes women's/youth teams).
+* **Images** (`seed`): direct `upload.wikimedia.org` thumbnail URLs (250 px, the smallest
+  standard width Wikimedia serves near the requested 160 px; 160 px returns HTTP 400). Persons:
+  portrait (P18). Organisations, parties, clubs, media: logo only (P154, P8972, P158), never
+  P18 (often a photo of the headquarters). No logo → `imageUrl: null`. `imageKind` is
+  `"logo" | "portrait" | null`.
 * **Alias modes** (see the header of the YAML): plain (case-insensitive), `=` case-sensitive
   (`=UN`, `=SAP`), `~` weak (must overlap an NER span of a compatible type, or a context
   keyword is present: `~Reiche`, `~Union`, `~Bas`), `@` contextual (needs a keyword from a
@@ -122,14 +149,18 @@ The default pipeline is entirely open-source and free. The HU LLM offer is not u
 
 * Mention ids are deterministic (`commentId_entityId`): re-analysing a comment overwrites its
   mentions; mentions of entities that no longer match are deleted.
-* For each affected day, the day documents of all entities are **recomputed** from all mentions
-  of that day (counts, `scoreSum`, `bySource`, top-20 `coMentions`) – never incremented.
+* For each affected (entity, day) pair, the day document is **recomputed** from the mentions of
+  that pair (counts, `scoreSum`, `bySource`, top-20 `coMentions` via `mentions.coEntityIds`),
+  never incremented. Unchanged day docs are not written.
+* The pairs still to aggregate are stored in `meta/analysis.pendingPairs` *before* the mentions
+  are written; a run that stops in between is completed by the next run. Each comment's
+  mentions and its `analyzed` flag are committed atomically together.
 * Entity totals change by `new − old` of each recomputed day doc, written in the **same atomic
   commit** as the day docs. A crash before the commit changes nothing; re-running yields a zero
   delta. `python -m analysis reaggregate` rebuilds everything from scratch (and deletes orphan
   day docs) if anything ever drifts.
 * Rolling windows are recomputed every run for all entities (they slide even without new
-  mentions). `meta/trending` and `meta/stats` (`mentions`, `entities` = allowlisted entities
+  mentions) from `recentDays`; only entity docs whose values change are written. `meta/trending` and `meta/stats` (`mentions`, `entities` = allowlisted entities
   with ≥ 1 mention, `lastAnalysisAt`) are rewritten after each run.
 * Tests: `tests/test_aggregate.py` (math), `tests/test_pipeline.py` (end-to-end on an in-memory
   Firestore: re-run gives an identical snapshot, reaggregate matches incremental, stale mention
@@ -142,8 +173,15 @@ All optional, no existing field changed:
 | where | field | why |
 |---|---|---|
 | `entities` | `scoreSum` | exact running sum, so `avgSentiment` can be updated by deltas without rounding drift |
-| `entities` | `recentDays` | `{day: {mentions,pos,neu,neg,scoreSum}}` for the last 14 days, so rolling 7-day windows can slide every run without reading the `days` subcollection |
+| `entities` | `recentDays` | `{day: {mentions,pos,neu,neg,scoreSum}}` for the last 30 days, so rolling windows and the sparkline need no reads of the `days` subcollection |
+| `entities` | `imageKind` | `"logo" \| "portrait" \| null` |
 | `entities/{id}/days/{day}` | `lastMentionAt` | latest mention timestamp of the day, used for `entities.lastMentionAt` |
+| `mentions` | `coEntityIds` | other entities of the same comment, so one (entity, day) can be recomputed from its own mentions |
+| `meta/trending` items | `spark` | 30 daily `avgSentiment` values (oldest first, ending on the Berlin day of `updatedAt`, `null` without mentions) |
+| `meta/analysis` | `pendingPairs` | internal crash-recovery state |
+
+These are documented in `infrastructure/SCHEMA.md`, which also lists the composite index
+`mentions (entityId, day)`. Equality-only queries also work without it.
 
 ## Evaluation
 
@@ -159,9 +197,12 @@ pip install -r requirements.txt -r requirements-dev.txt
 export GOOGLE_APPLICATION_CREDENTIALS=/path/to/sa.json   # or FIREBASE_SERVICE_ACCOUNT='{"type": ...}'
 
 python -m analysis seed                 # curated entities (+ Wikimedia images) and events
-python -m analysis run --limit 3000     # analyze unanalyzed comments, update aggregates
-python -m analysis reaggregate          # rebuild all aggregates from mentions
-python -m analysis run --ner bert       # faster NER backend; --no-wikidata disables the fallback
+python -m analysis run                  # analyze unanalyzed comments (≤ 20000), update aggregates
+python -m analysis run --ner flair      # Flair NER instead of BERT; --no-wikidata disables the fallback
+python -m analysis reaggregate --since 2026-10-20   # recompute only pairs from that day on (cheap)
+python -m analysis reaggregate          # full rebuild from all mentions (full scan, use rarely)
+python scripts/eval_sentiment.py score  # sentiment evaluation (see eval/README.md)
+python scripts/bench_firestore_ops.py   # reads/writes per 1000 comments
 
 pytest -q && ruff check . && ruff format --check .
 ```
@@ -173,7 +214,7 @@ Re-analysing everything with a new model version: set `analyzed = false` on the 
 
 | workflow | trigger | what |
 |---|---|---|
-| `analyze.yml` | hourly at minute 30 (crawler runs on the hour) + manual | `python -m analysis run`; CPU-only torch, pip cache, Hugging Face + Flair model cache, Wikidata lookup cache; `concurrency: analysis` prevents overlapping runs |
+| `analyze.yml` | twice a day at 05:30 and 17:30 UTC (`30 5,17 * * *`), about an hour after the crawler (`17 4,16 * * *`), + manual | `python -m analysis run` over the half-day backlog (4–8k comments; `--limit 20000`, timeout 150 min, aggregation every 2000 comments); CPU-only torch, pip cache, Hugging Face + Flair model cache, Wikidata lookup cache; `concurrency: analysis` prevents overlapping runs |
 | `seed.yml` | push to `data/*.yaml` + manual | `python -m analysis seed` |
 | `ci.yml` | push / PR | ruff + pytest (fake models, no torch needed) |
 
