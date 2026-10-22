@@ -31,6 +31,7 @@ def main(argv: list[str] | None = None) -> int:
     ra.add_argument("--since", help="only recompute (entity, day) pairs from this day (YYYY-MM-DD) on; default: all")
     rs = sub.add_parser("rescore", help="re-run only the sentiment step for all mentions, then re-aggregate")
     rs.add_argument("--sentiment", default=os.environ.get("ANALYSIS_SENTIMENT", "cal"))
+    sub.add_parser("seed-requests", help="validate accepted entity_requests via Wikidata and seed them")
     s = sub.add_parser("seed", help="write curated entities and events")
     s.add_argument("--no-images", action="store_true")
 
@@ -63,6 +64,10 @@ def main(argv: list[str] | None = None) -> int:
             max_wikidata_lookups=args.max_wikidata_lookups,
             agg_every=args.agg_every,
         )
+    elif args.cmd == "seed-requests":
+        from .entity_requests import process_entity_requests
+
+        out = process_entity_requests(fs)
     elif args.cmd == "rescore":
         out = rescore(fs, sentiment_key=args.sentiment)
     elif args.cmd == "reaggregate":

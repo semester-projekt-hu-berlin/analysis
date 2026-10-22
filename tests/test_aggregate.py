@@ -204,3 +204,27 @@ def test_baselines_and_relative():
     assert base == -0.3 and by_src == {"x": 0.0, "y": -0.4}
     assert agg.relative(ents["a"], base) == 0.3
     assert agg.relative(ents["c"], base) is None  # < 10 mentions
+
+
+def test_peer_ranks_percentiles():
+    ents = {
+        "a": {"allowlisted": True, "type": "PER", "mentions7d": 12, "avgSentiment7d": 0.2, "name": "A"},
+        "b": {"allowlisted": True, "type": "PER", "mentions7d": 30, "avgSentiment7d": -0.4, "name": "B"},
+        "c": {"allowlisted": True, "type": "PER", "mentions7d": 15, "avgSentiment7d": 0.0, "name": "C"},
+        "d": {"allowlisted": True, "type": "ORG", "mentions7d": 50, "avgSentiment7d": -0.1, "name": "D"},
+        "e": {"allowlisted": True, "type": "PER", "mentions7d": 3, "avgSentiment7d": 0.9, "name": "E"},  # unreliable
+    }
+    f, strip = agg.peer_ranks(ents)
+    assert f["a"] == {
+        "rankAll": 1,
+        "peersAll": 4,
+        "percentileAll": 100.0,
+        "rankInType": 1,
+        "peersInType": 3,
+        "percentileInType": 100.0,
+    }
+    assert f["b"]["rankInType"] == 3 and f["b"]["percentileInType"] == 0.0
+    assert f["c"]["percentileInType"] == 50.0
+    assert f["d"]["peersInType"] == 1 and f["d"]["percentileInType"] == 100.0
+    assert "e" not in f
+    assert [x["id"] for x in strip["PER"]] == ["a", "c", "b"]

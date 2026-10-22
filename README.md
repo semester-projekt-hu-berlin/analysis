@@ -169,6 +169,21 @@ The default pipeline is entirely open-source and free. The HU LLM offer is not u
   `baselineBySource7d`; every entity with ≥ 10 mentions in 7 days gets
   `relative7d = avgSentiment7d − baseline7d`. `top` lists only entities with ≥ 10 mentions in
   7 days; risers/fallers need ≥ 20 in both windows.
+* **Relative context**: every entity with ≥ 10 mentions in 7 days gets `rankInType` /
+  `peersInType` / `percentileInType` (by `avgSentiment7d` within its type; 100 = most
+  positive) and the same across all types (`rankAll`, `peersAll`, `percentileAll`);
+  `meta/peers` holds the peer strip per type (one read).
+* **Evidence**: each day doc lists `topArticles` (the 20 articles with the most mentions that
+  day, with label counts).
+* **Community texts** (`sourceType: "community"`, submitted through the API) are analysed like
+  comments but never enter `days`, entity totals, windows, baselines, trending or peers. They
+  are aggregated into `entities/{id}/community_text/{day}` and the entity field
+  `communityText7d`.
+* **Entity requests**: at the start of every run (and with `python -m analysis seed-requests`),
+  accepted `entity_requests/{qid}` are re-validated with Wikidata (≥ 10 sitelinks; persons
+  need an occupation or position, organisations an organisation class) and seeded as allowlisted
+  entities, or marked `failed` with a reason. If Wikidata rate-limits, they are retried in the
+  next run.
 * Rolling windows are recomputed every run for all entities (they slide even without new
   mentions) from `recentDays`; only entity docs whose values change are written. `meta/trending` and `meta/stats` (`mentions`, `entities` = allowlisted entities
   with ≥ 1 mention, `lastAnalysisAt`) are rewritten after each run.
@@ -219,6 +234,7 @@ python -m analysis seed                 # curated entities (+ Wikimedia images) 
 python -m analysis run                  # analyze unanalyzed comments (≤ 20000), update aggregates
 python -m analysis run --ner flair      # Flair NER instead of BERT; --no-wikidata disables the fallback
 python -m analysis rescore              # re-run only the sentiment step for all mentions, re-aggregate
+python -m analysis seed-requests        # seed accepted entity_requests (also done at the start of `run`)
 python -m analysis reaggregate --since 2026-10-20   # recompute only pairs from that day on (cheap)
 python -m analysis reaggregate          # full rebuild from all mentions (full scan, use rarely)
 python scripts/eval_sentiment.py score  # sentiment evaluation (see eval/README.md)

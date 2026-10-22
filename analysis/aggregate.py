@@ -14,6 +14,9 @@ from datetime import date, datetime, timedelta
 
 LABELS = ("pos", "neu", "neg")
 CO_MENTIONS_TOP = 20
+TOP_ARTICLES = 20
+PEERS_MIN_MENTIONS = 10
+COMMUNITY = "community"
 TRENDING_TOP = 50
 TOP_MIN_MENTIONS = 10  # an entity needs this many mentions in 7 days to appear in `top`
 RELATIVE_MIN_MENTIONS = 10
@@ -49,6 +52,7 @@ def build_day_docs(mentions: list[dict]) -> dict[tuple[str, str], dict]:
                 "day": m["day"],
                 "bySource": {},
                 "coMentions": {},
+                "topArticles": {},
                 "lastMentionAt": None,
             }
         lab = m["label"] if m["label"] in LABELS else "neu"
@@ -59,6 +63,11 @@ def build_day_docs(mentions: list[dict]) -> dict[tuple[str, str], dict]:
         src["mentions"] += 1
         src[lab] += 1
         src["scoreSum"] += float(m["score"])
+        art = doc["topArticles"].setdefault(
+            m.get("articleId") or "unknown", {"mentions": 0, "pos": 0, "neu": 0, "neg": 0}
+        )
+        art["mentions"] += 1
+        art[lab] += 1
         ts = m.get("publishedAt")
         if isinstance(ts, datetime) and (doc["lastMentionAt"] is None or ts > doc["lastMentionAt"]):
             doc["lastMentionAt"] = ts
@@ -83,6 +92,8 @@ def build_day_docs(mentions: list[dict]) -> dict[tuple[str, str], dict]:
     for key, doc in by_key.items():
         top = sorted(co.get(key, Counter()).items(), key=lambda kv: (-kv[1], kv[0]))[:CO_MENTIONS_TOP]
         doc["coMentions"] = dict(top)
+        arts = sorted(doc["topArticles"].items(), key=lambda kv: (-kv[1]["mentions"], kv[0]))[:TOP_ARTICLES]
+        doc["topArticles"] = dict(arts)
         doc["scoreSum"] = r4(doc["scoreSum"])
         doc["avgSentiment"] = r4(doc["scoreSum"] / doc["mentions"]) if doc["mentions"] else None
         for s in doc["bySource"].values():
@@ -99,7 +110,7 @@ def day_counts(doc: dict | None) -> dict:
 def same_day_doc(a: dict | None, b: dict | None) -> bool:
     if not a or not b:
         return a == b
-    keys = ("mentions", "pos", "neu", "neg", "scoreSum", "bySource", "coMentions")
+    keys = ("mentions", "pos", "neu", "neg", "scoreSum", "bySource", "coMentions", "topArticles")
     return all(_norm(a.get(k)) == _norm(b.get(k)) for k in keys)
 
 
@@ -265,3 +276,91 @@ def relative(entity: dict, baseline: float | None) -> float | None:
     if (entity.get("mentions7d") or 0) < RELATIVE_MIN_MENTIONS:
         return None
     return r4(entity["avgSentiment7d"] - baseline)
+
+
+# ----------------------------------------------------------------- community texts
+
+
+def is_community(m: dict) -> bool:
+    """User-submitted texts (sourceType "community") are aggregated separately, never in the main numbers."""
+    return m.get("sourceType") == COMMUNITY or m.get("sourceId") == COMMUNITY
+
+
+def community_day_docs(mentions: list[dict]) -> dict[tuple[str, str], dict]:
+    out: dict[tuple[str, str], dict] = {}
+    for m in mentions:
+        d = out.setdefault((m["entityId"], m["day"]), {"day": m["day"], **empty_counts()})
+        lab = m["label"] if m["label"] in LABELS else "neu"
+        d["mentions"] += 1
+        d[lab] += 1
+        d["scoreSum"] += float(m["score"])
+    for d in out.values():
+        d["scoreSum"] = r4(d["scoreSum"])
+    return out
+
+
+def community_window(recent: dict[str, dict], today: str) -> dict:
+    """communityText7d = {mentions, pos, neu, neg, avgSentiment} over the last 7 days."""
+    t = date.fromisoformat(today)
+    frm = (t - timedelta(days=6)).isoformat()
+    c = empty_counts()
+    for d, v in recent.items():
+        if frm <= d <= today:
+            for k in c:
+                c[k] += v.get(k, 0) or 0
+    return {
+        "mentions": int(c["mentions"]),
+        "pos": int(c["pos"]),
+        "neu": int(c["neu"]),
+        "neg": int(c["neg"]),
+        "avgSentiment": r4(c["scoreSum"] / c["mentions"]) if c["mentions"] else None,
+    }
+
+
+# ----------------------------------------------------------------- peers
+
+
+def peer_ranks(entities: dict[str, dict]) -> tuple[dict[str, dict], dict[str, list[dict]]]:
+    """Rank reliable entities (mentions7d >= 10) by avgSentiment7d, within their type and overall.
+
+    Returns ({entityId: {rankInType, peersInType, percentileInType, rankAll, peersAll,
+    percentileAll}}, {type: [peer entries, most positive first]}). Rank 1 = most positive;
+    percentile 100 = most positive, 0 = most negative.
+    """
+    rel = [
+        (eid, e)
+        for eid, e in entities.items()
+        if e.get("allowlisted")
+        and (e.get("mentions7d") or 0) >= PEERS_MIN_MENTIONS
+        and e.get("avgSentiment7d") is not None
+    ]
+
+    def ranked(group):
+        return sorted(group, key=lambda x: (-x[1]["avgSentiment7d"], -(x[1].get("mentions7d") or 0), x[0]))
+
+    def pct(rank: int, n: int) -> float:
+        return 100.0 if n <= 1 else round(100.0 * (n - rank) / (n - 1), 1)
+
+    fields: dict[str, dict] = {}
+    allr = ranked(rel)
+    for i, (eid, _e) in enumerate(allr, 1):
+        fields[eid] = {"rankAll": i, "peersAll": len(allr), "percentileAll": pct(i, len(allr))}
+    by_type: dict[str, list] = defaultdict(list)
+    for eid, e in rel:
+        by_type[e.get("type", "MISC")].append((eid, e))
+    strip: dict[str, list[dict]] = {}
+    for typ, group in sorted(by_type.items()):
+        g = ranked(group)
+        strip[typ] = []
+        for i, (eid, e) in enumerate(g, 1):
+            fields[eid].update({"rankInType": i, "peersInType": len(g), "percentileInType": pct(i, len(g))})
+            strip[typ].append(
+                {
+                    "id": eid,
+                    "name": e.get("name", eid),
+                    "avgSentiment7d": e.get("avgSentiment7d"),
+                    "relative7d": e.get("relative7d"),
+                    "mentions7d": int(e.get("mentions7d") or 0),
+                }
+            )
+    return fields, strip

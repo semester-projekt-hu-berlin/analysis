@@ -210,6 +210,8 @@ def analyze_comments(
                 "coEntityIds": sorted(ents_of[c["id"]] - {eid}),
             }
         )
+        if c.get("sourceType"):
+            out[c["id"]][-1]["sourceType"] = c["sourceType"]
         stats.mentions += 1
     if wikidata is not None:
         stats.wikidata_lookups = wikidata.lookups

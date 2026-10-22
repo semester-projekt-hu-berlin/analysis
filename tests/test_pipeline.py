@@ -224,3 +224,104 @@ def test_rescore_rewrites_sentiment_and_aggregates(fs, monkeypatch):
     inc = {p: d for p, d in snapshot(fs).items() if "/days/" in p}
     pipeline.reaggregate(fs)
     assert inc == {p: d for p, d in snapshot(fs).items() if "/days/" in p}
+
+
+def test_top_articles_on_day_docs(fs):
+    fs.docs["comments/c6"] = comment("c6", "Merz ist gut.", article="a2")
+    pipeline.run(fs, limit=100, use_wikidata=False)
+    day = fs.docs[f"entities/friedrich-merz/days/{day_key(NOW - timedelta(hours=1))}"]
+    assert day["topArticles"] == {
+        "a1": {"mentions": 2, "pos": 1, "neu": 0, "neg": 1},
+        "a2": {"mentions": 1, "pos": 1, "neu": 0, "neg": 0},
+    }
+
+
+def test_community_texts_are_kept_out_of_main_aggregates(fs):
+    pipeline.run(fs, limit=100, use_wikidata=False)
+    before = {k: fs.docs["entities/friedrich-merz"][k] for k in ("mentions", "mentions7d", "avgSentiment7d")}
+    trending_before = fs.docs["meta/trending"]["top"]
+    d = day_key(NOW - timedelta(hours=1))
+    fs.docs["comments/u1"] = {
+        **comment("u1", "Merz ist super gut.", source="community", article=f"community-{d}"),
+        "sourceType": "community",
+    }
+    pipeline.run(fs, limit=100, use_wikidata=False)
+    merz = fs.docs["entities/friedrich-merz"]
+    assert {k: merz[k] for k in before} == before
+    assert fs.docs["meta/trending"]["top"] == trending_before
+    assert "community" not in str(fs.docs[f"entities/friedrich-merz/days/{d}"]["bySource"])
+    assert fs.docs[f"entities/friedrich-merz/community_text/{d}"]["mentions"] == 1
+    assert merz["communityText7d"]["mentions"] == 1 and merz["communityText7d"]["pos"] == 1
+    assert fs.docs["meta/stats"]["mentions"] == 4  # community mention not counted
+    # a full rebuild keeps them separate too
+    pipeline.reaggregate(fs)
+    assert fs.docs["entities/friedrich-merz"]["mentions"] == before["mentions"]
+    assert fs.docs[f"entities/friedrich-merz/community_text/{d}"]["mentions"] == 1
+
+
+def test_peer_ranks(fs, monkeypatch):
+    monkeypatch.setattr(pipeline.agg, "PEERS_MIN_MENTIONS", 1)
+    pipeline.run(fs, limit=100, use_wikidata=False)
+    peers = fs.docs["meta/peers"]["byType"]
+    assert set(peers) >= {"PER", "PARTY"}
+    merz = fs.docs["entities/friedrich-merz"]
+    assert merz["rankInType"] == 1 and merz["peersInType"] == len(peers["PER"])
+    assert 0 <= merz["percentileAll"] <= 100 and merz["peersAll"] == sum(len(v) for v in peers.values())
+
+
+class StubClient:
+    def __init__(self, items):
+        self.items = items
+
+    def get_entities(self, ids):
+        return {q: self.items[q] for q in ids if q in self.items}
+
+
+def wd_item(label, p31, sitelinks=20, p106=True, logo=None):
+    claims = {"P31": [{"mainsnak": {"datavalue": {"value": {"id": c}}}} for c in p31]}
+    if p106:
+        claims["P106"] = [{"mainsnak": {"datavalue": {"value": {"id": "Q82955"}}}}]
+    if logo:
+        claims["P154"] = [{"mainsnak": {"datavalue": {"value": logo}}}]
+    return {
+        "labels": {"de": {"value": label}},
+        "aliases": {"de": [{"value": label.split()[-1]}]},
+        "descriptions": {"de": {"value": "Testbeschreibung"}},
+        "claims": claims,
+        "sitelinks": {f"w{i}": {} for i in range(sitelinks)},
+    }
+
+
+def test_entity_requests(fs):
+    from analysis.entity_requests import process_entity_requests
+
+    for q in ("Q1", "Q2", "Q3", "Q567", "Q4"):
+        fs.docs[f"entity_requests/{q}"] = {"qid": q, "status": "accepted"}
+    client = StubClient(
+        {
+            "Q1": wd_item("Hape Kerkeling", ["Q5"]),
+            "Q2": wd_item("Max Mustermann", ["Q5"], sitelinks=2),  # not notable enough
+            "Q3": wd_item("Testpartei Deutschland", ["Q7278"], p106=False, logo="Logo Testpartei.svg"),
+            "Q4": wd_item("Inflation", ["Q1"], p106=False),  # concept, not an organisation
+        }
+    )
+    out = process_entity_requests(fs, client=client)
+    assert out == {"requests": 5, "done": 3, "failed": 2}
+    e = fs.docs["entities/hape-kerkeling"]
+    assert e["allowlisted"] is True and e["type"] == "PER" and e["wikidataId"] == "Q1" and e["mentions"] == 0
+    assert "kerkeling" in e["searchTokens"]
+    p = fs.docs["entities/testpartei-deutschland"]
+    assert p["type"] == "PARTY" and p["imageKind"] == "logo" and p["imageUrl"].endswith(".svg.png")
+    assert (
+        fs.docs["entity_requests/Q2"]["status"] == "failed" and "sitelinks" in fs.docs["entity_requests/Q2"]["reason"]
+    )
+    assert fs.docs["entity_requests/Q4"]["status"] == "failed"
+    assert fs.docs["entity_requests/Q567"] == {
+        **fs.docs["entity_requests/Q567"],
+        "status": "done",
+        "entityId": "angela-merkel",
+        "reason": "already tracked",
+    }
+    assert "entities/max-mustermann" not in fs.docs
+    # processed requests are not processed again
+    assert process_entity_requests(fs, client=client) == {"requests": 0}

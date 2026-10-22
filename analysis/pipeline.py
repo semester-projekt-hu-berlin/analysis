@@ -17,8 +17,30 @@ from .textutil import today_berlin
 
 log = logging.getLogger(__name__)
 
-COMMENT_FIELDS = ["articleId", "sourceId", "text", "publishedAt", "crawledAt", "day", "analysisVersion", "analyzedAt"]
-MENTION_FIELDS = ["commentId", "entityId", "sourceId", "day", "label", "score", "publishedAt", "coEntityIds"]
+COMMENT_FIELDS = [
+    "articleId",
+    "sourceId",
+    "sourceType",
+    "text",
+    "publishedAt",
+    "crawledAt",
+    "day",
+    "analysisVersion",
+    "analyzedAt",
+]
+MENTION_FIELDS = [
+    "commentId",
+    "articleId",
+    "entityId",
+    "sourceId",
+    "sourceType",
+    "day",
+    "label",
+    "score",
+    "publishedAt",
+    "coEntityIds",
+]
+PEER_FIELDS = ["rankInType", "peersInType", "percentileInType", "rankAll", "peersAll", "percentileAll"]
 ENTITY_STAT_FIELDS = [
     "mentions",
     "pos",
@@ -45,6 +67,9 @@ ENTITY_READ_FIELDS = [
     "allowlisted",
     *ENTITY_STAT_FIELDS,
     "relative7d",
+    "communityRecentDays",
+    "communityText7d",
+    *PEER_FIELDS,
 ]
 STATE_DOC = "meta/analysis"  # internal: (entity, day) pairs still to aggregate after an interrupted run
 ZERO_STATS = {
@@ -221,6 +246,17 @@ def _fill_images(reg: Registry) -> None:
 # --------------------------------------------------------------------------- run
 
 
+def seed_entity_requests(fs: Firestore) -> dict:
+    """Process accepted entity requests (never fails the analysis run)."""
+    from .entity_requests import process_entity_requests
+
+    try:
+        return process_entity_requests(fs)
+    except Exception as e:
+        log.warning("entity requests failed: %s", e)
+        return {"error": str(e)[:200]}
+
+
 def fetch_unanalyzed(fs: Firestore, limit: int, newest_first: bool = True) -> list[dict]:
     """Unanalysed comments, newest first so the dashboard reflects recent days first.
 
@@ -259,6 +295,7 @@ def run(
     from .sentiment import load_sentiment
 
     t0 = time.time()
+    requests_info = seed_entity_requests(fs)
     comments = fetch_unanalyzed(fs, limit)
     log.info("%d unanalyzed comments", len(comments))
     entity_docs = load_entity_docs(fs)
@@ -370,6 +407,7 @@ def run(
         "version": version,
         "seconds": round(time.time() - t0, 1),
         "changedEntities": changed_entities,
+        "entityRequests": requests_info,
     }
     log.info("run summary: %s", summary)
     return summary
@@ -390,6 +428,7 @@ def aggregate_pairs(fs: Firestore, pairs: set[tuple[str, str]], entity_docs: dic
     old = fs.batch_get([f"entities/{e}/days/{d}" for e, d in sorted(pairs)]) if pairs else {}
     changes: dict[str, list[tuple[str, dict | None, dict | None]]] = {}
     new_docs: dict[tuple[str, str], dict] = {}
+    community: dict[tuple[str, str], list[dict]] = {}
     for e, day in sorted(pairs):
         mentions = [
             x.data
@@ -397,6 +436,8 @@ def aggregate_pairs(fs: Firestore, pairs: set[tuple[str, str]], entity_docs: dic
                 "mentions", where=[("entityId", "EQUAL", e), ("day", "EQUAL", day)], select=MENTION_FIELDS
             )
         ]
+        community[(e, day)] = [m for m in mentions if agg.is_community(m)]
+        mentions = [m for m in mentions if not agg.is_community(m)]
         nd = agg.build_day_docs(mentions).get((e, day))
         o = old.get(f"entities/{e}/days/{day}")
         od = o.data if o else None
@@ -406,8 +447,55 @@ def aggregate_pairs(fs: Firestore, pairs: set[tuple[str, str]], entity_docs: dic
         if nd is not None:
             new_docs[(e, day)] = nd
     _commit_entity_changes(fs, changes, new_docs, entity_docs, today)
+    n_comm = aggregate_community(fs, community, entity_docs, today)
     refresh_rolling(fs, entity_docs, set(changes))
-    return {"changedEntities": len(changes), "changedDays": sum(len(v) for v in changes.values())}
+    return {
+        "changedEntities": len(changes),
+        "changedDays": sum(len(v) for v in changes.values()),
+        "changedCommunityDays": n_comm,
+    }
+
+
+def aggregate_community(
+    fs: Firestore, community: dict[tuple[str, str], list[dict]], entity_docs: dict[str, dict], today: str
+) -> int:
+    """Write entities/{id}/community_text/{day} for user-submitted texts (kept out of the main numbers).
+
+    `community`: {(entityId, day): community mentions of that pair} (empty list = none left).
+    """
+    if not community:
+        return 0
+    old = fs.batch_get([f"entities/{e}/community_text/{d}" for e, d in sorted(community)])
+    new = agg.community_day_docs([m for ms in community.values() for m in ms])
+    writes: list[Write] = []
+    touched: set[str] = set()
+    for e, day in sorted(community):
+        path = f"entities/{e}/community_text/{day}"
+        o = old.get(path)
+        od = {k: v for k, v in (o.data if o else {}).items() if k != "updatedAt"} or None
+        nd = new.get((e, day))
+        if od == nd or (od is None and nd is None):
+            continue
+        writes.append(Write(path, None) if nd is None else Write(path, nd))
+        rec = dict(entity_docs[e].get("communityRecentDays") or {})
+        if nd is None:
+            rec.pop(day, None)
+        else:
+            rec[day] = {k: nd[k] for k in ("mentions", "pos", "neu", "neg", "scoreSum")}
+        entity_docs[e]["communityRecentDays"] = agg.prune_recent(rec, today)
+        touched.add(e)
+    for e in touched:
+        d = entity_docs[e]
+        d["communityText7d"] = agg.community_window(d["communityRecentDays"], today)
+        writes.append(
+            Write(
+                f"entities/{e}",
+                {"communityRecentDays": d["communityRecentDays"], "communityText7d": d["communityText7d"]},
+                mask=["communityRecentDays", "communityText7d"],
+            )
+        )
+    fs.commit(writes)
+    return len(writes) - len(touched)
 
 
 def _commit_entity_changes(fs, changes, new_docs, entity_docs, today) -> None:
@@ -451,6 +539,13 @@ def refresh_rolling(fs: Firestore, entity_docs: dict[str, dict], already: set[st
         if cur != win or recent != (d.get("recentDays") or {}):
             d.update({**win, "recentDays": recent})
             pending.setdefault(eid, set()).update([*win, "recentDays"])
+    for eid, d in entity_docs.items():
+        if d.get("communityRecentDays") or d.get("communityText7d"):
+            rec = agg.prune_recent(d.get("communityRecentDays") or {}, today)
+            win = agg.community_window(rec, today)
+            if win != d.get("communityText7d") or rec != (d.get("communityRecentDays") or {}):
+                d.update({"communityRecentDays": rec, "communityText7d": win})
+                pending.setdefault(eid, set()).update(["communityRecentDays", "communityText7d"])
     # 2. global baseline and relative sentiment per entity
     baseline, by_source = agg.baselines(entity_docs, today)
     for eid, d in entity_docs.items():
@@ -458,6 +553,13 @@ def refresh_rolling(fs: Firestore, entity_docs: dict[str, dict], already: set[st
         if d.get("relative7d") != rel and (rel is not None or "relative7d" in d):
             d["relative7d"] = rel
             pending.setdefault(eid, set()).add("relative7d")
+    # 3. peer ranks within type and overall
+    ranks, strip = agg.peer_ranks(entity_docs)
+    for eid, d in entity_docs.items():
+        want = ranks.get(eid, dict.fromkeys(PEER_FIELDS))
+        if any(d.get(k) != want[k] for k in PEER_FIELDS) and (eid in ranks or any(k in d for k in PEER_FIELDS)):
+            d.update(want)
+            pending.setdefault(eid, set()).update(PEER_FIELDS)
     for eid, fields in pending.items():
         upd = {f: entity_docs[eid].get(f) for f in fields}
         upd["updatedAt"] = ts
@@ -467,11 +569,12 @@ def refresh_rolling(fs: Firestore, entity_docs: dict[str, dict], already: set[st
     trend["updatedAt"] = ts
     trend["baseline7d"] = baseline
     trend["baselineBySource7d"] = by_source
-    total_mentions = fs.count("mentions")
+    total_mentions = fs.count("mentions") - fs.count("mentions", [("sourceId", "EQUAL", agg.COMMUNITY)])
     tracked = sum(1 for d in entity_docs.values() if d.get("allowlisted") and (d.get("mentions") or 0) > 0)
     fs.commit(
         [
             Write("meta/trending", trend),
+            Write("meta/peers", {"updatedAt": ts, "baseline7d": baseline, "byType": strip}),
             Write(
                 "meta/stats",
                 {
@@ -600,6 +703,8 @@ def reaggregate(fs: Firestore) -> dict:
     mentions = [
         m for m in mentions if m.get("entityId") in entity_docs and entity_docs[m["entityId"]].get("allowlisted")
     ]
+    community_mentions = [m for m in mentions if agg.is_community(m)]
+    mentions = [m for m in mentions if not agg.is_community(m)]
     docs = agg.build_day_docs(mentions)
     existing_days = [
         d.path
@@ -631,6 +736,18 @@ def reaggregate(fs: Firestore) -> dict:
     # Small commits: a full rebuild does not need cross-document atomicity.
     for i in range(0, len(writes), 100):
         fs.commit_atomic(writes[i : i + 100])
+    community: dict[tuple[str, str], list[dict]] = {}
+    for d in fs.run_query(
+        {
+            "from": [{"collectionId": "community_text", "allDescendants": True}],
+            "select": {"fields": [{"fieldPath": "__name__"}]},
+        }
+    ):
+        parts = d.path.split("/")
+        community[(parts[1], parts[3])] = []
+    for m in community_mentions:
+        community.setdefault((m["entityId"], m["day"]), []).append(m)
+    aggregate_community(fs, community, entity_docs, today)
     refresh_rolling(fs, entity_docs, set(entity_docs))
     return {
         "mentions": len(mentions),
