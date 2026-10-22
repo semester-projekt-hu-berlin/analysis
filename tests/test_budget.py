@@ -199,3 +199,31 @@ def test_rescore_resumes(fs, monkeypatch):
     merz = [d for p, d in fs.docs.items() if p.startswith("mentions/m") and d["entityId"] == "friedrich-merz"]
     assert merz and all(d["label"] == "neg" for d in merz)
     assert fs.docs["entities/friedrich-merz"]["neg"] == 10 + 1
+
+
+def test_prune_removes_mentions_no_longer_linked(fs, monkeypatch):
+    _relink_setup(fs, monkeypatch)
+    pipeline.relink(fs, days=14, entity_ids={"lidl"}, budget=big(fs))
+    assert fs.docs["entities/lidl"]["mentions"] == 12
+    # an entity that is no longer in the lists, with a stray mention
+    fs.docs["entities/gone-co"] = {**fs.docs["entities/lidl"], "name": "Gone Co"}
+    fs.docs["mentions/r00_gone-co"] = {**fs.docs["mentions/r00_lidl"], "entityId": "gone-co"}
+    fs.docs["mentions/r00_friedrich-merz"]["coEntityIds"] = ["gone-co", "lidl"]
+    # "Lidl" is linked no more (alias tightened): simulate by removing it from the registry
+    real = Registry.from_yaml.__func__
+
+    def without_lidl(cls, *a, **kw):
+        r = real(cls, *a, **kw)
+        r.aliases = [x for x in r.aliases if x.entity_id != "lidl"]
+        r._compiled = False
+        return r
+
+    monkeypatch.setattr(Registry, "from_yaml", classmethod(without_lidl))
+    out = pipeline.prune(fs, {"lidl", "gone-co"}, budget=big(fs))
+    assert out["removedEntities"] == ["gone-co"] and out["mentionsDeleted"] == 13
+    assert not any(p.endswith("_lidl") or p.endswith("_gone-co") for p in fs.docs if p.startswith("mentions/"))
+    assert "entities/gone-co" not in fs.docs
+    assert fs.docs["entities/lidl"]["mentions"] == 0
+    assert not any(p.startswith("entities/lidl/days/") for p in fs.docs)
+    assert fs.docs["mentions/r00_friedrich-merz"]["coEntityIds"] == []
+    assert fs.docs["meta/analysis"]["pendingPairs"] == []

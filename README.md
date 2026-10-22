@@ -109,31 +109,41 @@ The default pipeline is entirely open-source and free. The HU LLM offer is not u
 * **Generated list** [`data/entities_generated.yaml`](data/entities_generated.yaml), built by
   `scripts/generate_entities.py` from a few large Wikidata SPARQL queries (descriptive
   User-Agent, backoff on 429, results cached in `data/wikidata_cache/`; `--refresh` re-queries)
-  and loaded after the seed list (curated QIDs and aliases always win). It has 1,749 entities:
+  and loaded after the seed list (curated QIDs and aliases always win). It has 1,745 entities:
   * **1,141 politicians**: 630 Bundestag members of the 21st term, 95 German MEPs, 130 current
     office holders (federal cabinet, Ministerpräsident:innen, state ministers and senators,
     Bundespräsident…), 168 federal and state party leaders, 138 living former chancellors,
     federal ministers and heads of state governments, and 325 German politicians with ≥ 15
     sitelinks (groups overlap). Description from the role, e.g. "Bundestagsabgeordnete (SPD)";
     party from P102, preferring curated parties.
-  * **315 companies**: DAX/MDAX/SDAX/TecDAX members, German companies with > 10,000 employees
-    (P1128; public bodies such as Bundeswehr, police, churches or clinics are filtered out by
-    description), notable companies (≥ 25 sitelinks), and a brand list (Aldi, Kaufland, Penny,
-    Rossmann, MediaMarkt, Bertelsmann, Otto, Flixbus…). Legal forms are stripped for short
-    names ("Rational AG" → "Rational").
+  * **310 companies**: DAX/MDAX/SDAX/TecDAX members, German companies with > 10,000 employees
+    (P1128), notable companies (≥ 25 sitelinks), and a brand list (Aldi, Kaufland, Penny,
+    Rossmann, MediaMarkt, Bertelsmann, Otto, Flixbus…). Public bodies and non-profits
+    (ministries, Bundeswehr, police, churches, clinics…) are filtered out by description. Legal
+    forms are stripped for short names ("Rational AG" → "Rational").
   * **296 universities** (P31/P279* Q3918 in Germany, with abbreviations); universities of
     applied sciences only with ≥ 10 sitelinks.
 
   Alias policy, for linking precision: full names are plain aliases. A person's surname alone
-  is an **NER-only** alias (`!Reddig`: needs an overlapping NER PER span, context keywords are
-  not enough), and only if it is unique among all entities, not a curated alias, not in a list
-  of common surnames (Müller, Schmidt, Wagner, Klein, Fischer…) and not a frequent German word
-  (wordfreq zipf < 4.0, so no "Wiese"). Single-word company names that are common words
-  (Post, Bahn, Bild) are weak; ordinary words like "Rational" are case-sensitive; one- and
-  two-letter and very frequent words ("CL", "Deutsche") are dropped. Aliases shared by several
-  generated entities stay with the most notable one, and a less notable namesake is skipped.
-  In addition, a bare surname directly after a *different* known first name is not linked
-  ("Hermann Merz" is not Friedrich Merz; "Olav Scholz" is still Olaf Scholz).
+  is an **NER-only** alias (`!Reddig`), which needs an overlapping NER PER span (context
+  keywords are not enough) and works only on sources of the person's own country. A surname
+  gets one only if it is unique among all entities and is not a curated alias, a common
+  surname (Müller, Schmidt, Wagner, Klein, Fischer…), a first name (Clemens, Paulus), a
+  frequent German word (wordfreq zipf ≥ 4.0, e.g. "Wiese"), or a name that is frequent in
+  English text (zipf ≥ 2.5: Thiel, Kant, Moser, Maas are mostly other people). This gives 774
+  surname aliases for the 1,141 politicians. Company names:
+  * Single-word names that are common words (Post, Bahn, Bild) are weak.
+  * Names that are ordinary words in comments ("3000 Netto", "beim Globus") are contextual and
+    need a business keyword.
+  * Ordinary words like "Rational" are case-sensitive.
+  * Acronyms are kept only for well-known items (≥ 30 sitelinks; no "EUV" for the Viadrina, no
+    "MBS").
+  * One- and two-letter aliases and very frequent words ("CL", "Deutsche") are dropped.
+
+  Aliases shared by several generated entities stay with the most notable one, and a less
+  notable namesake is skipped. A bare surname directly after a *different* known first name
+  is not linked ("Hermann Merz" is not Friedrich Merz; "Olav Scholz" is still Olaf Scholz). NER
+  spans resolved by exact alias lookup follow the same contextual, local and NER-only rules.
   Collision tests: `tests/test_collisions.py`. Precision check: `scripts/eval_linking.py`.
 * **Images** (`seed`): direct `upload.wikimedia.org` thumbnail URLs (250 px, the smallest
   standard width Wikimedia serves near the requested 160 px; 160 px returns HTTP 400). Persons:
@@ -265,6 +275,7 @@ python -m analysis run --ner flair      # Flair NER instead of BERT; --no-wikida
 python -m analysis rescore              # re-run only the sentiment step for all mentions, re-aggregate
 python -m analysis seed-requests        # seed accepted entity_requests (also done at the start of `run`)
 python -m analysis relink --days 14     # add mentions of new (generated) entities to the last 14 days
+python -m analysis prune --ids-file ids.txt --add rewe   # re-check mentions of these entities after an alias change
 python -m analysis reaggregate --since 2026-10-20   # recompute only pairs from that day on (cheap)
 python -m analysis reaggregate          # full rebuild from all mentions (full scan, use rarely)
 python scripts/eval_sentiment.py score  # sentiment evaluation (see eval/README.md)

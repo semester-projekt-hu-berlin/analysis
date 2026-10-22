@@ -33,6 +33,10 @@ def main(argv: list[str] | None = None) -> int:
     rs.add_argument("--sentiment", default=os.environ.get("ANALYSIS_SENTIMENT", "cal"))
     rl = sub.add_parser("relink", help="add mentions of new entities to analysed comments of the last N days")
     rl.add_argument("--days", type=int, default=14)
+    pr = sub.add_parser("prune", help="re-check mentions of given entities, delete those no longer linked")
+    pr.add_argument("--ids", default="", help="comma-separated entity ids")
+    pr.add_argument("--ids-file", help="file with one entity id per line")
+    pr.add_argument("--add", default="", help="comma-separated entity ids whose mentions may be added")
     sub.add_parser("seed-requests", help="validate accepted entity_requests via Wikidata and seed them")
     s = sub.add_parser("seed", help="write curated entities and events")
     s.add_argument("--no-images", action="store_true")
@@ -46,7 +50,7 @@ def main(argv: list[str] | None = None) -> int:
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
     from .firestore import Firestore
-    from .pipeline import reaggregate, reaggregate_since, relink, rescore, run, seed
+    from .pipeline import prune, reaggregate, reaggregate_since, relink, rescore, run, seed
 
     fs = Firestore()
     if args.cmd == "run":
@@ -68,6 +72,12 @@ def main(argv: list[str] | None = None) -> int:
         )
     elif args.cmd == "relink":
         out = relink(fs, days=args.days)
+    elif args.cmd == "prune":
+        ids = {x.strip() for x in args.ids.split(",") if x.strip()}
+        if args.ids_file:
+            with open(args.ids_file, encoding="utf-8") as f:
+                ids |= {line.strip() for line in f if line.strip()}
+        out = prune(fs, ids, add_ids={x.strip() for x in args.add.split(",") if x.strip()})
     elif args.cmd == "rescore":
         out = rescore(fs, sentiment_key=args.sentiment)
     elif args.cmd == "reaggregate":

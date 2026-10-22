@@ -11,7 +11,6 @@ entities:
   - Helmut Kohl
   - Helmut Josef Michael Kohl
   - Kanzler der Einheit
-  - '!Kohl'
   context: politics
 - id: audi
   wikidata: Q23317
@@ -179,7 +178,7 @@ entities:
   description: deutscher Sportartikelhersteller (MDAX)
   aliases:
   - =Puma SE
-  - =Puma
+  - '@Puma'
   context: business
 - id: universitaet-leipzig
   wikidata: Q154804
@@ -601,7 +600,7 @@ entities:
   country: DE
   description: französisch-deutscher Fernsehsender
   aliases:
-  - =Arte
+  - '@Arte'
   - =Arte HD
   - Arte.tv
   - Association relative à la télévision européenne
@@ -615,7 +614,6 @@ entities:
   aliases:
   - Heiko Maas
   - Heiko Josef Maas
-  - '!Maas'
   context: politics
 - id: heckler-koch
   wikidata: Q152815
@@ -1114,7 +1112,7 @@ entities:
   aliases:
   - Condor Flugdienst
   - ~CFG
-  - =Condor
+  - '@Condor'
   - =Condor Airlines
   - =Condor Berlin
   - Condor Flugdienst GmbH
@@ -1318,7 +1316,6 @@ entities:
   description: deutscher Politiker (CDU), Oberbürgermeister von Stuttgart 1974-1996
   aliases:
   - Manfred Rommel
-  - '!Rommel'
   context: politics
 - id: katja-kipping
   wikidata: Q76342
@@ -1540,7 +1537,6 @@ entities:
   description: Europaabgeordnete (SPD)
   aliases:
   - Katarina Barley
-  - '!Barley'
   context: politics
 - id: joerg-meuthen
   wikidata: Q15907132
@@ -1590,18 +1586,6 @@ entities:
   - AgfaPhoto
   - AgfaPhoto GmbH
   context: business
-- id: osram-licht-ag
-  wikidata: Q310481
-  name: OSRAM Licht AG
-  type: ORG
-  country: DE
-  description: ehemaliger Hersteller von Leuchtmitteln und Lichttechnik
-  aliases:
-  - OSRAM Licht AG
-  - OSRAM Licht
-  - =Osram
-  - Osram GmbH
-  context: business
 - id: wadysaw-kozakiewicz
   wikidata: Q313171
   name: Władysław Kozakiewicz
@@ -1634,7 +1618,6 @@ entities:
   aliases:
   - Shawn Bradley
   - Shawn Paul Bradley
-  - '!Bradley'
   context: politics
 - id: egon-bahr
   wikidata: Q62206
@@ -1677,7 +1660,6 @@ entities:
   aliases:
   - Horst Mahler
   - Horst Werner Dieter Mahler
-  - '!Mahler'
   context: politics
 - id: fraunhofer-gesellschaft
   wikidata: Q161057
@@ -1871,18 +1853,6 @@ entities:
   - Ernst Nolte
   - Ernst Hermann Nolte
   context: politics
-- id: bombardier-transportation
-  wikidata: Q688893
-  name: Bombardier Transportation
-  type: ORG
-  country: DE
-  description: Ehemaliger Hersteller von Schienenfahrzeugen
-  aliases:
-  - Bombardier Transportation
-  - ~ACMV
-  - Ateliers de Construction Mécaniques de Vevey
-  - Vevey Technologies
-  context: business
 - id: edeka
   wikidata: Q701755
   name: EDEKA
@@ -2135,7 +2105,6 @@ entities:
   description: Fernsehsender mit Sitz in Hongkong
   aliases:
   - Television Broadcasts Limited
-  - ~TVB
   context: business
 - id: paulaner
   wikidata: Q127305
@@ -2176,7 +2145,6 @@ entities:
   aliases:
   - =Deutz AG
   - =Deutz
-  - ~KHD
   - Gasmotoren-Fabrik Deutz
   - =Klöckner-Humboldt-Deutz
   - Langen, Otto und Roosen
@@ -2192,7 +2160,6 @@ entities:
   description: Europaabgeordneter (CDU)
   aliases:
   - David McAllister
-  - '!McAllister'
   context: politics
 - id: frank-ullrich
   wikidata: Q62639
@@ -2272,17 +2239,6 @@ entities:
   description: deutscher Schreibgerätehersteller im Luxussegment
   aliases:
   - =Montblanc
-  context: business
-- id: lufthansa-cityline
-  wikidata: Q162189
-  name: Lufthansa CityLine
-  type: ORG
-  country: DE
-  description: ehemalige deutsche Regionalfluggesellschaft
-  aliases:
-  - Lufthansa CityLine
-  - CityLine
-  - Deutsche Luftverkehrsgesellschaft
   context: business
 - id: franziska-giffey
   wikidata: Q19279839
@@ -2416,7 +2372,6 @@ entities:
   - =TU BA Freiberg
   - TU Bergakademie Freiberg
   - =TU Freiberg
-  - ~TUBAF
   context: education
 - id: staedtler
   wikidata: Q691150
@@ -2495,15 +2450,6 @@ entities:
   - Lutz Eberhard Heilmann
   - '!Heilmann'
   context: politics
-- id: lufthansa-regional
-  wikidata: Q170159
-  name: Lufthansa Regional
-  type: ORG
-  country: DE
-  description: Ehemalige Regionalflug-Marke der Lufthansa
-  aliases:
-  - =Lufthansa Regional
-  context: business
 - id: audi-sport-gmbh
   wikidata: Q265618
   name: Audi Sport GmbH
@@ -2547,23 +2493,6 @@ entities:
   description: Unternehmen aus der IT-Sicherheitsbranche
   aliases:
   - Avira
-  - ~H+BEDV
-  context: business
-- id: bundesministerium-des-innern
-  wikidata: Q502698
-  name: Bundesministerium des Innern
-  type: ORG
-  country: DE
-  description: Ministerium der Bundesrepublik Deutschland
-  aliases:
-  - =Bundesministerium des Innern
-  - =BMI DEU
-  - =Bundesministerium des Inneren
-  - =Bundesministerium des Innern, für Bau und Heimat
-  - =Bundesinnenministerium
-  - =Innenministerium
-  - ~BMI
-  - =Bundesministerium des Innern und für Heimat
   context: business
 - id: carl-von-ossietzky-universitaet-oldenburg
   wikidata: Q597758
@@ -2669,7 +2598,6 @@ entities:
   description: Universität in Deutschland
   aliases:
   - =Universität Duisburg-Essen
-  - ~UDE
   - =Gerhard-Mercator-Universität
   - Gesamthochschule Essen
   - =Uni DuE
@@ -2680,6 +2608,7 @@ entities:
   - Universität GH Essen
   - Gerhard-Mercator-Universität Duisburg
   - Gesamthochschule Duisburg
+  - Uni-GH Duisburg
   context: education
 - id: universitaet-bayreuth
   wikidata: Q702482
@@ -2689,7 +2618,6 @@ entities:
   description: Universität in Deutschland
   aliases:
   - =Universität Bayreuth
-  - ~UBT
   - =Uni Bayreuth
   context: education
 - id: otto-friedrich-universitaet-bamberg
@@ -2866,7 +2794,6 @@ entities:
   - KNDS Deutschland
   - Krauss-Maffei Wegmann
   - Krauss-Maffei Wegmann GmbH & Co. KG
-  - ~KMW
   context: business
 - id: heide-simonis
   wikidata: Q65515
@@ -2918,7 +2845,6 @@ entities:
   description: deutscher Politiker (CDU), MdL, MdB, Bundesminister (1930–2026)
   aliases:
   - Christian Schwarz-Schilling
-  - '!Schwarz-Schilling'
   context: politics
 - id: mediamarkt
   wikidata: Q2381223
@@ -3100,7 +3026,6 @@ entities:
   description: deutscher Politiker (SPD), MdB, Bundesminister
   aliases:
   - Peter Struck
-  - '!Struck'
   context: politics
 - id: rebecca-harms
   wikidata: Q62366
@@ -3110,7 +3035,6 @@ entities:
   description: deutsche Politikerin (Bündnis 90/Die Grünen), MdEP
   aliases:
   - Rebecca Harms
-  - '!Harms'
   context: politics
 - id: klaus-haensch
   wikidata: Q62420
@@ -3187,7 +3111,6 @@ entities:
   - Europa-Universität Viadrina Frankfurt (Oder)
   - Universität Viadrina
   - Viadrina
-  - ~EUV
   context: education
 - id: janine-wissler
   wikidata: Q1682774
@@ -3262,7 +3185,6 @@ entities:
   description: deutscher Politiker (SPD) und Manager (1940–2020)
   aliases:
   - Wolfgang Clement
-  - '!Clement'
   context: politics
 - id: rudolf-scharping
   wikidata: Q61321
@@ -3329,7 +3251,6 @@ entities:
   description: deutscher Schriftsteller und Politiker (SED), MdV
   aliases:
   - Hermann Kant
-  - '!Kant'
   context: politics
 - id: juergen-moellemann
   wikidata: Q65521
@@ -3380,7 +3301,6 @@ entities:
   aliases:
   - Barbara Hendricks
   - Barbara Anne Hendricks
-  - '!Hendricks'
   context: politics
 - id: volker-wissing
   wikidata: Q1278715
@@ -3531,7 +3451,6 @@ entities:
   description: Fernuniversität in Hagen, Nordrhein-Westfalen, Deutschland
   aliases:
   - Fernuniversität in Hagen
-  - ~FUH
   - =Fern-Universität Hagen
   - FernUni Hagen
   - FernUniversität Hagen
@@ -3669,7 +3588,7 @@ entities:
   country: DE
   description: deutscher Lebensmittel-Discounter, Teil der REWE-Unternehmensgruppe
   aliases:
-  - =Penny
+  - '@Penny'
   - =Penny Market
   - =Penny Markt
   context: business
@@ -3756,7 +3675,6 @@ entities:
   description: Hochschule in Dortmund
   aliases:
   - =Technische Universität Dortmund
-  - ~UNIDO
   - =TU Dortmund
   - =Uni Dortmund
   - =Universität Dortmund
@@ -3779,7 +3697,6 @@ entities:
   description: Automobilhersteller
   aliases:
   - =Volkswagen Nutzfahrzeuge
-  - ~VWN
   context: business
 - id: universitaet-osnabrueck
   wikidata: Q702499
@@ -3799,7 +3716,6 @@ entities:
   description: Anbieter von Mietfahrzeugen und anderen Mobilitätsdienstleistungen (SDAX)
   aliases:
   - =SIXT SE
-  - ~SIXT
   - =Sixt
   - Autovermietung Carsharing Leasing Franchise München Pullach Konzern Familienunternehmen
   - Sixt GmbH & Co. Autovermietung KG
@@ -3922,7 +3838,6 @@ entities:
   description: international tätiger Handelskonzern mit Sitz in Köln
   aliases:
   - =REWE Group
-  - ~REWE
   - Revisionsverband der Westkauf-Genossenschaften
   - =REWE-Zentral-AG
   - REWE-Zentralfinanz eG
@@ -4005,7 +3920,6 @@ entities:
   - =Universität Paderborn
   - Gesamthochschule Paderborn
   - =Uni Paderborn
-  - ~UPB
   context: education
 - id: hermann-groehe
   wikidata: Q70429
@@ -4068,7 +3982,6 @@ entities:
   - =Hochschule für Bauwesen Cottbus
   - =Brandenburgische Technische Universität Cottbus
   - =Brandenburgische Technische Universität Cottbus-Senftenberg
-  - ~BTU
   - BTU Cottbus
   - BTU Cottbus-Senftenberg
   - BTU-Cottbus
@@ -4076,6 +3989,7 @@ entities:
   - =FH Lausitz
   - =Hochschule Lausitz
   - =Hochschule Lausitz (FH), University of Applied Sciences
+  - =HS Lausitz
   context: education
 - id: lisa-paus
   wikidata: Q1827771
@@ -4391,7 +4305,6 @@ entities:
   - =Technische Universität Hamburg
   - =Technische Universität Hamburg-Harburg
   - =TU Hamburg
-  - ~TUHH
   context: education
 - id: iu-internationale-hochschule
   wikidata: Q1667281
@@ -4408,7 +4321,6 @@ entities:
   - =Internationale Fachhochschule Bad Honnef-Bonn
   - =Internationale Hochschule Bad Honnef - Bonn
   - Internationale Hochschule Bad Honnef - Bonn (IUBH)
-  - ~IUBH
   context: education
 - id: db-regio
   wikidata: Q18853
@@ -4429,7 +4341,6 @@ entities:
   description: deutsches Kreditinstitut
   aliases:
   - Unicredit Bank
-  - ~HVB
   - Bayerischen Hypo- und Vereinsbank AG
   - HypoVereinsbank
   - Unicredit Bank GmbH
@@ -4580,7 +4491,6 @@ entities:
   description: Universität in Sachsen-Anhalt
   aliases:
   - Otto-von-Guericke-Universität Magdeburg
-  - ~OGU
   - OGU Magdeburg
   - =Otto-von-Guericke-Universität
   - OvGU
@@ -4729,7 +4639,6 @@ entities:
   description: deutscher Politiker (SPD), MdB
   aliases:
   - Karl-Heinz Brunner
-  - '!Brunner'
   context: politics
 - id: helge-braun
   wikidata: Q1602354
@@ -4821,7 +4730,6 @@ entities:
   description: peruanischer Fußballspieler
   aliases:
   - George Forsyth
-  - '!Forsyth'
   context: politics
 - id: nordex-se
   wikidata: Q571700
@@ -4935,7 +4843,6 @@ entities:
   - =Königliche Musikschule München
   - Königliches Conservatorium für Musik
   - =Musikhochschule München
-  - ~HMTM
   context: education
 - id: mahle-gmbh
   wikidata: Q659379
@@ -5029,7 +4936,6 @@ entities:
   - Heidelberger Druckmaschinen
   - Schnellpresse
   - =Print Media Academy
-  - ~HDM
   - Heidelberger Druckmaschinen AG
   - Heideldruck
   - Linotype-Hell
@@ -5043,7 +4949,6 @@ entities:
   aliases:
   - =Hochschule für Musik und Theater Hamburg
   - =Hamburger Musikhochschule
-  - ~HFMT
   - =Hochschule für Musik & Theater Hamburg
   - =Hochschule für Musik Hamburg
   - =Hochschule für Musik und Darstellende Kunst in Hamburg
@@ -5138,7 +5043,6 @@ entities:
   aliases:
   - =Technische Universität Ilmenau
   - =Fachschule für Elektrotechnik und Maschinenbau
-  - ~HFE
   - =Hochschule für Elektrotechnik Ilmenau
   - Ingenieurschule Ilmenau
   - Ingenieurschule Technikum Ilmenau
@@ -5147,6 +5051,17 @@ entities:
   - Thüringisches Technikum
   - =TU Ilmenau
   context: education
+- id: rewe
+  wikidata: Q16968817
+  name: REWE
+  type: ORG
+  country: DE
+  description: deutscher Lebensmitteleinzelhändler mit Sitz in Köln
+  aliases:
+  - ~REWE
+  - =Rewe
+  - =Rewe (Markt)
+  context: business
 - id: philipp-jenninger
   wikidata: Q214060
   name: Philipp Jenninger
@@ -5232,7 +5147,6 @@ entities:
   - =Uni Wuppertal
   - =Universität Wuppertal
   - =Bergische Uni Wuppertal
-  - ~BUW
   context: education
 - id: august-hanning
   wikidata: Q451097
@@ -5289,7 +5203,6 @@ entities:
   aliases:
   - Fritz Koenig
   - Koenig, Fritz
-  - '!Koenig'
   context: politics
 - id: eu-business-school
   wikidata: Q5413406
@@ -5493,7 +5406,6 @@ entities:
   description: deutsch-brasilianischer Exekutivdirektor des UN-Entwicklungsprogramms
   aliases:
   - Achim Steiner
-  - '!Steiner'
   context: politics
 - id: juergen-todenhoefer
   wikidata: Q88267
@@ -5548,7 +5460,6 @@ entities:
   aliases:
   - Katja Mast
   - Katja Wilma Mast
-  - '!Mast'
   context: politics
 - id: paul-ziemiak
   wikidata: Q18169686
@@ -5603,8 +5514,6 @@ entities:
   - =KU Eichstätt
   - =KU Eichstätt-Ingolstadt
   - =KU Ingolstadt
-  - ~KUE
-  - ~KUEI
   - =Uni Eichstätt
   - =Uni Eichstätt-Ingolstadt
   - =Universität Eichstätt
@@ -5641,7 +5550,6 @@ entities:
   description: deutsches Kreditinstitut mit Hauptsitz in Stuttgart
   aliases:
   - =Landesbank Baden-Württemberg
-  - ~LBBW
   context: business
 - id: helmut-schmidt-universitaet-universitaet-der-bundeswehr-hamburg
   wikidata: Q530991
@@ -5651,11 +5559,9 @@ entities:
   description: Bundeswehr-Universität in Hamburg zur akademischen Ausbildung der Offiziere
   aliases:
   - =Helmut-Schmidt-Universität/Universität der Bundeswehr Hamburg
-  - ~HSU
   - ~Helmut-Schmidt-Universität
   - =Helmut-Schmidt-Universität - Universität der Bundeswehr Hamburg
   - =Helmut-Schmidt-Universität Hamburg
-  - ~HSU-HH
   - HSU/UniBw H
   - HSU/UniBwH
   - UniBw H
@@ -5745,7 +5651,7 @@ entities:
   description: Lebensmitteldiscounter und Tochterunternehmen der Edeka Zentrale AG & Co. KG
   aliases:
   - =Netto Marken-Discount
-  - =Netto
+  - '@Netto'
   - =Netto Süd
   context: business
 - id: prosegur
@@ -5836,12 +5742,10 @@ entities:
   - =Hochschule für Musik, Theater und Medien Hannover
   - =Akademie für Musik und Theater
   - Hannoversches Konservatorium
-  - ~HMTH
   - hmtmh
   - =Hochschule für Musik und Theater Hannover
   - =Hochschule für Musik, Theater und Medien
   - =Musikhochschule Hannover
-  - ~HMTMH
   context: education
 - id: otto-group
   wikidata: Q466688
@@ -5883,7 +5787,6 @@ entities:
   description: Raumfahrt- und Technologiekonzern mit Hauptsitz in Bremen (SDAX/TecDAX)
   aliases:
   - OHB SE
-  - ~OHB
   - Orbitale Hochtechnologie Bremen SE
   context: business
 - id: suedzucker-ag
@@ -5929,7 +5832,6 @@ entities:
   - =Wacker Chemie
   - =Wacker-Chemie
   - =Wacker-Chemie GmbH
-  - ~WACKER
   context: business
 - id: software-ag
   wikidata: Q567371
@@ -6011,7 +5913,6 @@ entities:
   description: Offizierschule der Deutschen Marine
   aliases:
   - Marineschule Mürwik
-  - ~MSM
   context: education
 - id: adolf-von-thadden
   wikidata: Q88729
@@ -6050,7 +5951,6 @@ entities:
   description: Europaabgeordneter (CDU)
   aliases:
   - Axel Voss
-  - '!Voss'
   context: politics
 - id: hassan-israilow
   wikidata: Q2011833
@@ -6070,7 +5970,6 @@ entities:
   description: Universität in Deutschland
   aliases:
   - Deutsche Sporthochschule Köln
-  - ~DSHS
   - Deutsche Sporthochschule
   - DSHS Köln
   context: education
@@ -6082,7 +5981,6 @@ entities:
   description: deutsches Maschinenbauunternehmen mit Sitz in Herzogenrath (MDAX/TecDAX)
   aliases:
   - Aixtron
-  - ~AIXTRON
   context: business
 - id: technische-universitaet-clausthal
   wikidata: Q447354
@@ -6195,7 +6093,6 @@ entities:
   description: Technologiekonzern aus Hanau
   aliases:
   - Heraeus
-  - ~WCH
   - Erste Deutsche Platinschmelze W. C. Heraeus
   - Heraeus Holding GmbH
   context: business
@@ -6207,7 +6104,6 @@ entities:
   description: staatliche Musikhochschule
   aliases:
   - =Staatliche Hochschule für Musik und Darstellende Kunst Stuttgart
-  - ~HMDK
   - =Hochschule für Musik und Darstellende Kunst Stuttgart
   - =Musikhochschule Stuttgart
   - =Staatliche Hochschule für Musik Stuttgart
@@ -6391,7 +6287,7 @@ entities:
   description: Gruppe von Einzelhandelsunternehmen, SB-Warenhäusern und Fachmärkten mit Sitz in St. Wendel
   aliases:
   - =Globus Holding
-  - =Globus
+  - '@Globus'
   - =Globus Baumarkt
   - =Globus Holding GmbH & Co. KG
   context: business
@@ -6463,7 +6359,6 @@ entities:
   description: private Hochschule in Berlin
   aliases:
   - =European School of Management and Technology
-  - ~ESMT
   context: education
 - id: peter-glotz
   wikidata: Q647924
@@ -6689,7 +6584,6 @@ entities:
   aliases:
   - Ceconomy
   - Ceconomy AG
-  - ~CECO
   context: business
 - id: oezlem-demirel-boehlke
   wikidata: Q307920
@@ -6778,7 +6672,6 @@ entities:
   description: Europaabgeordnete (Bündnis 90/Die Grünen)
   aliases:
   - Alexandra Geese
-  - '!Geese'
   context: politics
 - id: christine-anderson
   wikidata: Q64073047
@@ -6789,7 +6682,6 @@ entities:
   aliases:
   - Christine Anderson
   - Christine Margarete Anderson
-  - '!Anderson'
   context: politics
 - id: mediamarktsaturn-retail-group
   wikidata: Q659320
@@ -7057,7 +6949,6 @@ entities:
   - =Akademie der Bildenden Künste Stuttgart
   - =Kunstakademie Stuttgart
   - =Stuttgarter Kunstschule
-  - ~SADBK
   context: education
 - id: stefan-berger
   wikidata: Q2336010
@@ -7213,7 +7104,6 @@ entities:
   aliases:
   - Jutta Paulus
   - Jutta Wege
-  - '!Paulus'
   context: politics
 - id: hannah-neumann
   wikidata: Q52618103
@@ -7232,7 +7122,6 @@ entities:
   description: Europaabgeordnete (SPD)
   aliases:
   - Gabriele Bischoff
-  - '!Bischoff'
   context: politics
 - id: michael-bloss
   wikidata: Q63979256
@@ -7323,7 +7212,6 @@ entities:
   description: Europaabgeordneter (CDU)
   aliases:
   - Andreas Schwab
-  - '!Schwab'
   context: politics
 - id: ingeborg-graessle
   wikidata: Q85551
@@ -7466,7 +7354,6 @@ entities:
   description: Staatsminister (CSU)
   aliases:
   - Markus Blume
-  - '!Blume'
   context: politics
 - id: dws-group
   wikidata: Q1156210
@@ -7479,7 +7366,6 @@ entities:
   - Deutsche Gesellschaft für Wertpapiersparen
   - Deutsche Gesellschaft für Wertpapiersparen mbH
   - DWS Investment GmbH
-  - ~DWS
   context: business
 - id: heike-heubach
   wikidata: Q124851119
@@ -7509,7 +7395,6 @@ entities:
   description: Europaabgeordnete
   aliases:
   - Christine Singer
-  - '!Singer'
   context: politics
 - id: anja-arndt
   wikidata: Q126716046
@@ -7585,7 +7470,6 @@ entities:
   description: Vorsitz AfD Sachsen
   aliases:
   - Jörg Urban
-  - '!Urban'
   context: politics
 - id: luise-amtsberg
   wikidata: Q1876595
@@ -7679,7 +7563,6 @@ entities:
   description: Kunsthochschule in Leipzig, Deutschland
   aliases:
   - Hochschule für Grafik und Buchkunst Leipzig
-  - ~HGB
   - Akademie für Graphische Künste und Buchgewerbe
   - =HGB Leipzig
   - Hochschule für Grafik und Buchkunst
@@ -7692,7 +7575,6 @@ entities:
   description: private Wirtschaftshochschule
   aliases:
   - WHU – Otto Beisheim School of Management
-  - ~WHU
   - WHU - Otto Beisheim School of Management
   - WHU Otto Beisheim School of Management
   - WHU Vallendar
@@ -7768,7 +7650,6 @@ entities:
   aliases:
   - =Musikhochschule Lübeck
   - =Hochschule für Musik Lübeck
-  - ~MHL
   context: education
 - id: herzogliches-georgianum
   wikidata: Q533069
@@ -7959,7 +7840,6 @@ entities:
   description: Bundestagsabgeordnete (SPD)
   aliases:
   - Sanae Abdi
-  - '!Abdi'
   context: politics
 - id: holger-zastrow
   wikidata: Q111924
@@ -8028,7 +7908,6 @@ entities:
   description: Europaabgeordnete (CDU)
   aliases:
   - Verena Mertens
-  - '!Mertens'
   context: politics
 - id: stefan-koehler
   wikidata: Q126489095
@@ -8089,7 +7968,6 @@ entities:
   aliases:
   - Alexander Sell
   - Alexander Heribert Sell
-  - '!Sell'
   context: politics
 - id: duerr-ag
   wikidata: Q1272125
@@ -8182,7 +8060,6 @@ entities:
   description: staatliche Universität mit eigenem Promotionsrecht
   aliases:
   - HafenCity Universität Hamburg
-  - ~HCU
   - Hafencity Universität
   - HafenCity Universität
   - HafenCity Universität Hamburg – Universität für Baukunst und Metropolenentwicklung
@@ -8217,7 +8094,6 @@ entities:
   - Tierärztliche Hochschule Hannover
   - TiHo
   - Stiftung Tierärztliche Hochschule Hannover
-  - ~TIHO
   context: education
 - id: hochschule-fuer-bildende-kuenste-hamburg
   wikidata: Q1622237
@@ -8316,7 +8192,6 @@ entities:
   - TK Elevator
   - ThyssenKrupp Elevator AG
   - TK Elevator GmbH
-  - ~TKE
   context: business
 - id: leif-erik-holm
   wikidata: Q26270011
@@ -8326,7 +8201,6 @@ entities:
   description: Bundestagsabgeordneter (AfD)
   aliases:
   - Leif-Erik Holm
-  - '!Holm'
   context: politics
 - id: adva-optical-networking
   wikidata: Q290718
@@ -8355,7 +8229,6 @@ entities:
   description: private Universität in Hessen
   aliases:
   - EBS Universität für Wirtschaft und Recht
-  - ~EBS
   - =European Business School
   - EBS Business School
   - EBS Law School
@@ -8414,7 +8287,6 @@ entities:
   description: Bundestagsabgeordnete (CDU)
   aliases:
   - Melanie Bernstein
-  - '!Bernstein'
   context: politics
 - id: akademie-der-bildenden-kuenste-nuernberg
   wikidata: Q414041
@@ -8445,7 +8317,6 @@ entities:
   description: Gesamtkonzernauftritt der Deutsche Lufthansa Aktiengesellschaft
   aliases:
   - =Lufthansa Group
-  - ~LHG
   context: business
 - id: katrin-langensiepen
   wikidata: Q64032761
@@ -8487,7 +8358,6 @@ entities:
   aliases:
   - René Aust
   - René Philip Aust
-  - '!Aust'
   context: politics
 - id: alexander-radwan
   wikidata: Q78198
@@ -8626,7 +8496,6 @@ entities:
   description: Vorsitz Jusos (SPD)
   aliases:
   - Jessica Rosenthal
-  - '!Rosenthal'
   context: politics
 - id: oliver-krischer
   wikidata: Q103710
@@ -8805,7 +8674,6 @@ entities:
   - =Munich Business School
   - eba München
   - Europäische Betriebswirtschaftsakademie München
-  - ~MBS
   context: education
 - id: cansn-koektuerk
   wikidata: Q132733544
@@ -9063,7 +8931,6 @@ entities:
   description: Bundestagsabgeordneter (CDU)
   aliases:
   - Peter Beyer
-  - '!Beyer'
   context: politics
 - id: rita-schwarzeluehr-sutter
   wikidata: Q2154951
@@ -9234,7 +9101,6 @@ entities:
   aliases:
   - Christian Wirth
   - Christian Friedrich Wirth
-  - '!Wirth'
   context: politics
 - id: jochen-haug
   wikidata: Q40475799
@@ -9354,7 +9220,6 @@ entities:
   description: Universität in Deutschland
   aliases:
   - =Hochschule für Künste Bremen
-  - ~HFK
   - HfK Bremen
   - Kunstgewerbeschule Bremen
   - Kunsthochschule Bremen
@@ -9464,7 +9329,6 @@ entities:
   description: Universität in Hannover
   aliases:
   - =Medizinische Hochschule Hannover
-  - ~MHH
   - =Medizinische Hochschule Hannover (MHH)
   context: education
 - id: klaus-barthel
@@ -9485,7 +9349,6 @@ entities:
   description: börsennotierter Hersteller von Pumpen und Armaturen (SDAX)
   aliases:
   - KSB SE & Co. KGaA
-  - ~KSB
   - KSB AG
   - Klein, Schanzlin & Becker
   context: business
@@ -9600,7 +9463,6 @@ entities:
   aliases:
   - Christoph de Vries
   - Christoph Bernhard de Vries
-  - '!Vries'
   context: politics
 - id: chantal-kopf
   wikidata: Q108713708
@@ -9632,7 +9494,6 @@ entities:
   aliases:
   - Knut Abraham
   - Knut Friedrich Alexander Abraham
-  - '!Abraham'
   context: politics
 - id: paula-piechotta
   wikidata: Q108734306
@@ -9683,7 +9544,6 @@ entities:
   description: Bundestagsabgeordnete (SPD)
   aliases:
   - Rasha Nasr
-  - '!Nasr'
   context: politics
 - id: bjoern-boehning
   wikidata: Q109023
@@ -9714,7 +9574,6 @@ entities:
   description: technische Universität in Kaiserslautern und Landau in der Pfalz, Deutschland
   aliases:
   - =Rheinland-Pfälzische Technische Universität Kaiserslautern-Landau
-  - ~RPTU
   - RPTU Kaiserslautern-Landau
   context: education
 - id: juergen-hardt
@@ -9744,7 +9603,6 @@ entities:
   description: Softwareunternehmen mit Sitz in Koblenz (MDAX/TecDAX)
   aliases:
   - CompuGroup Medical
-  - ~CGM
   - CompuGroup
   - CompuGroup AG
   - Compugroup Holding AG
@@ -10109,7 +9967,6 @@ entities:
   aliases:
   - Kai Whittaker
   - Kai Thorsten Whittaker
-  - '!Whittaker'
   context: politics
 - id: johannes-steiniger
   wikidata: Q15813787
@@ -10178,7 +10035,6 @@ entities:
   - =Hochschule Merseburg (FH)
   - =HS Merseburg
   - =TH Merseburg
-  - ~HOME
   context: education
 - id: holger-mann
   wikidata: Q1624565
@@ -10197,7 +10053,6 @@ entities:
   description: Windparkentwickler mit Sitz in Cuxhaven (SDAX)
   aliases:
   - PNE AG
-  - ~PNE
   - Plambeck Neue Energien
   - PNE Wind
   context: business
@@ -10361,7 +10216,6 @@ entities:
   description: Bundestagsabgeordnete (CDU)
   aliases:
   - Patricia Lips
-  - '!Lips'
   context: politics
 - id: saskia-ludwig
   wikidata: Q2225665
@@ -10433,7 +10287,6 @@ entities:
   description: Bundestagsabgeordneter (CDU)
   aliases:
   - Thomas Rachel
-  - '!Rachel'
   context: politics
 - id: thomas-silberhorn
   wikidata: Q2427303
@@ -10678,7 +10531,6 @@ entities:
   description: Weiterbildungsstätte der Bundesrepublik Deutschland in Berlin-Niederschönhausen
   aliases:
   - Bundesakademie für Sicherheitspolitik
-  - ~BAKS
   - BAkSichhPol
   context: education
 - id: dhl-global-forwarding
@@ -10853,7 +10705,6 @@ entities:
   aliases:
   - Grant Hendrik Tonne
   - Grant Tonne
-  - '!Tonne'
   context: politics
 - id: filiz-polat
   wikidata: Q103972
@@ -10987,7 +10838,6 @@ entities:
   description: Bundestagsabgeordneter (SPD)
   aliases:
   - Daniel Baldy
-  - '!Baldy'
   context: politics
 - id: carolin-bachmann
   wikidata: Q108731849
@@ -10997,7 +10847,6 @@ entities:
   description: Bundestagsabgeordnete (AfD)
   aliases:
   - Carolin Bachmann
-  - '!Bachmann'
   context: politics
 - id: lukas-benner
   wikidata: Q108733098
@@ -11028,7 +10877,6 @@ entities:
   description: Bundestagsabgeordnete (Bündnis 90/Die Grünen)
   aliases:
   - Denise Loop
-  - '!Loop'
   context: politics
 - id: andreas-audretsch
   wikidata: Q108736132
@@ -11312,7 +11160,6 @@ entities:
   aliases:
   - =Pädagogische Hochschule Karlsruhe
   - =PH Karlsruhe
-  - ~PHKA
   context: education
 - id: dario-seifert
   wikidata: Q132731694
@@ -11567,7 +11414,6 @@ entities:
   aliases:
   - Olav Gutting
   - Olav Steffen Gutting
-  - '!Gutting'
   context: politics
 - id: stefan-zierke
   wikidata: Q14947102
@@ -11797,7 +11643,6 @@ entities:
   - International Psychoanalytic University Berlin
   - International Psychoanalytic University
   - Internationale Psychoanalytische Universität Berlin
-  - ~IPU
   - IPU Berlin
   context: education
 - id: iris-spranger
@@ -12128,7 +11973,6 @@ entities:
   - Till Steffen
   - Till B. Steffen
   - Till Benjamin Steffen
-  - '!Steffen'
   context: politics
 - id: daniela-schmitt
   wikidata: Q24991642
@@ -12172,7 +12016,6 @@ entities:
   description: Bundestagsabgeordneter (AfD)
   aliases:
   - Christoph Grimm
-  - '!Grimm'
   context: politics
 - id: franz-robert-liskow
   wikidata: Q26808669
@@ -12203,7 +12046,6 @@ entities:
   description: Bundestagsabgeordneter (CDU)
   aliases:
   - Adrian Grasse
-  - '!Grasse'
   context: politics
 - id: natalie-pawlik
   wikidata: Q29024286
@@ -12224,7 +12066,6 @@ entities:
   aliases:
   - Martin Renner
   - Martin Erwin Renner
-  - '!Renner'
   context: politics
 - id: stefan-nacke
   wikidata: Q30312535
@@ -12314,7 +12155,6 @@ entities:
   description: Bundestagsabgeordneter (AfD)
   aliases:
   - Fabian Jacobi
-  - '!Jacobi'
   context: politics
 - id: ruediger-lucassen
   wikidata: Q40848063
@@ -12426,7 +12266,6 @@ entities:
   description: Bundestagsabgeordnete (SPD)
   aliases:
   - Claudia Moll
-  - '!Moll'
   context: politics
 - id: wiebke-esdar
   wikidata: Q40999031
@@ -12516,7 +12355,6 @@ entities:
   description: deutscher Finanzdienstleistungskonzern (SDAX)
   aliases:
   - MLP SE
-  - ~MLP
   - MLP AG
   context: business
 - id: andre-kuper
@@ -12558,7 +12396,6 @@ entities:
   - =Technische Universität Nürnberg
   - =TU Nürnberg
   - =Technische Universität Cube One Nürnberg
-  - ~UTN
   context: education
 - id: claus-ruhe-madsen
   wikidata: Q57173944
@@ -12568,7 +12405,6 @@ entities:
   description: Minister für Wirtschaft, Verkehr, Arbeit, Technologie und Tourismus des Landes Schleswig-Holstein (CDU)
   aliases:
   - Claus Ruhe Madsen
-  - '!Madsen'
   context: politics
 - id: philip-kraemer
   wikidata: Q64559291
@@ -12607,7 +12443,6 @@ entities:
   description: Anbieter von Personalmanagement-Software (SDAX/TecDAX)
   aliases:
   - Atoss
-  - ~ATOSS
   - ATOSS Software AG
   context: business
 - id: morphosys
@@ -12638,7 +12473,6 @@ entities:
   description: Landesminister (CDU)
   aliases:
   - Conrad Clemens
-  - '!Clemens'
   context: politics
 - id: blg-logistics-group
   wikidata: Q796223
@@ -12706,7 +12540,6 @@ entities:
   description: Versorgungs- und Dienstleistungsunternehmen in München
   aliases:
   - =Stadtwerke München
-  - ~SWM
   context: business
 - id: theologische-fakultaet-paderborn
   wikidata: Q883284
@@ -12813,7 +12646,6 @@ entities:
   description: Business School
   aliases:
   - BSBI School of Business and Innovation
-  - ~BSBI
   context: education
 - id: wilhelm-gebhard
   wikidata: Q108171481
@@ -12880,7 +12712,6 @@ entities:
   description: Bundestagsabgeordneter (SPD)
   aliases:
   - Armand Zorn
-  - '!Zorn'
   context: politics
 - id: markus-reichel
   wikidata: Q108709302
@@ -12909,7 +12740,6 @@ entities:
   description: Bundestagsabgeordneter (Bündnis 90/Die Grünen)
   aliases:
   - Kassem Taher Saleh
-  - '!Saleh'
   context: politics
 - id: lina-seitzl
   wikidata: Q108731005
@@ -12961,7 +12791,6 @@ entities:
   description: Bundestagsabgeordneter (Bündnis 90/Die Grünen)
   aliases:
   - Leon Eckert
-  - '!Eckert'
   context: politics
 - id: rene-bochmann
   wikidata: Q108738695
@@ -13019,7 +12848,6 @@ entities:
   description: Bundestagsabgeordneter (CDU)
   aliases:
   - Yannick Bury
-  - '!Bury'
   context: politics
 - id: alexander-engelhard
   wikidata: Q108755186
@@ -13097,7 +12925,6 @@ entities:
   description: Bundestagsabgeordneter (CDU)
   aliases:
   - Volker Mayer-Lay
-  - '!Mayer-Lay'
   context: politics
 - id: matthias-mieves
   wikidata: Q108757269
@@ -13147,7 +12974,6 @@ entities:
   description: Bundestagsabgeordneter (SPD)
   aliases:
   - Thorsten Rudolph
-  - '!Rudolph'
   context: politics
 - id: sebastian-schaefer
   wikidata: Q108757983
@@ -13321,7 +13147,6 @@ entities:
   description: Einrichtung der Universität des Saarlandes
   aliases:
   - Centre juridique franco-allemand
-  - ~CJFA
   context: education
 - id: natalie-cramme-hill
   wikidata: Q119995509
@@ -13444,7 +13269,6 @@ entities:
   - Linde Material Handling
   - Linde Material Handling GmbH
   - =Linde MH
-  - ~LMH
   context: business
 - id: diana-herbstreuth
   wikidata: Q131702389
@@ -13576,7 +13400,6 @@ entities:
   description: Bundestagsabgeordnete (SPD)
   aliases:
   - Daniela Rump
-  - '!Rump'
   context: politics
 - id: adam-balten
   wikidata: Q132733484
@@ -13635,7 +13458,6 @@ entities:
   aliases:
   - Agnes Conrad
   - Agnes Maria Conrad
-  - '!Conrad'
   context: politics
 - id: mandy-eissing
   wikidata: Q132733515
@@ -13717,7 +13539,6 @@ entities:
   aliases:
   - Cem Ince
   - Cem Hamit Ince
-  - '!Ince'
   context: politics
 - id: maren-kaminski
   wikidata: Q132733537
@@ -13942,8 +13763,6 @@ entities:
   aliases:
   - =Evangelische Hochschule Darmstadt
   - EFH Darmstadt
-  - ~EFHD
-  - ~EHD
   - =Evangelische Fachhochschule Darmstadt
   context: education
 - id: evotec
@@ -14013,7 +13832,6 @@ entities:
   description: Ausbildungseinrichtung der Deutschen Marine für Taktik und Operation mit Sitz in Bremerhaven
   aliases:
   - Marineoperationsschule
-  - ~MOS
   context: education
 - id: gft-technologies
   wikidata: Q1485459
@@ -14208,7 +14026,6 @@ entities:
   description: Vizepräsident des Thüringer Landtags (CDU)
   aliases:
   - Henry Worm
-  - '!Worm'
   context: politics
 - id: vinzenz-pallotti-university
   wikidata: Q1619104
@@ -14342,7 +14159,6 @@ entities:
   description: Vorsitz Bündnis 90/Die Grünen Bremen
   aliases:
   - Ralph Saxe
-  - '!Saxe'
   context: politics
 - id: kunsthochschule-mainz
   wikidata: Q1792452
@@ -14383,7 +14199,6 @@ entities:
   description: Technische Schule der Deutschen Marine
   aliases:
   - Marinetechnikschule
-  - ~MTS
   context: education
 - id: marineunteroffizierschule
   wikidata: Q1898504
@@ -14394,7 +14209,6 @@ entities:
   aliases:
   - Marineunteroffizierschule
   - Marineunterofizierschule
-  - ~MUS
   context: education
 - id: rainer-rothfuss
   wikidata: Q19298909
@@ -14425,7 +14239,6 @@ entities:
   description: zentrale Ausbildungsstätte für die Offiziere des Heeres und der Streitkräftebasis
   aliases:
   - Offizierschule des Heeres
-  - ~OSH
   - Heeresoffizierschule
   - Offiziersschule des Heeres
   context: education
@@ -14527,7 +14340,6 @@ entities:
   description: Vorsitz FDP Hessen
   aliases:
   - Stefan Ruppert
-  - '!Ruppert'
   context: politics
 - id: thomas-bagger
   wikidata: Q2422195
@@ -14597,7 +14409,6 @@ entities:
   description: Landesbeauftragter für den Datenschutz und die Informationsfreiheit Baden-Württemberg (FDP)
   aliases:
   - Stefan Brink
-  - '!Brink'
   context: politics
 - id: grand-city-properties
   wikidata: Q31840389
@@ -14894,7 +14705,6 @@ entities:
   description: Bundestagsabgeordneter (CSU)
   aliases:
   - Heiko Hain
-  - '!Hain'
   context: politics
 - id: ayse-asar
   wikidata: Q60675728
@@ -14946,7 +14756,6 @@ entities:
   description: Bundestagsabgeordneter (AfD)
   aliases:
   - Torben Braga
-  - '!Braga'
   context: politics
 - id: astrid-rothe-beinlich
   wikidata: Q750756
@@ -15057,7 +14866,6 @@ entities:
   description: Bundestagsabgeordneter (CDU)
   aliases:
   - Martin Plum
-  - '!Plum'
   context: politics
 - id: johannes-wagner
   wikidata: Q108705953
@@ -15177,7 +14985,6 @@ entities:
   aliases:
   - Thomas Dietz
   - Thomas Eckhard Dietz
-  - '!Dietz'
   context: politics
 - id: nadine-heselhaus
   wikidata: Q108756628
@@ -15216,7 +15023,6 @@ entities:
   description: Bundestagsabgeordneter (CDU)
   aliases:
   - Klaus Mack
-  - '!Mack'
   context: politics
 - id: bernd-schattner
   wikidata: Q108757996
@@ -15495,7 +15301,6 @@ entities:
   aliases:
   - Deutsche Beteiligungs AG
   - Deutsche Beteiligungs
-  - ~DBAG
   context: business
 - id: deutsche-rentenversicherung-knappschaft-bahn-see
   wikidata: Q1203783
@@ -15505,7 +15310,6 @@ entities:
   description: deutscher Sozialversicherungsträger
   aliases:
   - Deutsche Rentenversicherung Knappschaft-Bahn-See
-  - ~KBS
   - DRV KBS
   - Knappschaft-Bahn-See
   - Knappschaftsversicherung
@@ -15539,7 +15343,6 @@ entities:
   - Schifffahrtmedizinisches Institut der Marine
   - Schiffahrtmedizinisches Institut der Marine
   - SchiffMedInstM
-  - ~SMIM
   context: education
 - id: lea-reisner
   wikidata: Q123511209
@@ -15579,7 +15382,6 @@ entities:
   aliases:
   - Manfred Schiller
   - Manfred Leonhard Schiller
-  - '!Schiller'
   context: politics
 - id: eckert-ziegler
   wikidata: Q1281619
@@ -15609,7 +15411,6 @@ entities:
   aliases:
   - Einsatzausbildungszentrum Schadensabwehr Marine
   - Ausbildungszentrum Schiffssicherung
-  - ~EAZS
   - EAZS M
   context: education
 - id: philipp-rottwilm
@@ -15735,7 +15536,6 @@ entities:
   aliases:
   - Christian Moser
   - Christian Anton Moser
-  - '!Moser'
   context: politics
 - id: fabian-fahl
   wikidata: Q132732559
@@ -15856,7 +15656,6 @@ entities:
   aliases:
   - Joachim Bloch
   - Joachim Ralf Josef Bloch
-  - '!Bloch'
   context: politics
 - id: jorrit-bosch
   wikidata: Q132733496
@@ -15939,7 +15738,6 @@ entities:
   aliases:
   - Florian Dorn
   - Florian Johannes Dorn
-  - '!Dorn'
   context: politics
 - id: christian-douglas
   wikidata: Q132733509
@@ -15949,7 +15747,6 @@ entities:
   description: Bundestagsabgeordneter (AfD)
   aliases:
   - Christian Douglas
-  - '!Douglas'
   context: politics
 - id: joachim-ebmeyer
   wikidata: Q132733512
@@ -16069,7 +15866,6 @@ entities:
   description: Bundestagsabgeordneter (CDU)
   aliases:
   - Matthias Hiller
-  - '!Hiller'
   context: politics
 - id: olaf-hilmer
   wikidata: Q132733529
@@ -16089,7 +15885,6 @@ entities:
   description: Bundestagsabgeordneter (CDU)
   aliases:
   - Alexander Jordan
-  - '!Jordan'
   context: politics
 - id: nicklas-kappe
   wikidata: Q132733538
@@ -16201,7 +15996,6 @@ entities:
   description: Bundestagsabgeordneter (AfD)
   aliases:
   - Johann Martel
-  - '!Martel'
   context: politics
 - id: markus-matzerath
   wikidata: Q132733558
@@ -16274,7 +16068,6 @@ entities:
   description: Bundestagsabgeordneter (AfD)
   aliases:
   - Denis Pauli
-  - '!Pauli'
   context: politics
 - id: oliver-poepsel
   wikidata: Q132733569
@@ -16631,7 +16424,6 @@ entities:
   description: Bundestagsabgeordneter (CDU)
   aliases:
   - Thomas Pauls
-  - '!Pauls'
   context: politics
 - id: german-university-of-digital-science
   wikidata: Q133538136
@@ -16673,7 +16465,6 @@ entities:
   - Fachhochschule Macromedia
   - Hochschule Macromedia, University of Applied Sciences
   - Macromedia Hochschule für Medien und Kommunikation
-  - ~MHMK
   - Macromedia Hochschule
   context: education
 - id: priesterseminar-hildesheim
@@ -16859,7 +16650,6 @@ entities:
   aliases:
   - =HUK-Coburg
   - HUK Coburg
-  - ~HUK-COBURG
   - HUK-Coburg Haftpflicht-Unterstützungs-Kasse kraftfahrender Beamter Deutschlands a. G. in Coburg
   context: business
 - id: heinrich-kunstmann
@@ -17014,7 +16804,6 @@ entities:
   description: mittelständisches Technologie-Unternehmen mit Hauptsitz in Garbsen bei Hannover (SDAX)
   aliases:
   - LPKF Laser & Electronics
-  - ~LPKF
   - LPKF AG
   context: business
 - id: saf-holland
@@ -17045,7 +16834,6 @@ entities:
   description: Beteiligungsgesellschaft mit Hauptsitz in Berlin (SDAX)
   aliases:
   - MBB SE
-  - ~MBB
   - MBB Industries AG
   context: business
 - id: mediadesign-hochschule
@@ -17133,7 +16921,6 @@ entities:
   - =R+V Allgemeine Versicherung AG
   - Raiffeisen- und Volksbanken Versicherung
   - =Condor (Versicherung)
-  - ~KRAVAG
   - =Optima-Versicherung
   context: business
 - id: sibylle-meister
@@ -17663,7 +17450,6 @@ entities:
   description: private Hochschule in Berlin
   aliases:
   - =Humanistische Hochschule Berlin
-  - ~HHB
   context: education
 - id: europaeische-hochschule-fuer-innovation-und-perspektive
   wikidata: Q118258797
@@ -17684,7 +17470,6 @@ entities:
   aliases:
   - Ariane Kari
   - Ariane Désirée Kari
-  - '!Kari'
   context: politics
 - id: malteser-deutschland
   wikidata: Q1203450
@@ -17714,7 +17499,6 @@ entities:
   description: Vorsitz Partei Mensch Umwelt Tierschutz (Tierschutzpartei)
   aliases:
   - Paula López Vicente
-  - '!Vicente'
   context: politics
 - id: internationale-studien-und-berufsakademie
   wikidata: Q122956298
@@ -17724,7 +17508,6 @@ entities:
   description: Hochschule
   aliases:
   - Internationale Studien- und Berufsakademie
-  - ~ISBA
   context: education
 - id: private-berufsakademie-fulda
   wikidata: Q123010841
@@ -17768,7 +17551,6 @@ entities:
   description: Medizinische Universität in Brandenburg
   aliases:
   - Medizinische Universität Lausitz – Carl Thiem
-  - ~MUL-CT
   context: education
 - id: catholic-theological-faculty-in-wuerzburg
   wikidata: Q12793550
@@ -17796,7 +17578,6 @@ entities:
   description: Hamburgischer Beauftragter für Datenschutz und Informationsfreiheit
   aliases:
   - Johannes Caspar
-  - '!Caspar'
   context: politics
 - id: ciu-korntal
   wikidata: Q133304514
@@ -17892,7 +17673,6 @@ entities:
   description: Landesbeauftragter für den Datenschutz Sachsen-Anhalt
   aliases:
   - Harald von Bose
-  - '!Bose'
   context: politics
 - id: ausbildungszentrum-uboote
   wikidata: Q16054484
@@ -17902,7 +17682,6 @@ entities:
   description: Ausbildungszentrum der deutschen Marine
   aliases:
   - Ausbildungszentrum Uboote
-  - ~AZU
   context: education
 - id: hypoport
   wikidata: Q1641403
@@ -18002,7 +17781,6 @@ entities:
   description: Landesbeauftragte für den Datenschutz Niedersachsen (CDU)
   aliases:
   - Barbara Thiel
-  - '!Thiel'
   context: politics
 - id: lutherische-theologische-hochschule-oberursel
   wikidata: Q1877909
@@ -18353,7 +18131,6 @@ entities:
   description: Vorsitz Bündnis 90/Die Grünen Schleswig-Holstein
   aliases:
   - Steffen Regis
-  - '!Regis'
   context: politics
 - id: graduate-school-for-computing-in-medicine-and-life-sciences
   wikidata: Q5592027
@@ -18363,7 +18140,6 @@ entities:
   description: Hochschule in Lübeck
   aliases:
   - Graduate School for Computing in Medicine and Life Sciences
-  - ~GS-CMLS
   context: education
 - id: anne-kura
   wikidata: Q56692032
@@ -18412,7 +18188,6 @@ entities:
   description: Hochschule
   aliases:
   - =Duale Hochschule Schleswig-Holstein
-  - ~DHSH
   context: education
 - id: hmu-health-and-medical-university
   wikidata: Q84941339
@@ -18422,7 +18197,6 @@ entities:
   description: private Hochschule in Potsdam
   aliases:
   - HMU Health and Medical University
-  - ~HMU
   - HMU - Health and Medical University
   - HMU Health and Medical University GmbH
   - HMU Health and Medical University Potsdam
@@ -18548,7 +18322,6 @@ entities:
   description: Staatlich anerkannte Kunsthochschule für Medienkunst, Literarisches Schreiben, Popmusik und Klangkunst von 2012 bis 2017
   aliases:
   - =Institut für künstlerische Forschung und Bildung München
-  - ~MIMA
   context: education
 - id: deutsche-internationale-universitaet-berlin
   wikidata: Q122865100
@@ -18558,7 +18331,6 @@ entities:
   description: Private Universität in Berlin
   aliases:
   - =Deutsche Internationale Universität Berlin
-  - ~GIU
   context: education
 - id: teyfik-oezcan
   wikidata: Q124396042

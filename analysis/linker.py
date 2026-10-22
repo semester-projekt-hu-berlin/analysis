@@ -211,6 +211,7 @@ class Registry:
         self.by_qid: dict[str, str] = {}
         self.aliases: list[Alias] = []
         self.alias_index: dict[str, list[str]] = {}  # normalized surface -> entity ids
+        self.alias_modes: dict[tuple[str, str], set[str]] = {}  # (normalized surface, entity id) -> modes
         self._compiled = False
         self._name_word_cache: dict[str, set[str]] = {}
         alias_specs = alias_specs or {}
@@ -272,6 +273,7 @@ class Registry:
             self.alias_index.setdefault(normalize_surface(text), [])
             if e.id not in self.alias_index[normalize_surface(text)]:
                 self.alias_index[normalize_surface(text)].append(e.id)
+            self.alias_modes.setdefault((normalize_surface(text), e.id), set()).add(mode)
         self._compiled = False
 
     def add_discovered(self, info: dict) -> Entity:
@@ -415,7 +417,10 @@ class Registry:
                     continue
                 ev = 2
             elif a.mode == "ner":
-                # NER-only (generated surnames): a context keyword is not enough ("die grüne Wiese")
+                # NER-only (generated surnames): a context keyword is not enough ("die grüne Wiese"),
+                # and only on sources of the person's own country (a "Radwan" on derstandard.at)
+                if country and e.country and country != e.country:
+                    continue
                 if not any(s < end and start < t and _ner_compatible(tag, e.type) for s, t, tag, _score in ner_spans):
                     continue
                 ev = 2
@@ -458,14 +463,26 @@ class Registry:
     def lookup_surface(self, surface: str, ner_tag: str, country: str | None = None) -> str | None:
         """Exact (normalized) alias lookup for an NER span, with titles stripped."""
         for cand in surface_variants(surface):
-            ids = self.alias_index.get(normalize_surface(cand), [])
-            ids = [i for i in ids if _ner_compatible(ner_tag, self.entities[i].type)]
+            key = normalize_surface(cand)
+            ids = self.alias_index.get(key, [])
+            ids = [
+                i for i in ids if _ner_compatible(ner_tag, self.entities[i].type) and self._lookup_ok(key, i, country)
+            ]
             if ids:
                 if len(ids) > 1 and country:
                     same = [i for i in ids if self.entities[i].country == country]
                     ids = same or ids
                 return ids[0]
         return None
+
+    def _lookup_ok(self, key: str, eid: str, country: str | None) -> bool:
+        """An NER span may use an alias only where the gazetteer could: contextual aliases need
+        their context (handled by the gazetteer), NER-only and local ones the right country."""
+        modes = self.alias_modes.get((key, eid), {"plain"})
+        if modes <= {"ctx"}:
+            return False
+        e = self.entities[eid]
+        return not (modes <= {"ner", "local"} and country and e.country and country != e.country)
 
 
 def _ner_compatible(tag: str, etype: str) -> bool:

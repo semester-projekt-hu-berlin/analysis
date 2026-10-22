@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import re
 import time
+from collections import Counter
 from datetime import UTC, datetime
 from urllib.parse import unquote
 
@@ -1154,4 +1155,120 @@ def _reaggregate(fs, budget) -> dict:
         "entitiesWithMentions": len(by_entity),
         "deletedDayDocs": sum(len(v) for v in stale.values()),
         "done": True,
+    }
+
+
+class _NoSentiment:
+    """Sentiment stand-in for re-linking only (no model is run)."""
+
+    version = "none"
+    window_mode = "clause"
+
+    def predict(self, items: list) -> list[tuple[str, float, float]]:
+        return [("neu", 0.0, 0.0)] * len(items)
+
+
+def prune(
+    fs: Firestore,
+    entity_ids: set[str],
+    add_ids: set[str] | None = None,
+    ner_backend: str = "bert",
+    sentiment_key: str = "cal",
+    budget: Budget | None = None,
+) -> dict:
+    """Re-check the existing mentions of `entity_ids` against the current entity lists.
+
+    Mentions that the current registry no longer links (after an alias was tightened) are
+    deleted, entities that were removed from the lists are deleted with their mentions and day
+    docs, the coEntityIds of the other mentions in those comments are updated, and the affected
+    (entity, day) pairs are re-aggregated. Mentions of `add_ids` (e.g. an alias that moved to
+    a new entity) found in the re-checked comments are added, with sentiment for them only.
+    """
+    return _budgeted(fs, budget, _prune, set(entity_ids), set(add_ids or ()), ner_backend, sentiment_key)
+
+
+def _prune(fs, budget, entity_ids, add_ids, ner_backend, sentiment_key) -> dict:
+    from .ner import load_ner
+    from .sentiment import load_sentiment
+
+    entity_docs = load_entity_docs(fs)
+    reg = Registry.from_yaml()
+    targets = {e for e in entity_ids if e in entity_docs}
+    removed = {e for e in targets if e not in reg.entities}
+    mentions: list = []
+    for eid in sorted(targets):
+        mentions += list(
+            fs.query("mentions", where=[("entityId", "EQUAL", eid)], select=["commentId", "entityId", "day"])
+        )
+    recheck = sorted({m.data["commentId"] for m in mentions if m.data["entityId"] not in removed})
+    est = len(mentions) * 3 + len(recheck) * 2
+    if not budget.allows(writes=len(mentions) * 2 + 10, reads=est):
+        return {"stopped": "daily Firestore budget too small for this prune", "mentions": len(mentions)}
+    still: dict[str, set[str]] = {}
+    fresh: dict[str, list[dict]] = {}  # commentId -> new mentions of add_ids
+    add_ids = {e for e in add_ids if e in reg.entities and e in entity_docs}
+    if recheck:
+        ner = load_ner(ner_backend)
+        sentiment = (
+            _OnlyFor(load_sentiment(sentiment_key), {reg.entities[e].name for e in add_ids})
+            if add_ids
+            else _NoSentiment()
+        )
+        countries = source_countries(fs)
+        for i in range(0, len(recheck), 250):
+            chunk = recheck[i : i + 250]
+            docs = fs.batch_get([f"comments/{c}" for c in chunk], mask=COMMENT_FIELDS)
+            comments = [{"id": p.rsplit("/", 1)[1], **d.data} for p, d in docs.items() if d is not None]
+            ctx = article_context(fs, {c.get("articleId") for c in comments if c.get("articleId")})
+            result = analyze_comments(comments, reg, ner, sentiment, source_country=countries, article_context=ctx)
+            for cid, ms in result.items():
+                still[cid] = {m["entityId"] for m in ms}
+                if any(m["entityId"] in add_ids for m in ms):
+                    fresh[cid] = [m for m in ms if m["entityId"] in add_ids]
+    drop = [
+        m
+        for m in mentions
+        if m.data["entityId"] in removed or m.data["entityId"] not in still.get(m.data["commentId"], set())
+    ]
+    dropped_by_comment: dict[str, set[str]] = {}
+    for m in drop:
+        dropped_by_comment.setdefault(m.data["commentId"], set()).add(m.data["entityId"])
+    pairs = {(m.data["entityId"], m.data["day"]) for m in drop}
+    writes: list[Write] = []
+    for _cid, ms in sorted(fresh.items()):
+        writes += [Write(f"mentions/{m['commentId']}_{m['entityId']}", m) for m in ms]
+        pairs |= {(m["entityId"], m["day"]) for m in ms}
+    for cid in sorted(set(dropped_by_comment) | set(fresh)):
+        gone = dropped_by_comment.get(cid, set())
+        new = {m["entityId"] for m in fresh.get(cid, [])}
+        for d in fs.query("mentions", where=[("commentId", "EQUAL", cid)], select=["entityId", "coEntityIds", "day"]):
+            if d.data.get("entityId") in gone | new:
+                continue
+            old = list(d.data.get("coEntityIds") or [])
+            co = sorted({x for x in old if x not in gone} | (new & still.get(cid, set())))
+            if co != sorted(old):
+                writes.append(Write(d.path, {"coEntityIds": co}, mask=["coEntityIds"]))
+                pairs.add((d.data["entityId"], d.data["day"]))
+    writes += [Write(m.path, None) for m in drop]
+    # crash safety: the pairs go to pendingPairs (aggregated by the next run) before the deletes
+    state = fs.get(STATE_DOC)
+    pending = set((state.data.get("pendingPairs") or []) if state else []) | set(_pairs_out(pairs))
+    fs.commit([Write(STATE_DOC, {"pendingPairs": sorted(pending)}, mask=["pendingPairs"])])
+    fs.commit(writes)
+    info = aggregate_pairs(fs, pairs, entity_docs, refresh=False)
+    for eid in sorted(removed):
+        rest = [d.path for d in fs.query("days", parent=f"entities/{eid}", select=[])]
+        rest += [d.path for d in fs.query("community_text", parent=f"entities/{eid}", select=[])]
+        fs.commit([*(Write(p, None) for p in rest), Write(f"entities/{eid}", None)])
+        entity_docs.pop(eid, None)
+    refresh_rolling(fs, entity_docs, set())
+    fs.commit([Write(STATE_DOC, {"pendingPairs": sorted(pending - set(_pairs_out(pairs)))}, mask=["pendingPairs"])])
+    return {
+        "checkedEntities": len(targets),
+        "removedEntities": sorted(removed),
+        "mentionsChecked": len(mentions),
+        "mentionsDeleted": len(drop),
+        "mentionsAdded": sum(len(v) for v in fresh.values()),
+        "deletedByEntity": dict(sorted(Counter(m.data["entityId"] for m in drop).items())),
+        **info,
     }

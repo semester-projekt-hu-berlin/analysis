@@ -96,3 +96,20 @@ def test_universities_and_acronyms():
     assert ids("Die LMU ist gut.") == []  # acronym needs NER ORG
     t = "Die LMU ist gut."
     assert ids(t, [(4, 7, "ORG", 0.99)]) != []
+
+
+def test_production_spot_check_errors():
+    # errors found in the spot check of the first rollout; none of these may link again
+    t = "Trump, Musk, Zuckerberg, Thiel, Bezos machen ja kein Geheimnis daraus."
+    assert "barbara-thiel" not in ids(t, per(t, "Thiel"))
+    t = "Und da sagte der gute alte Kant: Freiheit ist Verantwortung."
+    assert ids(t, per(t, "Kant")) == []
+    assert ids("Derzeit 9k Netto. Gut leben mit 3000 Euro Netto.") == []
+    assert ids("China zeigt erste EUV Lithographie.", [(19, 22, "ORG", 0.9)]) == []
+    t = "Der Westen hat gegenüber MBS geschwiegen."
+    assert ids(t, [(25, 28, "ORG", 0.9)]) == []
+    assert ids("Das Innenministerium spart.", country="AT") == []
+    t = "Clemens Setz ist einer der Besten."
+    assert "conrad-clemens" not in ids(t, per(t, "Clemens"))
+    t = "Fallweise kaufe ich Moser-Roth vom Hofer."
+    assert ids(t) == []

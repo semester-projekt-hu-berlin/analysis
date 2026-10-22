@@ -288,7 +288,38 @@ BUSINESS = re.compile(
     r"unternehmen|konzern|hersteller|kette|gruppe|händler|bank|kreditinstitut|versicher|dienstleist|holding|"
     r"zulieferer|logistik|marke|discounter|drogerie|markt|anbieter|spedition|firma|reisekonzern|verkehrsbetrieb"
 )
-NOT_BUSINESS = re.compile(r"ehemalig|kirch|katholisch|diakon|caritas|stiftung|wohlfahrt|bundeswehr|polizei|behörde")
+NOT_BUSINESS = re.compile(
+    r"ehemalig|kirch|katholisch|diakon|caritas|stiftung|wohlfahrt|bundeswehr|polizei|behörde|ministerium|"
+    r"bundesamt|bundesanstalt|landesamt|verwaltung"
+)
+# acronyms of companies/universities only for well-known ones: "EUV" (Viadrina) is mostly the
+# lithography, "MBS" (Munich Business School) mostly Mohammed bin Salman
+ACRONYM_MIN_SITELINKS = 30
+# company names that are ordinary words in comments ("3000 Netto", "beim Globus", "der Puma")
+AMBIGUOUS_WORDS = {
+    "netto",
+    "globus",
+    "puma",
+    "penny",
+    "otto",
+    "real",
+    "plus",
+    "merkur",
+    "adler",
+    "bauhaus",
+    "continental",
+    "signal",
+    "arte",
+    "phoenix",
+    "union",
+    "allianz",
+    "hansa",
+    "condor",
+    "aurora",
+    "atlas",
+    "vision",
+    "concordia",
+}
 
 DETAILS = """SELECT ?i ?labelDe ?labelEn ?desc ?sl ?gender ?party
     (GROUP_CONCAT(DISTINCT ?alias; separator="|") AS ?aliases)
@@ -339,12 +370,12 @@ LEGAL = re.compile(
 )
 
 
-def word_freq(w: str) -> float:
+def word_freq(w: str, lang: str = "de") -> float:
     try:
         from wordfreq import zipf_frequency
     except ImportError:  # pragma: no cover
         return 0.0
-    return zipf_frequency(w.lower(), "de")
+    return zipf_frequency(w.lower(), lang)
 
 
 def main() -> None:
@@ -430,10 +461,12 @@ def main() -> None:
     stats = Counter()
     used_ids = set(seed_ids)
     surname_count = Counter()
+    first_names = set()
     for qid in persons:
         lab = det.get(qid, {}).get("labelDe") or det.get(qid, {}).get("labelEn") or ""
         if lab:
             surname_count[normalize_surface(lab.split()[-1])] += 1
+            first_names.add(normalize_surface(lab.split()[0]))
     for qid in sorted(allq, key=lambda x: -det.get(x, {}).get("sl", 0)):
         if qid in seed_by_qid:
             stats["skipped: curated"] += 1
@@ -464,6 +497,11 @@ def main() -> None:
             stats["skipped: brand label not a company"] += 1
             continue
         desc_l = (d.get("desc") or "").lower()
+        listed = qid in index_of or qid in cgroups["bekannte Marken (Liste)"]
+        if not is_person and qid not in universities and not listed and NOT_BUSINESS.search(desc_l):
+            # ministries, authorities, churches ... are not companies
+            stats["skipped: public body / non-profit"] += 1
+            continue
         if qid in emp_only and qid not in universities and (not BUSINESS.search(desc_l) or NOT_BUSINESS.search(desc_l)):
             # employee count alone also lists Bundeswehr, Polizei, Kirchen, Verwaltungen, Kliniken ...
             stats["skipped: >10k employees but not a company"] += 1
@@ -487,6 +525,8 @@ def main() -> None:
                 and key not in seed_aliases
                 and key not in COMMON_SURNAMES
                 and word_freq(sur) < 4.0
+                and word_freq(sur, "en") < 2.5  # "Thiel", "Kant", "Moser", "Maas": also famous elsewhere
+                and key not in first_names  # "Clemens", "Paulus"
             ):
                 aliases.append("!" + sur)
                 stats["surname aliases (NER-only)"] += 1
@@ -521,19 +561,27 @@ def main() -> None:
         # alias policy
         final: list[str] = []
         for a in dict.fromkeys(aliases):
-            raw = a[1:] if a[:1] in ("~", "!") else a
+            raw = a[1:] if a[:1] in ("~", "!", "@") else a
             key = normalize_surface(raw)
             if key in seed_aliases or len(key) < 2:
                 continue
-            if a[:1] in ("~", "!"):
+            if a[:1] in ("~", "!", "@"):
                 final.append(a)
             elif is_person:
                 final.append(raw)
             elif " " not in raw.strip():
                 zf = word_freq(raw)
-                if len(raw) < 3 or (zf >= 4.5 and raw != name):
-                    # "CL", "Deutsche": too short / too frequent to ever be a reliable alias
+                if (
+                    len(raw) < 3
+                    or (zf >= 4.5 and raw != name)
+                    or (raw.isupper() and raw != name and d.get("sl", 0) < ACRONYM_MIN_SITELINKS)
+                ):
+                    # "CL", "Deutsche", "EUV": too short / too frequent / too obscure to be reliable
                     stats["dropped company aliases"] += 1
+                elif raw.casefold() in AMBIGUOUS_WORDS:
+                    # "3000 Netto", "beim Globus": only with a business keyword nearby
+                    final.append("@" + raw)
+                    stats["contextual company aliases"] += 1
                 elif raw.isupper() or zf >= 4.0:
                     # acronyms (EWG, KIT) and common words (Post, Bahn): need NER ORG or context
                     final.append("~" + raw)
