@@ -145,6 +145,7 @@ class Entity:
     aliases: list[str] = field(default_factory=list)  # display aliases (markers stripped)
     context: list[str] = field(default_factory=list)  # context keywords
     imageUrl: str | None = None
+    imageKind: str | None = None  # "logo" | "portrait" | None
     source: str = "seed"  # seed | wikidata
 
     @property
@@ -159,6 +160,7 @@ class Entity:
             "description": self.description,
             "wikidataId": self.wikidataId,
             "imageUrl": self.imageUrl,
+            "imageKind": self.imageKind,
             "aliases": self.aliases,
             "searchTokens": self.search_tokens,
             "allowlisted": True,
@@ -275,6 +277,7 @@ class Registry:
             wikidataId=qid,
             aliases=list(dict.fromkeys([info["name"], *info.get("aliases", [])]))[:12],
             imageUrl=info.get("imageUrl"),
+            imageKind=info.get("imageKind"),
             source="wikidata",
         )
         self.add(e)

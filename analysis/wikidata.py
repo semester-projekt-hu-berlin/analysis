@@ -216,14 +216,15 @@ def commons_thumb(filename: str, width: int = THUMB_WIDTH) -> str | None:
     return f"https://upload.wikimedia.org/wikipedia/commons/thumb/{h[0]}/{h[:2]}/{q}/{thumb}"
 
 
-def image_url(item: dict, prefer_logo: bool = False) -> str | None:
-    props = ("P154", "P18") if prefer_logo else ("P18", "P154")
+def image_url(item: dict, person: bool) -> tuple[str | None, str | None]:
+    """(thumbnail URL, kind): persons -> portrait (P18); organisations -> logo (P154/P8972/P158) or None."""
+    props = ("P18",) if person else ("P154", "P8972", "P158")
     for prop in props:
         for f in WikidataClient.claim_strings(item, prop):
             url = commons_thumb(f)
             if url:
-                return url
-    return None
+                return url, ("portrait" if person else "logo")
+    return None, None
 
 
 def public_figure_check(item: dict, surface: str, ner_type: str) -> tuple[bool, str]:
@@ -313,7 +314,8 @@ class WikidataLinker:
                         "type": "PER"
                         if ner_type == "PER"
                         else ("PARTY" if "Q7278" in self.client.claim_ids(it, "P31") else "ORG"),
-                        "imageUrl": image_url(it, prefer_logo=ner_type != "PER"),
+                        "imageUrl": image_url(it, person=ner_type == "PER")[0],
+                        "imageKind": image_url(it, person=ner_type == "PER")[1],
                     }
                     break
         except RuntimeError as e:

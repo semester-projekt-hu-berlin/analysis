@@ -40,6 +40,7 @@ ENTITY_READ_FIELDS = [
     "description",
     "wikidataId",
     "imageUrl",
+    "imageKind",
     "aliases",
     "allowlisted",
     *ENTITY_STAT_FIELDS,
@@ -89,6 +90,7 @@ def build_registry(entity_docs: dict[str, dict]) -> Registry:
                 wikidataId=d["wikidataId"],
                 aliases=list(d.get("aliases") or [d.get("name", eid)]),
                 imageUrl=d.get("imageUrl"),
+                imageKind=d.get("imageKind"),
                 source="wikidata",
             )
         )
@@ -138,8 +140,9 @@ def seed(fs: Firestore, with_images: bool = True) -> dict:
         if cur is None:
             writes.append(new_entity_write(e))
             continue
-        if not e.imageUrl and cur.get("imageUrl") and not with_images:
-            meta["imageUrl"] = cur["imageUrl"]
+        if not with_images:  # keep stored images
+            meta["imageUrl"] = cur.get("imageUrl")
+            meta["imageKind"] = cur.get("imageKind")
         diff = [k for k in meta if cur.get(k) != meta[k]]
         if diff:
             changed_images += "imageUrl" in diff
@@ -169,9 +172,16 @@ def seed(fs: Firestore, with_images: bool = True) -> dict:
     return out
 
 
+IMAGE_PROPS = {"P18": "img", "P154": "logo", "P8972": "icon", "P158": "seal"}
+
+
 def _fill_images(reg: Registry) -> None:
-    """Thumbnail (250 px) per entity from Wikidata in one SPARQL query: logo (P154) first for
-    organisations and parties, photo (P18) first for persons."""
+    """Thumbnail per entity from Wikidata (one SPARQL query per 150 items).
+
+    Persons: portrait (P18). Organisations, parties, clubs, media: logo only (P154, then P8972
+    small logo/icon, then P158 seal); never P18, which is often a photo of a building. No logo
+    -> imageUrl None (the frontend shows initials).
+    """
     import requests
 
     from .wikidata import USER_AGENT, commons_thumb
@@ -180,10 +190,9 @@ def _fill_images(reg: Registry) -> None:
     files: dict[str, dict[str, str]] = {}
     for i in range(0, len(qids), 150):
         values = " ".join(f"wd:{q}" for q in qids[i : i + 150])
-        query = (
-            "SELECT ?item ?img ?logo WHERE { VALUES ?item { " + values + " } "
-            "OPTIONAL { ?item wdt:P18 ?img } OPTIONAL { ?item wdt:P154 ?logo } }"
-        )
+        optional = " ".join(f"OPTIONAL {{ ?item wdt:{p} ?{v} }}" for p, v in IMAGE_PROPS.items())
+        variables = " ".join("?" + v for v in IMAGE_PROPS.values())
+        query = f"SELECT ?item {variables} WHERE {{ VALUES ?item {{ {values} }} {optional} }}"
         try:
             r = requests.post(
                 "https://query.wikidata.org/sparql",
@@ -194,17 +203,18 @@ def _fill_images(reg: Registry) -> None:
             r.raise_for_status()
         except requests.RequestException as e:
             log.warning("could not fetch images: %s", e)
-            return
+            raise
         for b in r.json()["results"]["bindings"]:
             q = b["item"]["value"].rsplit("/", 1)[1]
             d = files.setdefault(q, {})
-            for key in ("img", "logo"):
+            for key in IMAGE_PROPS.values():
                 if key in b and key not in d:
                     d[key] = unquote(b[key]["value"].rsplit("/", 1)[1])
     for e in reg.entities.values():
         f = files.get(e.wikidataId or "", {})
-        order = ("img", "logo") if e.type == "PER" else ("logo", "img")
+        order = ("img",) if e.type == "PER" else ("logo", "icon", "seal")
         e.imageUrl = next((u for k in order if k in f and (u := commons_thumb(f[k]))), None)
+        e.imageKind = ("portrait" if e.type == "PER" else "logo") if e.imageUrl else None
 
 
 # --------------------------------------------------------------------------- run
@@ -225,7 +235,7 @@ def run(
     fs: Firestore,
     limit: int = 20000,
     batch: int = 250,
-    ner_backend: str = "flair",
+    ner_backend: str = "bert",
     sentiment_key: str = "ens",
     use_wikidata: bool = True,
     max_wikidata_lookups: int = 150,

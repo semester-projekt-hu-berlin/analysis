@@ -17,7 +17,7 @@ def main(argv: list[str] | None = None) -> int:
     r = sub.add_parser("run", help="analyze unanalyzed comments and update aggregates")
     r.add_argument("--limit", type=int, default=int(os.environ.get("ANALYSIS_LIMIT", 20000)))
     r.add_argument("--batch", type=int, default=250, help="comments per NLP/commit batch")
-    r.add_argument("--ner", choices=["flair", "bert", "none"], default=os.environ.get("ANALYSIS_NER", "flair"))
+    r.add_argument("--ner", choices=["flair", "bert", "none"], default=os.environ.get("ANALYSIS_NER", "bert"))
     r.add_argument(
         "--sentiment", choices=["ens", "guhr", "guhr-raw", "news"], default=os.environ.get("ANALYSIS_SENTIMENT", "ens")
     )
