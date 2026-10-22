@@ -215,6 +215,7 @@ def trending(entities: dict[str, dict], today: str | None = None) -> dict:
                 "mentions7d": int(e["mentions7d"]),
                 "avgSentiment7d": a7,
                 "delta": delta,
+                "relative7d": e.get("relative7d"),
                 "spark": sparkline(e.get("recentDays") or {}, today) if today else [None] * SPARK_DAYS,
                 "_prev": int(e.get("mentionsPrev7d") or 0),
             }

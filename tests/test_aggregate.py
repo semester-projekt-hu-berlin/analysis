@@ -146,7 +146,7 @@ def test_trending_top_risers_fallers():
     }
     t = agg.trending(ents)
     assert [x["entityId"] for x in t["top"]] == ["a", "b", "f"]  # c: < 10 mentions
-    assert {k: v for k, v in t["top"][0].items() if k != "spark"} == {
+    assert {k: v for k, v in t["top"][0].items() if k not in ("spark", "relative7d")} == {
         "entityId": "a",
         "name": "A",
         "type": "PER",

@@ -189,6 +189,7 @@ def test_trending_has_30_day_spark(fs, monkeypatch):
     pipeline.run(fs, limit=100, use_wikidata=False)
     top = fs.docs["meta/trending"]["top"]
     assert all(len(x["spark"]) == 30 for x in top)
+    assert all("relative7d" in x for x in top)
     merz = next(x for x in top if x["entityId"] == "friedrich-merz")
     assert merz["spark"][-1] is not None or merz["spark"][-2] is not None
     assert merz["spark"][0] is None
