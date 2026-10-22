@@ -36,7 +36,8 @@ The data contract is [`infrastructure/SCHEMA.md`](https://github.com/semester-pr
         │           entities; narrowed to the clause if the sentence mentions several entities
         │           ("Merz macht das gut, aber die SPD hat versagt")
         │           → calibrated target sentiment: NLI (mDeBERTa XNLI) "Der Kommentar äußert sich
-        │             positiv/negativ über {Entity}" + news-sentiment BERT → logistic regression → pos/neu/neg
+        │             positiv/negativ über {Entity}", "Der Kommentar bewertet {Entity}"
+        │             + news-sentiment BERT → logistic regression → pos/neu/neg
         ▼
  mentions/{commentId}_{entityId}  (surface span only, never the comment text)
  comments/{id}: analyzed=true, analyzedAt, analysisVersion
@@ -62,7 +63,7 @@ exponential backoff, and batches that hit 429 are split in halves) using a servi
 |---|---|---|
 | NER (default) | `domischwimmbeck/bert-base-german-cased-fine-tuned-ner` (`--ner bert`, GermEval 2014) | ≈ 2.9× faster than Flair on CPU (52 vs 18 sentences/s), same spans on our smoke tests. The runs are twice a day with a half-day backlog, so CPU time matters. |
 | NER (alt.) | [`flair/ner-german`](https://huggingface.co/flair/ner-german) (`--ner flair`; Flair 0.15, BiLSTM-CRF, CoNLL-03 German F1 ≈ 87) | Course recommendation; kept as an option. |
-| Sentiment (default `cal`) | zero-shot NLI [`MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7`](https://huggingface.co/MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7) with the hypotheses "Der Kommentar äußert sich positiv / negativ über {Entity}." (2 passes) + [`mdraw/german-news-sentiment-bert`](https://huggingface.co/mdraw/german-news-sentiment-bert) (1 pass), combined by a logistic regression trained on 369 hand-labelled pairs (`data/sentiment_calibration.json`) | Target-aware (asks about the entity, not the whole text). Best test macro-F1 within a budget of 3 model passes per mention: 0.476, vs 0.383 for the previous ensemble ([eval](eval/README.md)). Free, CPU, about 4.8 mentions/s. |
+| Sentiment (default `cal`, v2) | zero-shot NLI [`MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7`](https://huggingface.co/MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7) with the hypotheses "Der Kommentar äußert sich positiv / negativ über {Entity}." and "Der Kommentar bewertet {Entity}." (target vs. context; 3 passes) + [`mdraw/german-news-sentiment-bert`](https://huggingface.co/mdraw/german-news-sentiment-bert) (1 pass), combined by a logistic regression trained on 456 hand-labelled pairs (`data/sentiment_calibration.json`) | Target-aware. Test macro-F1 0.483 (5-fold CV 0.485), vs 0.383 for the original ensemble ([eval](eval/README.md)). Free, CPU, 1.7 mentions/s with 2 threads. |
 
 **Throughput** (production data, CPU torch, BERT NER + calibrated sentiment): about 280
 comments/min with **2 threads** (500 newest comments: NER 67 s, sentiment 41 s, 110 mentions;
@@ -194,14 +195,15 @@ These are documented in `infrastructure/SCHEMA.md`, which also lists the composi
 
 ## Evaluation and limitations
 
-[`eval/README.md`](eval/README.md) has the protocol and all numbers. In short: 390
-hand-labelled (comment, entity) pairs. Linking precision is 93.6 %. Sentiment toward the entity
-reaches test macro-F1 0.476 (5-fold CV 0.466); per class F1 is pos 0.47, neu 0.40, neg 0.56.
+[`eval/README.md`](eval/README.md) has the protocol and all numbers. In short: 480
+hand-labelled (comment, entity) pairs from all major sources. Linking precision is 93.6 %.
+Sentiment toward the entity reaches test macro-F1 0.483 (5-fold CV 0.485); per class F1 is
+pos 0.41, neu 0.44, neg 0.60.
 
 **Limitations.** A single label is often wrong; only aggregates over many mentions are
 meaningful. Neutral mentions are under-detected and often scored as negative, and sarcasm is
-the main error source. The gold labels come from one annotator and cover derstandard, blick and
-taz only. Comment sections are negative overall, so compare entities via `relative7d`
+the main error source, along with entities that are only context (victims, comparisons). The
+gold labels come from one annotator. Comment sections are negative overall, so compare entities via `relative7d`
 (entity average minus `baseline7d`) rather than by absolute averages.
 
 ## Running
