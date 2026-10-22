@@ -30,6 +30,7 @@ from analysis.wikidata import USER_AGENT
 SEED = Path(__file__).resolve().parents[1] / "data" / "entities.yaml"
 SPARQL = "https://query.wikidata.org/sparql"
 EXCLUDE_CLASSES = {
+    "Q476028",  # the class "association football club" itself
     "Q4167410",
     "Q4167836",
     "Q13406463",
@@ -75,6 +76,13 @@ OVERRIDES: dict[str, str] = {
     "porsche-se": "Q2104551",
     "openai": "Q21708200",
     "thyssenkrupp": "Q137910",
+    "glp": "Q545900",
+    "bundesrat-schweiz": "Q30917",
+    "nationalrat-schweiz": "Q676078",
+    "roche": "Q212646",
+    "fc-basel": "Q189671",
+    "bsc-young-boys": "Q190526",
+    "fc-zuerich": "Q206692",
 }
 
 

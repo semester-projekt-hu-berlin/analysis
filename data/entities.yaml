@@ -55,11 +55,11 @@ entities:
 - {id: volt, wikidata: Q106205950, name: Volt, type: PARTY, country: DE, description: Volt Deutschland, aliases: ["~Volt"], context: politics}
 # ------------------------------------------------------------------ Austrian parties
 - {id: oevp, wikidata: Q186867, name: ÖVP, type: PARTY, country: AT, description: Österreichische Volkspartei,
-   aliases: [ÖVP, OEVP]}
+   aliases: [ÖVP, OEVP, ÖVPler, "=VP", VPler]}
 - {id: spoe, wikidata: Q179111, name: SPÖ, type: PARTY, country: AT, description: Sozialdemokratische Partei Österreichs,
-   aliases: [SPÖ, SPOE]}
+   aliases: [SPÖ, SPOE, SPÖler, "=SP", SPler]}
 - {id: fpoe, wikidata: Q131692, name: FPÖ, type: PARTY, country: AT, description: Freiheitliche Partei Österreichs,
-   aliases: [FPÖ, FPOE, Freiheitliche, Freiheitlichen]}
+   aliases: [FPÖ, FPOE, Freiheitliche, Freiheitlichen, FPler, FPÖler, "=FP"]}
 - {id: neos, wikidata: Q13564543, name: NEOS, type: PARTY, country: AT, description: NEOS – Das Neue Österreich, aliases: [NEOS, Neos]}
 - {id: gruene-at, wikidata: Q193178, name: Die Grünen (Österreich), type: PARTY, country: AT, description: Die Grünen – Die Grüne Alternative (Österreich),
    aliases: ["=Grünen", "=Grüne", Die Grünen]}
@@ -261,6 +261,80 @@ entities:
    aliases: [Karoline Edtstadler, Edtstadler]}
 - {id: johanna-mikl-leitner, wikidata: Q87130, name: Johanna Mikl-Leitner, type: PER, country: AT, description: Landeshauptfrau von Niederösterreich (ÖVP),
    aliases: [Johanna Mikl-Leitner, Mikl-Leitner]}
+- {id: sigrid-maurer, wikidata: Q1618939, name: Sigrid Maurer, type: PER, country: AT, description: Grünen-Politikerin (Österreich),
+   aliases: [Sigrid Maurer, Siegrid Maurer, "~Maurer"]}
+- {id: august-woeginger, wikidata: Q764838, name: August Wöginger, type: PER, country: AT, description: ÖVP-Politiker,
+   aliases: [August Wöginger, Gust Wöginger, Wöginger, Woeginger]}
+- {id: alma-zadic, wikidata: Q42162193, name: Alma Zadić, type: PER, country: AT, description: Grünen-Politikerin (Österreich),
+   aliases: [Alma Zadić, Alma Zadic, Zadić, Zadic]}
+- {id: peter-pilz, wikidata: Q85109, name: Peter Pilz, type: PER, country: AT, description: Österreichischer Politiker und Publizist,
+   aliases: [Peter Pilz, "~Pilz"]}
+- {id: norbert-hofer, wikidata: Q1996861, name: Norbert Hofer, type: PER, country: AT, description: FPÖ-Politiker,
+   aliases: [Norbert Hofer, "~Hofer"]}
+- {id: hans-peter-doskozil, wikidata: Q22078521, name: Hans Peter Doskozil, type: PER, country: AT, description: Landeshauptmann des Burgenlandes (SPÖ),
+   aliases: [Hans Peter Doskozil, Doskozil]}
+- {id: markus-marterbauer, wikidata: Q15437820, name: Markus Marterbauer, type: PER, country: AT, description: Österreichischer Finanzminister (SPÖ),
+   aliases: [Markus Marterbauer, Marterbauer]}
+- {id: gerhard-karner, wikidata: Q1511874, name: Gerhard Karner, type: PER, country: AT, description: Österreichischer Innenminister (ÖVP),
+   aliases: [Gerhard Karner, Karner]}
+- {id: lena-schilling, wikidata: Q109468729, name: Lena Schilling, type: PER, country: AT, description: Grünen-Politikerin (Österreich), Europaabgeordnete,
+   aliases: [Lena Schilling, "~Schilling"]}
+- {id: christian-hafenecker, wikidata: Q1080106, name: Christian Hafenecker, type: PER, country: AT, description: FPÖ-Generalsekretär,
+   aliases: [Christian Hafenecker, Hafenecker]}
+- {id: nationalrat-at, wikidata: Q871363, name: Nationalrat (Österreich), type: ORG, country: AT, description: Österreichisches Parlament (Nationalrat),
+   aliases: [Nationalrat, Österreichischer Nationalrat]}
+# ------------------------------------------------------------------ Switzerland
+- {id: svp, wikidata: Q385258, name: SVP, type: PARTY, country: CH, description: Schweizerische Volkspartei,
+   aliases: [SVP, Schweizerische Volkspartei, SVPler]}
+- {id: sp-schweiz, wikidata: Q303745, name: SP Schweiz, type: PARTY, country: CH, description: Sozialdemokratische Partei der Schweiz,
+   aliases: [SP Schweiz, "=SP", Sozialdemokratische Partei der Schweiz]}
+- {id: fdp-schweiz, wikidata: Q202638, name: FDP.Die Liberalen, type: PARTY, country: CH, description: Freisinnig-Demokratische Partei der Schweiz,
+   aliases: [FDP.Die Liberalen, FDP, Freisinnige, Freisinn]}
+- {id: die-mitte, wikidata: Q100934025, name: Die Mitte, type: PARTY, country: CH, description: Schweizer Partei Die Mitte,
+   aliases: [Die Mitte, Mitte-Partei, "~Mitte"], context: politics}
+- {id: gruene-schweiz, wikidata: Q659739, name: Grüne Schweiz, type: PARTY, country: CH, description: Grüne Partei der Schweiz,
+   aliases: [Grüne Schweiz, "=Grünen", "=Grüne", Die Grünen]}
+- {id: glp, wikidata: Q545900, name: Grünliberale, type: PARTY, country: CH, description: Grünliberale Partei der Schweiz,
+   aliases: [Grünliberale, Grünliberalen, GLP, "=glp"]}
+- {id: bundesrat-schweiz, wikidata: Q30917, name: Bundesrat (Schweiz), type: ORG, country: CH, description: Regierung der Schweiz,
+   aliases: [Bundesrat, Schweizer Bundesrat]}
+- {id: nationalrat-schweiz, wikidata: Q676078, name: Nationalrat (Schweiz), type: ORG, country: CH, description: Grosse Kammer des Schweizer Parlaments,
+   aliases: [Nationalrat, Schweizer Nationalrat]}
+- {id: karin-keller-sutter, wikidata: Q115881, name: Karin Keller-Sutter, type: PER, country: CH, description: Schweizer Bundesrätin (FDP),
+   aliases: [Karin Keller-Sutter, Keller-Sutter, KKS]}
+- {id: guy-parmelin, wikidata: Q121160, name: Guy Parmelin, type: PER, country: CH, description: Schweizer Bundesrat (SVP),
+   aliases: [Guy Parmelin, Parmelin]}
+- {id: albert-roesti, wikidata: Q119388, name: Albert Rösti, type: PER, country: CH, description: Schweizer Bundesrat (SVP),
+   aliases: [Albert Rösti, Rösti]}
+- {id: beat-jans, wikidata: Q813067, name: Beat Jans, type: PER, country: CH, description: Schweizer Bundesrat (SP),
+   aliases: [Beat Jans, "~Jans"]}
+- {id: ignazio-cassis, wikidata: Q117254, name: Ignazio Cassis, type: PER, country: CH, description: Schweizer Bundesrat (FDP),
+   aliases: [Ignazio Cassis, Cassis]}
+- {id: elisabeth-baume-schneider, wikidata: Q121285, name: Elisabeth Baume-Schneider, type: PER, country: CH, description: Schweizer Bundesrätin (SP),
+   aliases: [Elisabeth Baume-Schneider, Baume-Schneider]}
+- {id: martin-pfister, wikidata: Q47551476, name: Martin Pfister, type: PER, country: CH, description: Schweizer Bundesrat (Die Mitte),
+   aliases: [Martin Pfister, "~Pfister"]}
+- {id: christoph-blocher, wikidata: Q123857, name: Christoph Blocher, type: PER, country: CH, description: Schweizer Unternehmer und SVP-Politiker,
+   aliases: [Christoph Blocher, Blocher]}
+- {id: marcel-dettling, wikidata: Q21180915, name: Marcel Dettling, type: PER, country: CH, description: Präsident der SVP,
+   aliases: [Marcel Dettling, Dettling]}
+- {id: cedric-wermuth, wikidata: Q117904, name: Cédric Wermuth, type: PER, country: CH, description: Co-Präsident der SP Schweiz,
+   aliases: [Cédric Wermuth, Cedric Wermuth, Wermuth]}
+- {id: mattea-meyer, wikidata: Q23059253, name: Mattea Meyer, type: PER, country: CH, description: Co-Präsidentin der SP Schweiz,
+   aliases: [Mattea Meyer]}
+- {id: ubs, wikidata: Q193199, name: UBS, type: ORG, country: CH, description: Schweizer Grossbank, aliases: [UBS]}
+- {id: credit-suisse, wikidata: Q372657, name: Credit Suisse, type: ORG, country: CH, description: Ehemalige Schweizer Grossbank, aliases: [Credit Suisse, "=CS"], context: business}
+- {id: nestle, wikidata: Q160746, name: Nestlé, type: ORG, country: CH, description: Nahrungsmittelkonzern, aliases: [Nestlé, Nestle]}
+- {id: novartis, wikidata: Q507154, name: Novartis, type: ORG, country: CH, description: Pharmakonzern, aliases: [Novartis]}
+- {id: roche, wikidata: Q212646, name: Roche, type: ORG, country: CH, description: Pharmakonzern, aliases: [Roche Holding, "~Roche"], context: business}
+- {id: sbb, wikidata: Q83835, name: SBB, type: ORG, country: CH, description: Schweizerische Bundesbahnen, aliases: [SBB, Schweizerische Bundesbahnen]}
+- {id: srf, wikidata: Q1441462, name: SRF, type: ORG, country: CH, description: Schweizer Radio und Fernsehen, aliases: [SRF, Schweizer Radio und Fernsehen, SRG]}
+- {id: fc-basel, wikidata: Q189671, name: FC Basel, type: ORG, country: CH, description: Fußballverein, context: football,
+   aliases: [FC Basel, "=FCB", "@Basel"]}
+- {id: bsc-young-boys, wikidata: Q190526, name: BSC Young Boys, type: ORG, country: CH, description: Fußballverein, context: football,
+   aliases: [BSC Young Boys, Young Boys, "=YB"]}
+- {id: fc-zuerich, wikidata: Q206692, name: FC Zürich, type: ORG, country: CH, description: Fußballverein, context: football,
+   aliases: [FC Zürich, FCZ]}
 # ------------------------------------------------------------------ USA (midterms 3 Nov 2026)
 - {id: donald-trump, wikidata: Q22686, name: Donald Trump, type: PER, country: US, description: Präsident der Vereinigten Staaten,
    aliases: [Donald Trump, Trump, Donald J. Trump, Präsident Trump, Trumpel]}
@@ -481,7 +555,7 @@ entities:
 - {id: intel, wikidata: Q248, name: Intel, type: ORG, country: US, description: Halbleiterhersteller, aliases: [Intel]}
 # ------------------------------------------------------------------ Football clubs (Bundesliga, 2. Bundesliga, Austria)
 - {id: fc-bayern-muenchen, wikidata: Q15789, name: FC Bayern München, type: ORG, country: DE, description: Fußballverein, context: football,
-   aliases: [FC Bayern München, FC Bayern, Bayern München, FCB, "@Bayern"]}
+   aliases: [FC Bayern München, FC Bayern, Bayern München, "=FCB", "@Bayern"]}
 - {id: borussia-dortmund, wikidata: Q41420, name: Borussia Dortmund, type: ORG, country: DE, description: Fußballverein, context: football,
    aliases: [Borussia Dortmund, BVB, "@Dortmund"]}
 - {id: bayer-04-leverkusen, wikidata: Q104761, name: Bayer 04 Leverkusen, type: ORG, country: DE, description: Fußballverein, context: football,

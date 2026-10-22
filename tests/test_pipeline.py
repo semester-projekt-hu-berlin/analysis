@@ -137,3 +137,24 @@ def test_new_comments_accumulate(fs):
     pipeline.run(fs, limit=100, use_wikidata=False)
     assert fs.docs["entities/friedrich-merz"]["mentions"] == 3
     assert fs.docs["entities/friedrich-merz"]["pos"] == 2
+
+
+def test_crash_before_aggregation_is_recovered(fs, monkeypatch):
+    calls = {"n": 0}
+    real = pipeline.aggregate_days
+
+    def boom(*a, **k):
+        calls["n"] += 1
+        raise RuntimeError("simulated crash")
+
+    monkeypatch.setattr(pipeline, "aggregate_days", boom)
+    with pytest.raises(RuntimeError):
+        pipeline.run(fs, limit=100, use_wikidata=False)
+    assert fs.docs["comments/c1"]["analyzed"] is True  # mentions + flags were written
+    assert fs.docs["entities/friedrich-merz"]["mentions"] == 0  # but not aggregated
+    assert fs.docs["meta/analysis"]["pendingDays"]
+    monkeypatch.setattr(pipeline, "aggregate_days", real)
+    out = pipeline.run(fs, limit=100, use_wikidata=False)  # no new comments
+    assert out["comments"] == 0 and out["recoveredDays"]
+    assert fs.docs["entities/friedrich-merz"]["mentions"] == 2
+    assert fs.docs["meta/analysis"]["pendingDays"] == []

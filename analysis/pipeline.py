@@ -43,6 +43,7 @@ ENTITY_READ_FIELDS = [
     "allowlisted",
     *ENTITY_STAT_FIELDS,
 ]
+STATE_DOC = "meta/analysis"  # internal: days still to aggregate after an interrupted run
 ZERO_STATS = {
     "mentions": 0,
     "pos": 0,
@@ -195,9 +196,16 @@ def run(
     comments = fetch_unanalyzed(fs, limit)
     log.info("%d unanalyzed comments", len(comments))
     entity_docs = load_entity_docs(fs)
+    # Days whose mentions were written by an earlier run that crashed before aggregating.
+    state = fs.get(STATE_DOC)
+    pending = set((state.data.get("pendingDays") or []) if state else [])
     if not comments:
-        refresh_rolling(fs, entity_docs, set())
-        return {"comments": 0}
+        if pending:
+            aggregate_days(fs, pending, entity_docs)
+            fs.commit([Write(STATE_DOC, {"pendingDays": []}, mask=["pendingDays"])])
+        else:
+            refresh_rolling(fs, entity_docs, set())
+        return {"comments": 0, "recoveredDays": sorted(pending)}
     registry = build_registry(entity_docs)
     ner = load_ner(ner_backend)
     sentiment = SentimentModel(sentiment_key)
@@ -209,7 +217,7 @@ def run(
         wd = WikidataLinker(max_lookups=max_wikidata_lookups)
     countries = source_countries(fs)
     stats = Stats()
-    affected_days: set[str] = set()
+    affected_days: set[str] = set(pending)
     stale_entities: dict[str, set[str]] = {}  # day -> entity ids that lost a mention
     known_entities = set(entity_docs)
 
@@ -248,6 +256,11 @@ def run(
                     exists=True,
                 )
             )
+        # Remember the days to aggregate *before* the mentions land (first write of the batch).
+        affected_days.discard("")
+        if affected_days - pending:
+            pending |= affected_days
+            writes.insert(0, Write(STATE_DOC, {"pendingDays": sorted(pending)}, mask=["pendingDays"]))
         fs.commit(writes)
         log.info(
             "batch %d-%d: %d mentions so far (ner %.0fs, sentiment %.0fs)",
@@ -261,6 +274,8 @@ def run(
         wd.save()
     affected_days.discard("")
     agg_info = aggregate_days(fs, affected_days, entity_docs, stale_entities)
+    if pending:
+        fs.commit([Write(STATE_DOC, {"pendingDays": []}, mask=["pendingDays"])])
     summary = {
         "comments": stats.comments,
         "sentences": stats.sentences,

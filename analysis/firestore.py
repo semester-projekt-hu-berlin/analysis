@@ -178,7 +178,7 @@ class Firestore:
         self.writes = 0
 
     # ---- low level
-    def _post(self, url: str, body: dict, retries: int = 6) -> Any:
+    def _post(self, url: str, body: dict, retries: int = 10) -> Any:
         for attempt in range(retries):
             try:
                 r = self.session.post(url, json=body, timeout=120)
@@ -192,7 +192,8 @@ class Firestore:
                 if r.status_code not in (429, 500, 502, 503, 504) or attempt == retries - 1:
                     raise RuntimeError(f"Firestore {r.status_code}: {r.text[:500]}")
                 log.warning("firestore %s, retrying", r.status_code)
-            time.sleep(min(30, 2**attempt + random.random()))
+            # Quota / contention errors (429) can last a minute or more: back off up to 60 s.
+            time.sleep(min(60, 2**attempt + random.random()))
         raise RuntimeError("unreachable")
 
     def _doc(self, raw: dict) -> Doc:

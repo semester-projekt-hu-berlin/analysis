@@ -20,7 +20,7 @@ The data contract is [`infrastructure/SCHEMA.md`](https://github.com/semester-pr
         │
         ▼
  Entity linking
-   1. gazetteer over data/entities.yaml (291 curated entities, ~670 aliases)
+   1. gazetteer over data/entities.yaml (331 curated entities, ~780 aliases)
         plain alias  ─ always             "Merz", "Sozis", "AfD-Wähler"
         weak alias   ─ needs NER span     "Reiche" (PER) vs. "die Reiche Elite"
         context alias─ needs keywords     "Leverkusen" + Spiel/Tor/Bundesliga… (comment or article title)
@@ -74,10 +74,12 @@ The default pipeline is entirely open-source and free. The HU LLM offer is not u
   Prien, Julia Klöckner, Boris Rhein); major Austrian politicians; the US president,
   vice-president, cabinet and leading figures of the 2026 midterms; key international leaders;
   institutions (Bundestag, Bundesrat, BVerfG, EU, Commission, EP, ECB, NATO, UN, …), DAX
-  companies plus large tech companies, Bundesliga / 2. Bundesliga / Austrian clubs.
+  companies plus large tech companies, Bundesliga / 2. Bundesliga / Austrian clubs. Because the
+  crawler also covers derstandard.at (AT) and blick.ch (CH), Austrian and Swiss parties,
+  Bundesrät:innen, institutions, companies and clubs are included as well.
   Every entry has a Wikidata id, resolved with `scripts/resolve_wikidata.py` (SPARQL, label
   match, type/description plausibility check, largest sitelink count) and checked by hand
-  (36 manual overrides for homonyms such as "Daniel Günther" the Swedish singer).
+  (43 manual overrides for homonyms such as "Daniel Günther" the Swedish singer).
 * **Alias modes** (see the header of the YAML): plain (case-insensitive), `=` case-sensitive
   (`=UN`, `=SAP`), `~` weak (must overlap an NER span of a compatible type, or a context
   keyword is present: `~Reiche`, `~Union`, `~Bas`), `@` contextual (needs a keyword from a

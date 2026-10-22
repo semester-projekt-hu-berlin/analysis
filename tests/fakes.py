@@ -60,6 +60,9 @@ class FakeFirestore:
             out[p] = None if d is None else Doc(id=p.rsplit("/", 1)[1], path=p, data=copy.deepcopy(d))
         return out
 
+    def get(self, path):
+        return self.batch_get([path]).get(path)
+
     def count(self, collection, where=None):
         return sum(1 for _ in self.query(collection, where))
 
