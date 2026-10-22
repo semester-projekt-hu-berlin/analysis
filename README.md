@@ -64,11 +64,14 @@ exponential backoff, and batches that hit 429 are split in halves) using a servi
 | NER (alt.) | [`flair/ner-german`](https://huggingface.co/flair/ner-german) (`--ner flair`; Flair 0.15, BiLSTM-CRF, CoNLL-03 German F1 ≈ 87) | Course recommendation; kept as an option. |
 | Sentiment (default `cal`) | zero-shot NLI [`MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7`](https://huggingface.co/MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7) with the hypotheses "Der Kommentar äußert sich positiv / negativ über {Entity}." (2 passes) + [`mdraw/german-news-sentiment-bert`](https://huggingface.co/mdraw/german-news-sentiment-bert) (1 pass), combined by a logistic regression trained on 369 hand-labelled pairs (`data/sentiment_calibration.json`) | Target-aware (asks about the entity, not the whole text). Best test macro-F1 within a budget of 3 model passes per mention: 0.476, vs 0.383 for the previous ensemble ([eval](eval/README.md)). Free, CPU, about 4.8 mentions/s. |
 
-**Throughput** (measured on production data in this 4-CPU sandbox, CPU torch, BERT NER + `ens`
-sentiment): about 200 comments/min including linking and Firestore I/O (Flair: about 140/min).
-With twice-daily runs (4–8k new comments) that is 20–40 min on a 4-vCPU runner and up to about
-80 min on a 2-vCPU runner; the job timeout is 150 min. Length caps (2000 chars per comment,
-400 per sentence, 1000 per sentiment window, 256 tokens) bound the worst case.
+**Throughput** (production data, CPU torch, BERT NER + calibrated sentiment): about 280
+comments/min with **2 threads** (500 newest comments: NER 67 s, sentiment 41 s, 110 mentions;
+measured with `ANALYSIS_THREADS=2`), so a half-day of 6k comments takes about 25 min on a 2-vCPU
+runner. The workflow uses `--limit 9000` and a 150 min timeout; threads default to the number
+of CPUs. Length caps (2000 chars per comment, 400 per sentence, 1000 per sentiment window, 256
+tokens) bound the worst case. Social posts (Mastodon, Bluesky) get the same pipeline after
+cleaning: URLs and @handles are removed, and hashtags are split into words ("#MerzMussWeg" →
+"Merz Muss Weg").
 
 **Firestore cost** (`python scripts/bench_firestore_ops.py`, in-memory Firestore with counters,
 4000 synthetic comments over two days):
@@ -229,7 +232,7 @@ Re-analysing everything with a new model version: set `analyzed = false` on the 
 
 | workflow | trigger | what |
 |---|---|---|
-| `analyze.yml` | twice a day at 05:30 and 17:30 UTC (`30 5,17 * * *`), about an hour after the crawler (`17 4,16 * * *`), + manual | `python -m analysis run` over the half-day backlog (4–8k comments; `--limit 20000`, timeout 150 min, aggregation every 2000 comments); CPU-only torch, pip cache, Hugging Face + Flair model cache, Wikidata lookup cache; `concurrency: analysis` prevents overlapping runs |
+| `analyze.yml` | twice a day at 05:30 and 17:30 UTC (`30 5,17 * * *`), about an hour after the crawler (`17 4,16 * * *`), + manual | `python -m analysis run` over the half-day backlog, newest first (about 6k comments; `--limit 9000`, timeout 150 min, aggregation every 2000 comments); CPU-only torch, pip cache, Hugging Face + Flair model cache, Wikidata lookup cache; `concurrency: analysis` prevents overlapping runs |
 | `seed.yml` | push to `data/*.yaml` + manual | `python -m analysis seed` |
 | `ci.yml` | push / PR | ruff + pytest (fake models, no torch needed) |
 

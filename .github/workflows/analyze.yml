@@ -7,7 +7,7 @@ on:
     inputs:
       limit:
         description: Max comments to analyze in this run
-        default: "20000"
+        default: "9000"
       ner:
         description: NER backend (bert | flair | none)
         default: bert
@@ -26,7 +26,7 @@ permissions:
 jobs:
   analyze:
     runs-on: ubuntu-latest
-    timeout-minutes: 150 # a half-day backlog (4–8k comments) takes 20–40 min on 4 vCPU, up to ~2 h on 2 vCPU
+    timeout-minutes: 150 # ~6k comments per half day; measured ~280 comments/min with 2 threads, so 9000 fit with margin
     env:
       FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
       HF_HOME: ${{ github.workspace }}/.hf-cache
@@ -72,7 +72,7 @@ jobs:
           restore-keys: wikidata-
 
       - name: Analyze
-        run: python -m analysis run --limit "${{ inputs.limit || '20000' }}" --ner "${{ inputs.ner || 'bert' }}"
+        run: python -m analysis run --limit "${{ inputs.limit || '9000' }}" --ner "${{ inputs.ner || 'bert' }}"
 
       - name: Reaggregate
         if: ${{ inputs.reaggregate }}
