@@ -1,4 +1,4 @@
-# Curated seed list of PUBLIC persons and organisations.
+# Curated seed list of PUBLIC persons and organisations, plus apps & digital services.
 #
 # Only entities in this file (or Wikidata items passing the strict public-figure
 # filter in analysis/wikidata.py) are ever allowlisted and aggregated.
@@ -16,6 +16,13 @@
 # The display name is always an alias as well. `country` breaks ties between
 # entities sharing an alias (e.g. "Grüne" on an Austrian vs. a German site).
 # `wikidata` was resolved with scripts/resolve_wikidata.py and checked by hand.
+#
+# Types: PER (persons), PARTY, ORG (organisations, companies, media, clubs) and PRODUCT
+# ("Apps & Dienste": apps, platforms, digital services, operating systems, games). A brand that
+# is mainly discussed as a service is a PRODUCT (Netflix, PayPal, Temu); the company behind a
+# platform stays an ORG (Meta Platforms vs. Facebook, Google vs. Google Suche). Product names that
+# are words or first names ("Signal", "Threads", "Claude", "Bolt") are contextual and are
+# rejected when the NER model tags the span as a person.
 
 contexts:
   football: [Bundesliga, Fußball, Fussball, Tor, Tore, Spiel, Spiele, Spieltag, Trainer, Elfmeter, Abstieg,
@@ -37,6 +44,41 @@ contexts:
     Moderator, Moderatorin, Moderation, moderiert, Studio, Gast, Gäste, Zuschauer, Zuschauerin, Quote,
     Einschaltquote, ausgestrahlt, Ausstrahlung, Mediathek, Fernsehen, TV, Sender, Krimi, Kommissar,
     Kommissarin, Nachrichten, Magazin, Doku, Reportage, gestern Abend, Sonntagabend, ARD, ZDF, RTL]
+  # apps & digital services (PRODUCT)
+  apps: [App, Apps, Update, Updates, herunterladen, runterladen, downloaden, Download, Account, Accounts, Konto,
+    Nutzer, Nutzerin, Nutzerinnen, Nutzern, User, Plattform, Plattformen, Feature, Features, Abo, Datenschutz,
+    Smartphone, Smartphones, Handy, iPhone, Android, Store, Play Store, App Store, installiert, installieren,
+    deinstalliert, Login, Passwort, Software, Algorithmus, Streaming, KI, Chatbot]
+  ai: [KI, künstliche Intelligenz, künstlichen Intelligenz, Chatbot, Chatbots, Sprachmodell, Sprachmodelle, LLM,
+    LLMs, ChatGPT, OpenAI, Anthropic, Gemini, Claude, Copilot, Grok, Perplexity, DeepSeek, Mistral, Prompt,
+    Prompts, KI-Modell, KI-Modelle, KI-Chatbot, KI-Chatbots, KI-Tool, KI-Tools, KI-Assistent, KI-App, generiert,
+    halluziniert, Deepfake, Deepfakes]
+  messenger: [Messenger, WhatsApp, Telegram, Threema, iMessage, Chat, Chats, Gruppenchat, Chatgruppe, verschlüsselt,
+    Verschlüsselung, Nachrichten-App, Messenger-App, Chat-App, App]
+  social: [Instagram, Facebook, TikTok, Bluesky, Mastodon, Twitter, Threads, Zuckerberg, Musk, Follower, Social Media,
+    soziale Medien, sozialen Medien, soziale Netzwerke, sozialen Netzwerken, Plattform, Plattformen, gepostet,
+    postet, Posting, Postings, Tweet, Tweets, getwittert, Account, Accounts, Grok, Algorithmus, Influencer]
+  streaming: [Streaming, Streamingdienst, Streamingdienste, streamen, Abo, Abos, Serie, Serien, Staffel, Film,
+    Filme, Netflix, Mediathek, Playlist, Podcast, Podcasts, App]
+  streamers: [Streamer, Streamerin, Streamern, Livestream, Livestreams, Twitch, streamt, streamen, Streamingplattform]
+  office: [Microsoft, Office, Videokonferenz, Videokonferenzen, Videocall, Videocalls, E-Mail, E-Mails, Postfach,
+    Kalender, Cloud, Datei, Dateien, Software, Homeoffice]
+  browser: [Browser, Webbrowser, Firefox, Chrome, Safari, Edge, Tabs, Erweiterung, Erweiterungen, Add-on, Add-ons,
+    Adblocker, Werbeblocker, Suchmaschine, Lesezeichen]
+  assistant: [Sprachassistent, Sprachassistentin, Sprachassistenten, Sprachsteuerung, Amazon, Apple, Echo, iPhone,
+    HomePod, Smart Home, Lautsprecher, Siri, Alexa, KI, Smartphone]
+  shopping: [verkauft, verkaufen, Verkäufer, Käufer, Inserat, Inserate, bestellt, bestellen, Bestellung, Paket,
+    Pakete, Versand, Händler, Rabatt, Punkte, Kundenkarte, Bonusprogramm, Plattform, App, Marktplatz, Shop, eBay,
+    Vinted, Amazon]
+  mobility: [Taxi, Taxis, Taxifahrer, Fahrdienst, Fahrdienste, Fahrdienstvermittler, Fahrer, Fahrerin, Uber, Free Now,
+    App, E-Scooter, Scooter, Roller, Mietwagen, Lieferdienst, Lieferdienste, Lieferando, Wolt, bestellt, bestellen,
+    Bestellung, Kurier, Kuriere, Rider, Lieferung, Lebensmittel, Supermarkt, Gorillas, Flink]
+  tax: [Steuererklärung, Steuererklärungen, Steuer, Steuern, Finanzamt, Finanzämter, Grundsteuer, Zertifikat,
+    Steuerbescheid, Lohnsteuer, Steuerportal]
+  warn: [Warn-App, Warnapp, Warnung, Warnungen, Katastrophenschutz, Warntag, Bevölkerungsschutz, Unwetter,
+    Probealarm, Sirene, Sirenen, Cell Broadcast, Katwarn, BBK, App]
+  games: [Spiel, Spiele, Game, Games, Gaming, Gamer, zocken, zockt, Valve, PC, Konsole, Konsolen, PlayStation, Xbox,
+    Nintendo, Steam Deck, Epic Games, Sale, Shooter, Videospiel, Videospiele, Computerspiel, Computerspiele]
   media: [Zeitung, Zeitungen, Artikel, Journalist, Journalistin, Journalisten, Redaktion, Bericht, berichtet,
     Interview, Schlagzeile, Leitartikel, Kommentar, Abo, Paywall, Presse, Medien, Sender, Sendung, Fernsehen,
     TV, Radio, Mediathek, Reporter, Reporterin, Nachrichten, Rundfunk, Rundfunkbeitrag, GEZ, Programm,
@@ -552,17 +594,446 @@ entities:
 - {id: tesla, wikidata: Q478214, name: Tesla, type: ORG, country: US, description: Elektroautohersteller, aliases: [Tesla]}
 - {id: apple, wikidata: Q312, name: Apple, type: ORG, country: US, description: Technologiekonzern, aliases: [Apple]}
 - {id: google, wikidata: Q95, name: Google, type: ORG, country: US, description: Internetkonzern (Alphabet), aliases: [Google, Alphabet]}
-- {id: meta-platforms, wikidata: Q380, name: Meta Platforms, type: ORG, country: US, description: "Internetkonzern (Facebook, Instagram)",
-   aliases: [Meta Platforms, Facebook, "~Meta"], context: business}
+- {id: meta-platforms, wikidata: Q380, name: Meta Platforms, type: ORG, country: US, description: "Internetkonzern (Facebook, Instagram, WhatsApp)",
+   aliases: [Meta Platforms, Meta-Konzern, Facebook-Konzern, "~Meta"], context: business}
 - {id: microsoft, wikidata: Q2283, name: Microsoft, type: ORG, country: US, description: Softwarekonzern, aliases: [Microsoft]}
 - {id: amazon, wikidata: Q3884, name: Amazon, type: ORG, country: US, description: Online-Händler und Technologiekonzern, aliases: [Amazon]}
 - {id: openai, wikidata: Q21708200, name: OpenAI, type: ORG, country: US, description: KI-Unternehmen, aliases: [OpenAI, Open AI]}
 - {id: nvidia, wikidata: Q182477, name: Nvidia, type: ORG, country: US, description: Halbleiterhersteller, aliases: [Nvidia, NVIDIA]}
-- {id: tiktok, wikidata: Q48938223, name: TikTok, type: ORG, description: Videoplattform (ByteDance), aliases: [TikTok, Tiktok]}
 - {id: spacex, wikidata: Q193701, name: SpaceX, type: ORG, country: US, description: Raumfahrtunternehmen, aliases: [SpaceX]}
 - {id: lufthansa, wikidata: Q9325, name: Lufthansa, type: ORG, country: DE, description: Fluggesellschaft, aliases: [Lufthansa]}
 - {id: thyssenkrupp, wikidata: Q137910, name: Thyssenkrupp, type: ORG, country: DE, description: Industriekonzern, aliases: [Thyssenkrupp, ThyssenKrupp]}
 - {id: intel, wikidata: Q248, name: Intel, type: ORG, country: US, description: Halbleiterhersteller, aliases: [Intel]}
+# ------------------------------------------------------------------ Apps & Dienste (PRODUCT): apps, platforms, digital
+# services, operating systems and games discussed in Germany. Brands that are mainly the service
+# (Netflix, Spotify, PayPal, N26, Temu, Uber ...) are products with the ids they had as generated companies.
+# ··· messenger, social media, communities
+- {id: whatsapp, wikidata: Q1049511, name: WhatsApp, type: PRODUCT, description: "Messenger-App (Meta)",
+   aliases: [WhatsApp, Whatsapp, WhatsApp-Gruppe], context: messenger}
+- {id: instagram, wikidata: Q209330, name: Instagram, type: PRODUCT, description: "Foto- und Video-Plattform (Meta)",
+   aliases: [Instagram, "=Insta"], context: social}
+- {id: facebook, wikidata: Q355, name: Facebook, type: PRODUCT, description: "Soziales Netzwerk (Meta)",
+   aliases: [Facebook, Fratzenbuch, facebook.com], context: social}
+- {id: facebook-messenger, wikidata: Q116947, name: Facebook Messenger, type: PRODUCT, description: "Messenger-Dienst (Meta)",
+   aliases: [Facebook Messenger, FB Messenger, Facebook-Messenger], context: messenger}
+- {id: tiktok, wikidata: Q48938223, name: TikTok, type: PRODUCT, description: "Kurzvideo-Plattform (ByteDance)",
+   aliases: [TikTok, Tiktok, Tik Tok], context: social}
+- {id: youtube, wikidata: Q866, name: YouTube, type: PRODUCT, description: "Videoplattform (Google)",
+   aliases: [YouTube, Youtube], context: social}
+- {id: x-twitter, wikidata: Q918, name: "X (Twitter)", type: PRODUCT, description: "Kurznachrichtendienst X, ehemals Twitter",
+   aliases: ["X (Twitter)", Twitter, "X (ehemals Twitter)", "X (früher Twitter)", "X (vormals Twitter)", X/Twitter, Twitter/X, "Twitter (X)", X.com, twitter.com, Plattform X, Kurznachrichtendienst X, Kurznachrichtenplattform X, Onlinedienst X, "@auf X", "@bei X"], context: social}
+- {id: threads, wikidata: Q120281745, name: Threads, type: PRODUCT, description: "Kurznachrichtendienst (Meta)",
+   aliases: [Threads-App, Meta Threads, Threads von Meta, "@Threads"], context: [Meta, Instagram, Zuckerberg, Bluesky, Mastodon, Twitter, Musk, Social Media, soziale Medien, sozialen Medien, Kurznachrichtendienst]}
+- {id: telegram, wikidata: Q15616276, name: Telegram, type: PRODUCT, description: Messenger-Dienst,
+   aliases: [Telegram, Telegram-Kanal, Telegram-Gruppe, Telegram-Gruppen, Telegram-Kanäle], context: messenger}
+- {id: signal, wikidata: Q19718090, name: Signal, type: PRODUCT, description: Verschlüsselte Messenger-App,
+   aliases: [Signal-App, Signal-Messenger, Signal Messenger, Signal-Chat, Signal-Gruppe, Signal-Gruppenchat, "@Signal"], context: [Messenger, WhatsApp, Telegram, Threema, iMessage, Gruppenchat, Chatgruppe, verschlüsselt, verschlüsselte, Verschlüsselung, Ende-zu-Ende, Signalgate, Hegseth, Waltz, Messenger-App, Chat-App]}
+- {id: threema, wikidata: Q13512316, name: Threema, type: PRODUCT, description: Schweizer Messenger-App,
+   aliases: [Threema], context: messenger}
+- {id: bluesky, wikidata: Q78194383, name: Bluesky, type: PRODUCT, description: Kurznachrichtendienst,
+   aliases: [Bluesky, "=Blue Sky", bsky.app, "=BlueSky"], context: social}
+- {id: mastodon, wikidata: Q27986619, name: Mastodon, type: PRODUCT, description: "Dezentrales soziales Netzwerk (Fediverse)",
+   aliases: [Mastodon], context: social}
+- {id: snapchat, wikidata: Q333618, name: Snapchat, type: PRODUCT, description: "Messenger- und Foto-App (Snap)",
+   aliases: [Snapchat], context: social}
+- {id: pinterest, wikidata: Q255381, name: Pinterest, type: PRODUCT, description: Plattform zum Teilen von Bildern,
+   aliases: [Pinterest], context: social}
+- {id: reddit, wikidata: Q1136, name: Reddit, type: PRODUCT, description: Diskussionsplattform,
+   aliases: [Reddit], context: social}
+- {id: linkedin, wikidata: Q213660, name: LinkedIn, type: PRODUCT, description: "Karrierenetzwerk (Microsoft)",
+   aliases: [LinkedIn, Linkedin], context: social}
+- {id: xing, wikidata: Q681849, name: XING, type: PRODUCT, description: Karrierenetzwerk,
+   aliases: [XING, "=Xing"], context: social}
+- {id: discord, wikidata: Q22907849, name: Discord, type: PRODUCT, description: Chat- und Sprachplattform,
+   aliases: [Discord], context: messenger}
+- {id: twitch, wikidata: Q4555537, name: Twitch, type: PRODUCT, description: "Livestreaming-Plattform (Amazon)",
+   aliases: [Twitch], context: streaming}
+- {id: kick, wikidata: Q117084855, name: Kick, type: PRODUCT, description: Livestreaming-Plattform,
+   aliases: [Kick.com, "@Kick"], context: streamers}
+- {id: bereal, wikidata: Q111947460, name: BeReal, type: PRODUCT, description: Foto-App,
+   aliases: [BeReal], context: social}
+- {id: truth-social, wikidata: Q109001687, name: Truth Social, type: PRODUCT, description: Soziales Netzwerk von Donald Trump,
+   aliases: [Truth Social], context: social}
+- {id: wechat, wikidata: Q283233, name: WeChat, type: PRODUCT, description: Chinesische Messenger- und Bezahl-App,
+   aliases: [WeChat], context: messenger}
+- {id: tumblr, wikidata: Q384060, name: Tumblr, type: PRODUCT, description: Blogging-Plattform,
+   aliases: [Tumblr], context: social}
+- {id: onlyfans, wikidata: Q61707579, name: OnlyFans, type: PRODUCT, description: Abo-Plattform für Inhalte von Creators,
+   aliases: [OnlyFans, Onlyfans], context: social}
+- {id: patreon, wikidata: Q15861362, name: Patreon, type: PRODUCT, description: Crowdfunding-Plattform für Creators,
+   aliases: [Patreon], context: social}
+- {id: substack, wikidata: Q63435709, name: Substack, type: PRODUCT, description: Newsletter-Plattform,
+   aliases: [Substack], context: social}
+- {id: change-org, wikidata: Q3090589, name: Change.org, type: PRODUCT, description: Petitionsplattform,
+   aliases: [Change.org, change.org], context: apps}
+- {id: gofundme, wikidata: Q5574625, name: GoFundMe, type: PRODUCT, description: Spendenplattform,
+   aliases: [GoFundMe], context: apps}
+- {id: imessage, wikidata: Q290267, name: iMessage, type: PRODUCT, description: "Messenger-Dienst (Apple)",
+   aliases: [iMessage], context: messenger}
+- {id: facetime, wikidata: Q648357, name: FaceTime, type: PRODUCT, description: "Videotelefonie (Apple)",
+   aliases: [FaceTime, Facetime], context: messenger}
+- {id: skype, wikidata: Q40984, name: Skype, type: PRODUCT, description: "Videotelefonie (Microsoft, 2025 eingestellt)",
+   aliases: [Skype], context: office}
+- {id: microsoft-teams, wikidata: Q28406404, name: Microsoft Teams, type: PRODUCT, description: Videokonferenz- und Chat-Software,
+   aliases: [Microsoft Teams, MS Teams, Teams-Meeting, Teams-Call, Teams-Konferenz, Teams-Sitzung, "@Teams"], context: [Microsoft, Videokonferenz, Videokonferenzen, Videocall, Videocalls, Zoom, Webex, Skype, Slack, Outlook]}
+- {id: zoom, wikidata: Q94979732, name: Zoom, type: PRODUCT, description: Videokonferenz-Software,
+   aliases: [Zoom-Meeting, Zoom-Meetings, Zoom-Call, Zoom-Calls, Zoom-Konferenz, Zoom-Konferenzen, "~Zoom"], context: [Videokonferenz, Videokonferenzen, Videocall, Videocalls, Microsoft Teams, Webex, Skype, Homeoffice, Meeting, Meetings]}
+- {id: slack, wikidata: Q17130715, name: Slack, type: PRODUCT, description: Team-Chat-Software,
+   aliases: ["=Slack"], context: office}
+# ··· AI
+- {id: chatgpt, wikidata: Q115564437, name: ChatGPT, type: PRODUCT, description: "KI-Chatbot (OpenAI)",
+   aliases: [ChatGPT, Chat GPT, Chat-GPT, ChatGTP, GPT-4, GPT-4o, GPT-5, "=GPT"], context: ai}
+- {id: gemini, wikidata: Q116698014, name: Gemini, type: PRODUCT, description: "KI-Chatbot (Google)",
+   aliases: [Google Gemini, Gemini-App, Gemini App, "@Gemini"], context: ai}
+- {id: claude, wikidata: Q118876059, name: Claude, type: PRODUCT, description: "KI-Chatbot und Sprachmodell (Anthropic)",
+   aliases: [Claude AI, Claude.ai, Anthropic Claude, Claude Code, Claude Opus, Claude Sonnet, "@Claude"], context: ai}
+- {id: microsoft-copilot, wikidata: Q116793893, name: Microsoft Copilot, type: PRODUCT, description: "KI-Assistent (Microsoft)",
+   aliases: [Microsoft Copilot, MS Copilot, Copilot-KI, "@Copilot"], context: [Microsoft, KI, Chatbot, ChatGPT, Gemini, Claude, Windows, Office, Bing, Sprachmodell, künstliche Intelligenz, OpenAI]}
+- {id: github-copilot, wikidata: Q107435063, name: GitHub Copilot, type: PRODUCT, description: "KI-Programmierassistent (GitHub/Microsoft)",
+   aliases: [GitHub Copilot, Github Copilot], context: ai}
+- {id: perplexity, wikidata: Q124333951, name: Perplexity, type: PRODUCT, description: KI-Suchmaschine,
+   aliases: [Perplexity AI, "=Perplexity"], context: ai}
+- {id: deepl, wikidata: Q43968444, name: DeepL, type: PRODUCT, description: "KI-Übersetzungsdienst (DeepL SE)",
+   aliases: [DeepL, Deepl, DeepL Translator, DeepL Write], context: ai}
+- {id: grok, wikidata: Q123361035, name: Grok, type: PRODUCT, description: "KI-Chatbot (xAI, Elon Musk)",
+   aliases: ["=Grok"], context: ai}
+- {id: midjourney, wikidata: Q113070628, name: Midjourney, type: PRODUCT, description: KI-Bildgenerator,
+   aliases: [Midjourney, MidJourney], context: ai}
+- {id: dall-e, wikidata: Q105078662, name: DALL-E, type: PRODUCT, description: "KI-Bildgenerator (OpenAI)",
+   aliases: [DALL-E, Dall-E, DALL·E, Dall-e, DALLE], context: ai}
+- {id: sora, wikidata: Q124544998, name: Sora, type: PRODUCT, description: "KI-Videogenerator (OpenAI)",
+   aliases: [Sora-App, OpenAI Sora, "@Sora"], context: ai}
+- {id: deepseek, wikidata: Q132324293, name: DeepSeek, type: PRODUCT, description: "KI-Chatbot (DeepSeek, China)",
+   aliases: [DeepSeek, Deepseek, Deep Seek], context: ai}
+- {id: meta-ai, wikidata: Q136002360, name: Meta AI, type: PRODUCT, description: "KI-Assistent (Meta)",
+   aliases: [Meta AI, Meta KI, Meta-KI], context: ai}
+- {id: siri, wikidata: Q582159, name: Siri, type: PRODUCT, description: "Sprachassistent (Apple)",
+   aliases: [Hey Siri, "~Siri"], context: assistant}
+- {id: alexa, wikidata: Q28022144, name: Alexa, type: PRODUCT, description: "Sprachassistent (Amazon)",
+   aliases: [Amazon Alexa, "Alexa+", "@Alexa"], context: assistant}
+- {id: google-assistant, wikidata: Q25025241, name: Google Assistant, type: PRODUCT, description: "Sprachassistent (Google)",
+   aliases: [Google Assistant, Google-Assistant, Google Assistent], context: assistant}
+# ··· search, browsers, Google / Apple / Microsoft services
+- {id: google-suche, wikidata: Q9366, name: Google Suche, type: PRODUCT, description: "Suchmaschine (Google)",
+   aliases: [Google Suche, Google-Suche, Google Search, Google-Suchmaschine, Suchmaschine Google], context: apps}
+- {id: google-maps, wikidata: Q12013, name: Google Maps, type: PRODUCT, description: "Kartendienst (Google)",
+   aliases: [Google Maps, Google-Maps, Googlemaps, GoogleMaps], context: apps}
+- {id: google-street-view, wikidata: Q213602, name: Google Street View, type: PRODUCT, description: "Straßenansichten-Dienst (Google)",
+   aliases: [Google Street View, Street View, Streetview, Street-View], context: apps}
+- {id: gmail, wikidata: Q9334, name: Gmail, type: PRODUCT, description: "E-Mail-Dienst (Google)",
+   aliases: [Gmail, Googlemail, Google Mail, GMail], context: apps}
+- {id: google-chrome, wikidata: Q777, name: Google Chrome, type: PRODUCT, description: "Webbrowser (Google)",
+   aliases: [Google Chrome, Chrome-Browser, "~Chrome"], context: browser}
+- {id: google-translate, wikidata: Q135622, name: Google Übersetzer, type: PRODUCT, description: "Übersetzungsdienst (Google)",
+   aliases: [Google Übersetzer, Google Translate, Google-Übersetzer, Google-Translate], context: apps}
+- {id: google-play, wikidata: Q79576, name: Google Play, type: PRODUCT, description: "App-Store (Google)",
+   aliases: [Google Play, Play Store, Playstore, Google Play Store, Google-Play-Store], context: apps}
+- {id: google-pay, wikidata: Q19834616, name: Google Pay, type: PRODUCT, description: "Mobiles Bezahlen (Google)",
+   aliases: [Google Pay, Google Wallet, GPay], context: apps}
+- {id: google-drive, wikidata: Q9340, name: Google Drive, type: PRODUCT, description: "Cloud-Speicher (Google)",
+   aliases: [Google Drive, Google-Drive], context: apps}
+- {id: google-news, wikidata: Q12020, name: Google News, type: PRODUCT, description: "Nachrichtenaggregator (Google)",
+   aliases: [Google News], context: apps}
+- {id: firefox, wikidata: Q698, name: Firefox, type: PRODUCT, description: "Webbrowser (Mozilla)",
+   aliases: [Firefox, Mozilla Firefox], context: browser}
+- {id: safari, wikidata: Q35773, name: Safari, type: PRODUCT, description: "Webbrowser (Apple)",
+   aliases: [Safari-Browser, "@Safari"], context: browser}
+- {id: microsoft-edge, wikidata: Q18698690, name: Microsoft Edge, type: PRODUCT, description: "Webbrowser (Microsoft)",
+   aliases: [Microsoft Edge, Edge-Browser, "@Edge"], context: browser}
+- {id: bing, wikidata: Q182496, name: Bing, type: PRODUCT, description: "Suchmaschine (Microsoft)",
+   aliases: [Microsoft Bing, "~Bing"], context: [Suchmaschine, Google, Microsoft, Copilot, Chatbot, KI, suchen, Suche]}
+- {id: duckduckgo, wikidata: Q12805, name: DuckDuckGo, type: PRODUCT, description: Suchmaschine,
+   aliases: [DuckDuckGo, Duckduckgo], context: browser}
+- {id: ecosia, wikidata: Q1282139, name: Ecosia, type: PRODUCT, description: Suchmaschine aus Berlin,
+   aliases: [Ecosia], context: browser}
+- {id: wikipedia, wikidata: Q52, name: Wikipedia, type: PRODUCT, description: Online-Enzyklopädie,
+   aliases: [Wikipedia, Wikipedia-Artikel], context: apps}
+- {id: app-store, wikidata: Q3814081, name: App Store, type: PRODUCT, description: "App-Store (Apple)",
+   aliases: [App Store, AppStore, Apple App Store], context: apps}
+- {id: apple-pay, wikidata: Q18010990, name: Apple Pay, type: PRODUCT, description: "Mobiles Bezahlen (Apple)",
+   aliases: [Apple Pay], context: apps}
+- {id: apple-music, wikidata: Q20056642, name: Apple Music, type: PRODUCT, description: "Musikstreamingdienst (Apple)",
+   aliases: [Apple Music], context: streaming}
+- {id: apple-tv-plus, wikidata: Q62446736, name: Apple TV, type: PRODUCT, description: "Videostreamingdienst (Apple, früher Apple TV+)",
+   aliases: [Apple TV, "Apple TV+", Apple TV Plus, "AppleTV+"], context: streaming}
+- {id: icloud, wikidata: Q283469, name: iCloud, type: PRODUCT, description: "Cloud-Dienst (Apple)",
+   aliases: [iCloud], context: apps}
+- {id: apple-maps, wikidata: Q276101, name: Apple Maps, type: PRODUCT, description: "Kartendienst (Apple)",
+   aliases: [Apple Maps, Apple Karten], context: apps}
+- {id: microsoft-office, wikidata: Q11255, name: Microsoft Office, type: PRODUCT, description: "Büro-Software (Microsoft)",
+   aliases: [Microsoft Office, MS Office, MS-Office, Microsoft-Office, Office-Paket], context: office}
+- {id: microsoft-365, wikidata: Q775811, name: Microsoft 365, type: PRODUCT, description: "Office-Abo und Cloud-Dienst (Microsoft)",
+   aliases: [Microsoft 365, Office 365, MS 365, "=M365"], context: office}
+- {id: microsoft-excel, wikidata: Q11272, name: Excel, type: PRODUCT, description: "Tabellenkalkulation (Microsoft)",
+   aliases: [Microsoft Excel, MS Excel, "=Excel", Excel-Tabelle, Excel-Liste, Excel-Sheet], context: office}
+- {id: microsoft-word, wikidata: Q11261, name: Microsoft Word, type: PRODUCT, description: "Textverarbeitung (Microsoft)",
+   aliases: [Microsoft Word, MS Word, Word-Dokument, Word-Datei], context: office}
+- {id: microsoft-powerpoint, wikidata: Q11266, name: PowerPoint, type: PRODUCT, description: "Präsentationssoftware (Microsoft)",
+   aliases: [PowerPoint, Microsoft PowerPoint, MS PowerPoint, Powerpoint, PowerPoint-Folien, Powerpoint-Folien], context: office}
+- {id: outlook, wikidata: Q80911, name: Outlook, type: PRODUCT, description: "E-Mail-Programm und -Dienst (Microsoft)",
+   aliases: [Microsoft Outlook, MS Outlook, Outlook.com, Hotmail, "~Outlook"], context: [E-Mail, E-Mails, Mail, Mails, Postfach, Microsoft, Office, Kalender, Hotmail, Gmail, Thunderbird]}
+- {id: onedrive, wikidata: Q864889, name: OneDrive, type: PRODUCT, description: "Cloud-Speicher (Microsoft)",
+   aliases: [OneDrive, Microsoft OneDrive, One Drive], context: office}
+- {id: dropbox, wikidata: Q142539, name: Dropbox, type: PRODUCT, description: Cloud-Speicher,
+   aliases: [Dropbox], context: office}
+- {id: wetransfer, wikidata: Q15142862, name: WeTransfer, type: PRODUCT, description: Dateiübertragungsdienst,
+   aliases: [WeTransfer], context: office}
+- {id: aws, wikidata: Q456157, name: Amazon Web Services, type: PRODUCT, description: "Cloud-Plattform (Amazon)",
+   aliases: [Amazon Web Services, "=AWS", AWS-Cloud], context: apps}
+- {id: azure, wikidata: Q725967, name: Microsoft Azure, type: PRODUCT, description: "Cloud-Plattform (Microsoft)",
+   aliases: [Microsoft Azure, "=Azure", Azure-Cloud], context: apps}
+- {id: github, wikidata: Q364, name: GitHub, type: PRODUCT, description: "Plattform für Softwareentwicklung (Microsoft)",
+   aliases: [GitHub, Github], context: apps}
+- {id: gmx, wikidata: Q353410, name: GMX, type: PRODUCT, description: E-Mail-Dienst und Webportal,
+   aliases: ["=GMX", GMX Mail, gmx.de, gmx.net], context: apps}
+- {id: web-de, wikidata: Q2553290, name: WEB.DE, type: PRODUCT, description: E-Mail-Dienst und Webportal,
+   aliases: [WEB.DE, Web.de, web.de], context: apps}
+- {id: starlink, wikidata: Q19867977, name: Starlink, type: PRODUCT, description: "Satelliten-Internetdienst (SpaceX)",
+   aliases: [Starlink], context: apps}
+# ··· operating systems
+- {id: ios, wikidata: Q48493, name: iOS, type: PRODUCT, description: "Betriebssystem für iPhone und iPad (Apple)",
+   aliases: ["=iOS"], context: apps}
+- {id: android, wikidata: Q94, name: Android, type: PRODUCT, description: "Smartphone-Betriebssystem (Google)",
+   aliases: [Android], context: apps}
+- {id: windows, wikidata: Q1406, name: Windows, type: PRODUCT, description: "Betriebssystem (Microsoft)",
+   aliases: ["=Windows", Microsoft Windows, Windows 10, Windows 11], context: apps}
+- {id: macos, wikidata: Q14116, name: macOS, type: PRODUCT, description: "Betriebssystem für Mac (Apple)",
+   aliases: [macOS, MacOS, Mac OS, "=OS X"], context: apps}
+- {id: linux, wikidata: Q388, name: Linux, type: PRODUCT, description: Freies Betriebssystem,
+   aliases: [Linux], context: apps}
+- {id: ubuntu, wikidata: Q381, name: Ubuntu, type: PRODUCT, description: Linux-Distribution,
+   aliases: [Ubuntu], context: apps}
+- {id: harmonyos, wikidata: Q63986220, name: HarmonyOS, type: PRODUCT, description: "Betriebssystem (Huawei)",
+   aliases: [HarmonyOS, Harmony OS], context: apps}
+# ··· video streaming and Mediatheken
+- {id: netflix, wikidata: Q907311, name: Netflix, type: PRODUCT, description: Videostreamingdienst,
+   aliases: [Netflix], context: streaming}
+- {id: disney-plus, wikidata: Q54958752, name: "Disney+", type: PRODUCT, description: "Videostreamingdienst (Disney)",
+   aliases: ["Disney+", Disney Plus, Disneyplus], context: streaming}
+- {id: amazon-prime-video, wikidata: Q4740856, name: Prime Video, type: PRODUCT, description: "Videostreamingdienst (Amazon)",
+   aliases: [Prime Video, Amazon Prime Video, Amazon Video], context: streaming}
+- {id: amazon-prime, wikidata: Q21086634, name: Amazon Prime, type: PRODUCT, description: "Abo-Dienst von Amazon (Versand, Video, Musik)",
+   aliases: [Amazon Prime, Prime-Abo, Prime-Mitgliedschaft, Amazon-Prime], context: streaming}
+- {id: paramount-plus, wikidata: Q27903045, name: "Paramount+", type: PRODUCT, description: "Videostreamingdienst (Paramount)",
+   aliases: ["Paramount+", Paramount Plus], context: streaming}
+- {id: joyn, wikidata: Q64711058, name: Joyn, type: PRODUCT, description: "Streamingdienst (ProSiebenSat.1)",
+   aliases: [Joyn], context: streaming}
+- {id: rtl-plus, wikidata: Q19968067, name: "RTL+", type: PRODUCT, description: "Streamingdienst (RTL Deutschland)",
+   aliases: ["RTL+", RTL Plus, "=TVNOW", TV Now], context: streaming}
+- {id: ard-mediathek, wikidata: Q296581, name: ARD Mediathek, type: PRODUCT, description: Mediathek der ARD,
+   aliases: [ARD Mediathek, ARD-Mediathek, ARDMediathek], context: streaming}
+- {id: zdf-mediathek, wikidata: Q136006, name: ZDFmediathek, type: PRODUCT, description: Mediathek des ZDF,
+   aliases: [ZDFmediathek, ZDF Mediathek, ZDF-Mediathek], context: streaming}
+- {id: arte-mediathek, wikidata: Q104733495, name: Arte Mediathek, type: PRODUCT, description: Mediathek von Arte,
+   aliases: [Arte Mediathek, Arte-Mediathek, ARTE Mediathek, arte.tv], context: streaming}
+- {id: dazn, wikidata: Q30133334, name: DAZN, type: PRODUCT, description: Sport-Streamingdienst,
+   aliases: ["=DAZN", "=Dazn"], context: streaming}
+- {id: magentatv, wikidata: Q2401696, name: MagentaTV, type: PRODUCT, description: "TV- und Streamingangebot (Telekom)",
+   aliases: [MagentaTV, Magenta TV, Magenta-TV], context: streaming}
+- {id: waipu-tv, wikidata: Q31841225, name: waipu.tv, type: PRODUCT, description: Internetfernsehen,
+   aliases: [waipu.tv, "=waipu", "=Waipu"], context: streaming}
+- {id: zattoo, wikidata: Q148362, name: Zattoo, type: PRODUCT, description: Internetfernsehen,
+   aliases: [Zattoo], context: streaming}
+- {id: crunchyroll, wikidata: Q1142035, name: Crunchyroll, type: PRODUCT, description: Anime-Streamingdienst,
+   aliases: [Crunchyroll], context: streaming}
+- {id: youtube-music, wikidata: Q28404534, name: YouTube Music, type: PRODUCT, description: "Musikstreamingdienst (Google)",
+   aliases: [YouTube Music, Youtube Music], context: streaming}
+# ··· audio
+- {id: spotify, wikidata: Q689141, name: Spotify, type: PRODUCT, description: Musik- und Podcast-Streamingdienst,
+   aliases: [Spotify], context: streaming}
+- {id: amazon-music, wikidata: Q4740860, name: Amazon Music, type: PRODUCT, description: "Musikstreamingdienst (Amazon)",
+   aliases: [Amazon Music], context: streaming}
+- {id: deezer, wikidata: Q602243, name: Deezer, type: PRODUCT, description: Musikstreamingdienst,
+   aliases: [Deezer], context: streaming}
+- {id: soundcloud, wikidata: Q568769, name: SoundCloud, type: PRODUCT, description: Audioplattform,
+   aliases: [SoundCloud, Soundcloud], context: streaming}
+- {id: audible, wikidata: Q366651, name: Audible, type: PRODUCT, description: "Hörbuchdienst (Amazon)",
+   aliases: ["=Audible"], context: streaming}
+- {id: ard-audiothek, wikidata: Q60983102, name: ARD Audiothek, type: PRODUCT, description: Audioportal der ARD,
+   aliases: [ARD Audiothek, ARD-Audiothek], context: streaming}
+# ··· shopping, marketplaces, travel, health portals
+- {id: ebay, wikidata: Q58024, name: eBay, type: PRODUCT, description: Online-Marktplatz,
+   aliases: [eBay, Ebay, EBay], context: shopping}
+- {id: kleinanzeigen, wikidata: Q57313925, name: Kleinanzeigen, type: PRODUCT, description: "Kleinanzeigen-Portal (früher eBay Kleinanzeigen)",
+   aliases: [eBay Kleinanzeigen, Ebay Kleinanzeigen, eBay-Kleinanzeigen, Ebay-Kleinanzeigen, kleinanzeigen.de, "~Kleinanzeigen"], context: shopping}
+- {id: temu, wikidata: Q114258161, name: Temu, type: PRODUCT, description: "Online-Marktplatz (PDD Holdings, China)",
+   aliases: [Temu], context: shopping}
+- {id: shein, wikidata: Q107377209, name: Shein, type: PRODUCT, description: "Online-Modehändler (China/Singapur)",
+   aliases: [Shein, SHEIN], context: shopping}
+- {id: aliexpress, wikidata: Q29904317, name: AliExpress, type: PRODUCT, description: "Online-Marktplatz (Alibaba)",
+   aliases: [AliExpress, Aliexpress, Ali Express], context: shopping}
+- {id: vinted, wikidata: Q11935495, name: Vinted, type: PRODUCT, description: Second-Hand-Marktplatz,
+   aliases: [Vinted], context: shopping}
+- {id: etsy, wikidata: Q1353939, name: Etsy, type: PRODUCT, description: Online-Marktplatz für Handgemachtes,
+   aliases: [Etsy], context: shopping}
+- {id: idealo, wikidata: Q1630943, name: idealo, type: PRODUCT, description: Preisvergleichsportal,
+   aliases: [idealo, Idealo, idealo.de], context: shopping}
+- {id: check24, wikidata: Q1068745, name: Check24, type: PRODUCT, description: Vergleichsportal,
+   aliases: [Check24, CHECK24, Check 24], context: shopping}
+- {id: booking-com, wikidata: Q4035313, name: Booking.com, type: PRODUCT, description: Hotelbuchungsportal,
+   aliases: [Booking.com, booking.com], context: shopping}
+- {id: airbnb, wikidata: Q63327, name: Airbnb, type: PRODUCT, description: Plattform für Unterkünfte,
+   aliases: [Airbnb, AirBnB, Air BnB, airbnb.de], context: shopping}
+- {id: trivago, wikidata: Q265286, name: trivago, type: PRODUCT, description: Hotel-Preisvergleich,
+   aliases: [trivago, Trivago], context: shopping}
+- {id: tripadvisor, wikidata: Q1770710, name: Tripadvisor, type: PRODUCT, description: Reisebewertungsportal,
+   aliases: [Tripadvisor, TripAdvisor], context: shopping}
+- {id: holidaycheck, wikidata: Q1109365, name: HolidayCheck, type: PRODUCT, description: Reisebewertungs- und Buchungsportal,
+   aliases: [HolidayCheck, Holidaycheck], context: shopping}
+- {id: mobile-de, wikidata: Q1771581, name: mobile.de, type: PRODUCT, description: Online-Fahrzeugmarkt,
+   aliases: [mobile.de, Mobile.de], context: shopping}
+- {id: autoscout24, wikidata: Q16534362, name: AutoScout24, type: PRODUCT, description: Online-Fahrzeugmarkt,
+   aliases: [AutoScout24, Autoscout24, AutoScout, Autoscout], context: shopping}
+- {id: too-good-to-go, wikidata: Q85810097, name: Too Good To Go, type: PRODUCT, description: App gegen Lebensmittelverschwendung,
+   aliases: [Too Good To Go, TooGoodToGo, Too Good to Go], context: shopping}
+- {id: payback, wikidata: Q50910, name: Payback, type: PRODUCT, description: Bonusprogramm,
+   aliases: ["=PAYBACK", Payback-Karte, Payback-Punkte, Payback-App, "@Payback"], context: shopping}
+- {id: doctolib, wikidata: Q22248343, name: Doctolib, type: PRODUCT, description: Plattform für Arzttermine,
+   aliases: [Doctolib], context: apps}
+- {id: jameda, wikidata: Q2733148, name: Jameda, type: PRODUCT, description: Arztbewertungsportal,
+   aliases: [Jameda], context: apps}
+# ··· delivery and mobility
+- {id: uber, wikidata: Q780442, name: Uber, type: PRODUCT, description: Fahrdienst- und Liefer-App,
+   aliases: ["=Uber", Uber-App], context: mobility}
+- {id: uber-eats, wikidata: Q21462723, name: Uber Eats, type: PRODUCT, description: "Essenslieferdienst (Uber)",
+   aliases: [Uber Eats, UberEats], context: mobility}
+- {id: bolt, wikidata: Q20529164, name: Bolt, type: PRODUCT, description: "Fahrdienst- und E-Scooter-App (Estland)",
+   aliases: [Bolt-App, "@Bolt"], context: mobility}
+- {id: free-now, wikidata: Q48781517, name: Free Now, type: PRODUCT, description: Taxi- und Fahrdienst-App,
+   aliases: [Free Now, FreeNow, Freenow, FREENOW, mytaxi], context: mobility}
+- {id: lieferando, wikidata: Q98660154, name: Lieferando, type: PRODUCT, description: "Essenslieferdienst (Just Eat Takeaway)",
+   aliases: [Lieferando, Lieferando.de], context: mobility}
+- {id: wolt, wikidata: Q30024526, name: Wolt, type: PRODUCT, description: "Liefer-App (DoorDash)",
+   aliases: [Wolt-App, "~Wolt"], context: mobility}
+- {id: flink, wikidata: Q111915311, name: Flink, type: PRODUCT, description: Lebensmittel-Lieferdienst,
+   aliases: [Flink-App, "@Flink"], context: mobility}
+- {id: blablacar, wikidata: Q2905238, name: BlaBlaCar, type: PRODUCT, description: Mitfahr- und Fernbusplattform,
+   aliases: [BlaBlaCar, Blablacar, BlaBlaBus], context: mobility}
+- {id: db-navigator, wikidata: Q76464606, name: DB Navigator, type: PRODUCT, description: Reise-App der Deutschen Bahn,
+   aliases: [DB Navigator, DB-Navigator, Bahn-App, DB-App, DB App, Navigator-App], context: mobility}
+- {id: share-now, wikidata: Q62021602, name: Share Now, type: PRODUCT, description: Carsharing-Dienst,
+   aliases: [Share Now, ShareNow, SHARE NOW, Car2Go, car2go, DriveNow], context: mobility}
+- {id: waze, wikidata: Q942327, name: Waze, type: PRODUCT, description: "Navigations-App (Google)",
+   aliases: [Waze], context: mobility}
+- {id: komoot, wikidata: Q75804465, name: Komoot, type: PRODUCT, description: Routenplaner- und Outdoor-App,
+   aliases: [Komoot, komoot], context: apps}
+- {id: strava, wikidata: Q13884156, name: Strava, type: PRODUCT, description: Fitness-Tracking-App,
+   aliases: [Strava], context: apps}
+# ··· finance
+- {id: paypal, wikidata: Q483959, name: PayPal, type: PRODUCT, description: Online-Bezahldienst,
+   aliases: [PayPal, Paypal, "=PAYPAL"], context: apps}
+- {id: klarna, wikidata: Q1165072, name: Klarna, type: PRODUCT, description: "Bezahl- und Ratenkaufdienst (Schweden)",
+   aliases: [Klarna], context: apps}
+- {id: n26, wikidata: Q27479372, name: N26, type: PRODUCT, description: "Smartphone-Bank (Neobank)",
+   aliases: ["=N26", N26 Bank], context: apps}
+- {id: trade-republic, wikidata: Q105475811, name: Trade Republic, type: PRODUCT, description: Neobroker,
+   aliases: [Trade Republic], context: apps}
+- {id: scalable-capital, wikidata: Q112245017, name: Scalable Capital, type: PRODUCT, description: Neobroker,
+   aliases: [Scalable Capital, "=Scalable"], context: apps}
+- {id: revolut, wikidata: Q22908307, name: Revolut, type: PRODUCT, description: "Smartphone-Bank (Neobank)",
+   aliases: [Revolut], context: apps}
+- {id: bitpanda, wikidata: Q109391386, name: Bitpanda, type: PRODUCT, description: "Krypto- und Trading-Plattform (Österreich)",
+   aliases: [Bitpanda], context: apps}
+- {id: coinbase, wikidata: Q16972754, name: Coinbase, type: PRODUCT, description: Kryptobörse,
+   aliases: [Coinbase], context: apps}
+- {id: binance, wikidata: Q51403327, name: Binance, type: PRODUCT, description: Kryptobörse,
+   aliases: [Binance], context: apps}
+# ··· public digital services
+- {id: elster, wikidata: Q1275118, name: ELSTER, type: PRODUCT, description: Online-Steuerportal der Finanzverwaltung,
+   aliases: ["=ELSTER", ElsterOnline, Elster Online, Elster-Portal, Mein ELSTER, Mein Elster, "@Elster"], context: tax}
+- {id: bundid, wikidata: Q115965402, name: BundID, type: PRODUCT, description: Bürgerkonto des Bundes für Online-Behördengänge,
+   aliases: [BundID, Bund-ID, BundID-Konto], context: apps}
+- {id: epa, wikidata: Q130524016, name: elektronische Patientenakte, type: PRODUCT, description: "Elektronische Patientenakte (ePA) der gesetzlichen Krankenversicherung",
+   aliases: [elektronische Patientenakte, "=ePA", ePA für alle, E-Patientenakte, elektronischen Patientenakte, Elektronische Patientenakte, Elektronischen Patientenakte], context: apps}
+- {id: e-rezept, wikidata: Q1327359, name: E-Rezept, type: PRODUCT, description: Elektronisches Rezept,
+   aliases: [E-Rezept, eRezept, E-Rezepte, elektronisches Rezept, elektronische Rezept, elektronischen Rezept, E-Rezept-App], context: apps}
+- {id: corona-warn-app, wikidata: Q94320705, name: Corona-Warn-App, type: PRODUCT, description: "Corona-Warn-App des Bundes (2023 eingestellt)",
+   aliases: [Corona-Warn-App, Corona Warn App, Corona-Warnapp, Corona-App], context: apps}
+- {id: nina-warn-app, wikidata: Q26256155, name: NINA, type: PRODUCT, description: "Warn-App des Bundes (BBK)",
+   aliases: [NINA-App, Nina-App, NINA App, Warn-App NINA, Warnapp NINA, "@NINA"], context: warn}
+- {id: katwarn, wikidata: Q1718418, name: KATWARN, type: PRODUCT, description: Warn-App,
+   aliases: [KATWARN, Katwarn, KatWarn], context: warn}
+- {id: ausweisapp, wikidata: Q20828705, name: AusweisApp, type: PRODUCT, description: App für den Online-Ausweis,
+   aliases: [AusweisApp, AusweisApp2, Ausweis-App, AusweisApp Bund], context: apps}
+- {id: luca-app, wikidata: Q105724488, name: Luca-App, type: PRODUCT, description: "Kontaktverfolgungs-App (Corona-Pandemie)",
+   aliases: [Luca-App, Luca App, LucaApp], context: apps}
+- {id: covpass, wikidata: Q107182192, name: CovPass, type: PRODUCT, description: App für digitale Impfnachweise,
+   aliases: [CovPass, CovPass-App, CovPass App], context: apps}
+- {id: eudi-wallet, wikidata: Q136814315, name: EUDI-Wallet, type: PRODUCT, description: Digitale Brieftasche der EU für Ausweisdokumente,
+   aliases: [EUDI-Wallet, EUDI Wallet, EUDI-Wallets, EUID-Wallet, EU Digital Identity Wallet, EU-Wallet, EU-ID-Wallet], context: apps}
+- {id: moodle, wikidata: Q190434, name: Moodle, type: PRODUCT, description: Lernplattform,
+   aliases: [Moodle], context: apps}
+# ··· dating
+- {id: tinder, wikidata: Q15078152, name: Tinder, type: PRODUCT, description: Dating-App,
+   aliases: [Tinder], context: apps}
+- {id: bumble, wikidata: Q21233433, name: Bumble, type: PRODUCT, description: Dating-App,
+   aliases: ["=Bumble"], context: apps}
+- {id: hinge, wikidata: Q115680335, name: Hinge, type: PRODUCT, description: "Dating-App",
+   aliases: ["Hinge-App", "@Hinge"], context: [Dating, Dating-App, Dating-Apps, Tinder, Bumble, Match, Matches, Date, Dates, swipen, App]}
+- {id: parship, wikidata: Q476185, name: Parship, type: PRODUCT, description: Online-Partnervermittlung,
+   aliases: [Parship], context: apps}
+- {id: elitepartner, wikidata: Q1330765, name: ElitePartner, type: PRODUCT, description: Online-Partnervermittlung,
+   aliases: [ElitePartner, Elitepartner], context: apps}
+- {id: lovoo, wikidata: Q15281829, name: Lovoo, type: PRODUCT, description: Dating-App,
+   aliases: [Lovoo, LOVOO], context: apps}
+- {id: grindr, wikidata: Q2302402, name: Grindr, type: PRODUCT, description: Dating-App,
+   aliases: [Grindr], context: apps}
+- {id: badoo, wikidata: Q799677, name: Badoo, type: PRODUCT, description: Dating-App,
+   aliases: [Badoo], context: apps}
+# ··· learning and productivity
+- {id: duolingo, wikidata: Q2918660, name: Duolingo, type: PRODUCT, description: Sprachlern-App,
+   aliases: [Duolingo], context: apps}
+- {id: libreoffice, wikidata: Q10135, name: LibreOffice, type: PRODUCT, description: Freie Büro-Software,
+   aliases: [LibreOffice, Libre Office, Libreoffice], context: office}
+# ··· games and gaming platforms
+- {id: pokemon-go, wikidata: Q20966579, name: Pokémon Go, type: PRODUCT, description: Smartphone-Spiel,
+   aliases: [Pokémon Go, Pokemon Go, Pokémon GO, Pokemon GO, PokémonGo], context: games}
+- {id: fortnite, wikidata: Q349375, name: Fortnite, type: PRODUCT, description: "Onlinespiel (Epic Games)",
+   aliases: [Fortnite], context: games}
+- {id: minecraft, wikidata: Q49740, name: Minecraft, type: PRODUCT, description: "Computerspiel (Mojang/Microsoft)",
+   aliases: [Minecraft], context: games}
+- {id: roblox, wikidata: Q692989, name: Roblox, type: PRODUCT, description: Spieleplattform,
+   aliases: [Roblox], context: games}
+- {id: steam, wikidata: Q337535, name: Steam, type: PRODUCT, description: "Spieleplattform (Valve)",
+   aliases: [Steam-Plattform, Steam Store, "~Steam"], context: games}
+- {id: epic-games-store, wikidata: Q59510068, name: Epic Games Store, type: PRODUCT, description: "Spieleplattform (Epic Games)",
+   aliases: [Epic Games Store, Epic Store], context: games}
+- {id: xbox-game-pass, wikidata: Q29578331, name: Xbox Game Pass, type: PRODUCT, description: "Spiele-Abo (Microsoft)",
+   aliases: [Xbox Game Pass, Game Pass, Gamepass, GamePass], context: games}
+- {id: playstation-plus, wikidata: Q15304599, name: PlayStation Plus, type: PRODUCT, description: "Spiele-Abo (Sony)",
+   aliases: [PlayStation Plus, PS Plus, Playstation Plus], context: games}
+- {id: playstation-network, wikidata: Q719629, name: PlayStation Network, type: PRODUCT, description: "Online-Dienst (Sony)",
+   aliases: [PlayStation Network, Playstation Network, "=PSN"], context: games}
+- {id: gta, wikidata: Q132730, name: Grand Theft Auto, type: PRODUCT, description: "Computerspielreihe (Rockstar Games)",
+   aliases: [Grand Theft Auto, "=GTA"], context: games}
+- {id: gta-vi, wikidata: Q23648408, name: Grand Theft Auto VI, type: PRODUCT, description: "Computerspiel (Rockstar Games)",
+   aliases: [Grand Theft Auto VI, GTA VI, GTA 6, GTA6, GTA-6], context: games}
+- {id: call-of-duty, wikidata: Q192156, name: Call of Duty, type: PRODUCT, description: "Computerspielreihe (Activision)",
+   aliases: [Call of Duty], context: games}
+- {id: league-of-legends, wikidata: Q223341, name: League of Legends, type: PRODUCT, description: "Onlinespiel (Riot Games)",
+   aliases: [League of Legends], context: games}
+- {id: world-of-warcraft, wikidata: Q131007, name: World of Warcraft, type: PRODUCT, description: "Onlinerollenspiel (Blizzard)",
+   aliases: [World of Warcraft, "=WoW"], context: games}
+- {id: counter-strike, wikidata: Q15717790, name: Counter-Strike, type: PRODUCT, description: "Computerspielreihe (Valve)",
+   aliases: [Counter-Strike, Counter Strike, Counterstrike, "CS:GO"], context: games}
+- {id: ea-sports-fc, wikidata: Q326704, name: EA Sports FC, type: PRODUCT, description: "Fußball-Computerspielreihe (Electronic Arts, früher FIFA)",
+   aliases: [EA Sports FC, EA FC, EA SPORTS FC, EA Sports FC 26, EA FC 26], context: games}
+- {id: candy-crush, wikidata: Q8768018, name: Candy Crush Saga, type: PRODUCT, description: Smartphone-Spiel,
+   aliases: [Candy Crush Saga, Candy Crush], context: games}
+- {id: clash-of-clans, wikidata: Q13399098, name: Clash of Clans, type: PRODUCT, description: Smartphone-Spiel,
+   aliases: [Clash of Clans], context: games}
+- {id: brawl-stars, wikidata: Q30330493, name: Brawl Stars, type: PRODUCT, description: Smartphone-Spiel,
+   aliases: [Brawl Stars], context: games}
+- {id: genshin-impact, wikidata: Q65059474, name: Genshin Impact, type: PRODUCT, description: Computerspiel,
+   aliases: [Genshin Impact], context: games}
+- {id: valorant, wikidata: Q86919275, name: Valorant, type: PRODUCT, description: "Onlinespiel (Riot Games)",
+   aliases: [Valorant, "=VALORANT"], context: games}
+- {id: die-sims, wikidata: Q4897444, name: Die Sims, type: PRODUCT, description: "Computerspielreihe (Electronic Arts)",
+   aliases: [Die Sims, The Sims, Sims 4, Die Sims 4], context: games}
+- {id: battlefield, wikidata: Q474587, name: Battlefield, type: PRODUCT, description: "Computerspielreihe (Electronic Arts)",
+   aliases: ["=Battlefield", Battlefield 6], context: games}
+- {id: hogwarts-legacy, wikidata: Q99397854, name: Hogwarts Legacy, type: PRODUCT, description: Computerspiel,
+   aliases: [Hogwarts Legacy], context: games}
 # ------------------------------------------------------------------ Football: clubs (Bundesliga 2026/27, 2. Bundesliga 2026/27,
 # 3. Liga/traditional clubs, Austrian Bundesliga, Swiss Super League, big international clubs), national teams
 - {id: fc-bayern-muenchen, wikidata: Q15789, name: FC Bayern München, type: ORG, country: DE, description: Fußballverein (Bundesliga), context: football,

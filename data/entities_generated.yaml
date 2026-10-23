@@ -9,15 +9,6 @@ entities:
   description: deutscher Automobilrennfahrer
   aliases:
   - Michael Schumacher
-- id: netflix
-  wikidata: Q907311
-  name: Netflix
-  type: ORG
-  country: DE
-  description: US-amerikanischer Streaming-Anbieter und Film- und Fernsehproduktionsunternehmen
-  aliases:
-  - ~Netflix
-  context: business
 - id: helmut-kohl
   wikidata: Q2518
   name: Helmut Kohl
@@ -77,15 +68,6 @@ entities:
   aliases:
   - Mesut Özil
   - Mezut Özil
-- id: spotify
-  wikidata: Q689141
-  name: Spotify
-  type: ORG
-  country: DE
-  description: schwedischer Audio-Streamingdienst
-  aliases:
-  - =Spotify
-  context: business
 - id: kirsten-dunst
   wikidata: Q76478
   name: Kirsten Dunst
@@ -180,15 +162,6 @@ entities:
   description: deutscher Fußballspieler
   aliases:
   - Thomas Müller
-- id: paypal
-  wikidata: Q483959
-  name: PayPal
-  type: ORG
-  country: DE
-  description: US-amerikanischer Betreiber eines gleichnamigen Online-Bezahlsystems
-  aliases:
-  - =PayPal
-  context: business
 - id: christian-wulff
   wikidata: Q2540
   name: Christian Wulff
@@ -597,15 +570,6 @@ entities:
   description: deutsch-irischer Schauspieler
   aliases:
   - Michael Fassbender
-- id: uber
-  wikidata: Q780442
-  name: Uber
-  type: ORG
-  country: DE
-  description: Netzwerkunternehmen für Transport, Lebensmittellieferung und Mitfahrgelegenheiten aus Kalifornien, USA
-  aliases:
-  - ~Uber
-  context: business
 - id: martin-schulz
   wikidata: Q17905
   name: Martin Schulz
@@ -1757,16 +1721,6 @@ entities:
   aliases:
   - Ramin Djawadi
   - '!Djawadi'
-- id: airbnb
-  wikidata: Q63327
-  name: Airbnb
-  type: ORG
-  country: DE
-  description: Online-Plattform zur Buchung und Vermietung von Unterkünften
-  aliases:
-  - =Airbnb
-  - airbnb.de
-  context: business
 - id: arne-friedrich
   wikidata: Q63676
   name: Arne Friedrich
@@ -2329,15 +2283,6 @@ entities:
   description: deutscher Fußballspieler und Schriftsteller
   aliases:
   - Christoph Kramer
-- id: temu
-  wikidata: Q114258161
-  name: Temu
-  type: ORG
-  country: DE
-  description: Online-Marktplatz
-  aliases:
-  - Temu
-  context: business
 - id: joselu
   wikidata: Q134729
   name: Joselu
@@ -2707,7 +2652,6 @@ entities:
   aliases:
   - =Arte
   - =Arte HD
-  - Arte.tv
   - Association relative à la télévision européenne
   context: business
 - id: erik-durm
@@ -3536,15 +3480,6 @@ entities:
   aliases:
   - Ørjan Nyland
   - '!Nyland'
-- id: shein
-  wikidata: Q107377209
-  name: Shein
-  type: ORG
-  country: DE
-  description: Online-Händler für Mode und Sportartikel mit Sitz in Singapur
-  aliases:
-  - Shein
-  context: business
 - id: dietmar-hamann
   wikidata: Q155903
   name: Dietmar Hamann
@@ -5548,15 +5483,6 @@ entities:
   - Roman Petrowitsch Neustädter
   - Roman Petrovich Neustädter
   - '!Neustädter'
-- id: trivago
-  wikidata: Q265286
-  name: trivago
-  type: ORG
-  country: DE
-  description: Hotel-Metasuche im Internet, Tochtergesellschaft von Expedia
-  aliases:
-  - trivago
-  context: business
 - id: christian-guenter
   wikidata: Q2668870
   name: Christian Günter
@@ -6333,15 +6259,6 @@ entities:
   - Uri Avneri
   - '!Avnery'
   context: politics
-- id: deepl
-  wikidata: Q43968444
-  name: DeepL
-  type: ORG
-  country: DE
-  description: KI-gestützter maschineller Übersetzungsdienst von DeepL SE
-  aliases:
-  - DeepL
-  context: business
 - id: andreas-ottl
   wikidata: Q44673
   name: Andreas Ottl
@@ -10002,15 +9919,6 @@ entities:
   aliases:
   - Silvia Neid
   - '!Neid'
-- id: wolt
-  wikidata: Q30024526
-  name: Wolt
-  type: ORG
-  country: DE
-  description: finnisches Logistikunternehmen mit Hauptsitz in Helsinki
-  aliases:
-  - Wolt
-  context: business
 - id: bushido
   wikidata: Q311961
   name: Bushido
@@ -14238,16 +14146,6 @@ entities:
   aliases:
   - Mai Thi Nguyen-Kim
   - Mai-Thi Leiendecker
-- id: dazn
-  wikidata: Q30133334
-  name: DAZN
-  type: ORG
-  country: DE
-  description: Streamingdienst für Sportübertragungen
-  aliases:
-  - ~DAZN
-  - =Dazn
-  context: media
 - id: adam-taubitz
   wikidata: Q324431
   name: Adam Taubitz
@@ -16781,7 +16679,6 @@ entities:
   description: US-amerikanisches Unternehmen
   aliases:
   - =Twitter, Inc.
-  - Twitter
   context: business
 - id: wolfgang-schmidt
   wikidata: Q139382
@@ -19258,17 +19155,6 @@ entities:
   description: deutsch-ungarische Schriftstellerin, Drehbuchautorin und Übersetzerin (* 1971)
   aliases:
   - Terézia Mora
-- id: n26
-  wikidata: Q27479372
-  name: N26
-  type: ORG
-  country: DE
-  description: deutsche Neobank
-  aliases:
-  - ~N26
-  - N26 Bank AG
-  - N26 Bank GmbH
-  context: business
 - id: christian-suess
   wikidata: Q278668
   name: Christian Süß
@@ -42876,17 +42762,6 @@ entities:
   aliases:
   - Guillaume Faury
   - '!Faury'
-- id: gmx
-  wikidata: Q353410
-  name: GMX
-  type: ORG
-  country: DE
-  description: deutsches Webportal mit kostenlosem E-Mail-Service
-  aliases:
-  - ~GMX
-  - =Global Message eXchange
-  - GMX Mail
-  context: business
 - id: bjrn-gulden
   wikidata: Q370191
   name: Bjørn Gulden
@@ -45983,15 +45858,6 @@ entities:
   description: Juristin, deutsche Politikerin (CDU), MdL, MdB
   aliases:
   - Nadine Schön
-- id: trade-republic
-  wikidata: Q105475811
-  name: Trade Republic
-  type: ORG
-  country: DE
-  description: deutscher Online-Broker und lizenziertes Kreditinstitut
-  aliases:
-  - =Trade Republic
-  context: business
 - id: heinrich-bedford-strohm
   wikidata: Q105497
   name: Heinrich Bedford-Strohm
@@ -48455,16 +48321,6 @@ entities:
   - Christoph G. Hartmann
   - Christoph Georg Hartmann
   context: politics
-- id: idealo
-  wikidata: Q1630943
-  name: idealo
-  type: ORG
-  country: DE
-  description: Anbieter von Online-Preisvergleichen
-  aliases:
-  - idealo
-  - idealo.de
-  context: business
 - id: rational-ag
   wikidata: Q1638448
   name: Rational AG
@@ -48828,8 +48684,6 @@ entities:
   - FinanceScout24
   - ImmobilienScout24
   - TravelScout24
-  - AutoScout
-  - Autoscout24
   - ElectronicScout24
   - Scout24 Holding GmbH
   context: business
@@ -53277,18 +53131,6 @@ entities:
   - Caroline Bosbach
   - '!Bosbach'
   context: politics
-- id: check24
-  wikidata: Q1068745
-  name: Check24
-  type: ORG
-  country: DE
-  description: deutsches Online-Vergleichsportal und gleichnamiges Unternehmen
-  aliases:
-  - Check24
-  - Check24 GmbH
-  - CHECK24 GmbH
-  - CHECK24 Vergleichsportal GmbH
-  context: business
 - id: swantje-michaelsen
   wikidata: Q107303327
   name: Swantje Michaelsen

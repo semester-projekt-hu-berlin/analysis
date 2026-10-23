@@ -41,6 +41,7 @@ def main(argv: list[str] | None = None) -> int:
     pr.add_argument("--ids", default="", help="comma-separated entity ids")
     pr.add_argument("--ids-file", help="file with one entity id per line")
     pr.add_argument("--add", default="", help="comma-separated entity ids whose mentions may be added")
+    pr.add_argument("--queue", action="store_true", help="only register the job; `run` continues it")
     sub.add_parser("seed-requests", help="validate accepted entity_requests via Wikidata and seed them")
     s = sub.add_parser("seed", help="write curated entities and events")
     s.add_argument("--no-images", action="store_true")
@@ -94,7 +95,13 @@ def main(argv: list[str] | None = None) -> int:
         if args.ids_file:
             with open(args.ids_file, encoding="utf-8") as f:
                 ids |= {line.strip() for line in f if line.strip()}
-        out = prune(fs, ids, add_ids={x.strip() for x in args.add.split(",") if x.strip()})
+        add = {x.strip() for x in args.add.split(",") if x.strip()}
+        if args.queue:
+            from .pipeline import queue_job
+
+            out = queue_job(fs, "prune", {"ids": sorted(ids), "add": sorted(add)})
+        else:
+            out = prune(fs, ids, add_ids=add)
     elif args.cmd == "rescore":
         out = rescore(fs, sentiment_key=args.sentiment)
     elif args.cmd == "reaggregate":

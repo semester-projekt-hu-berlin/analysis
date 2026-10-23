@@ -14,7 +14,7 @@ import json
 import logging
 
 from .firestore import Write
-from .linker import Entity, Registry
+from .linker import TRACKED_TYPES, Entity, Registry
 
 log = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ def _add_entries(reg: Registry, entries: dict[str, dict]) -> None:
     for eid, d in sorted(entries.items()):
         if eid in reg.entities or not d.get("wikidataId") or d["wikidataId"] in reg.by_qid:
             continue
-        if d.get("type") not in ("PER", "ORG", "PARTY"):
+        if d.get("type") not in TRACKED_TYPES:
             continue
         reg.add(
             Entity(
@@ -57,7 +57,7 @@ def registry_entries_from_docs(docs: dict[str, dict], file_registry: Registry | 
     for eid, d in docs.items():
         if eid in reg.entities or not d.get("allowlisted") or not d.get("wikidataId"):
             continue
-        if d["wikidataId"] in reg.by_qid or d.get("type") not in ("PER", "ORG", "PARTY"):
+        if d["wikidataId"] in reg.by_qid or d.get("type") not in TRACKED_TYPES:
             continue
         out[eid] = entry(d)
     return out

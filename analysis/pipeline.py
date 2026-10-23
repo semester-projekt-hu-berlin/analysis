@@ -26,7 +26,7 @@ from .registry_store import (
     registry_entries_from_docs,
     write_registry_doc,
 )
-from .textutil import today_berlin
+from .textutil import normalize_surface, today_berlin
 
 log = logging.getLogger(__name__)
 
@@ -140,11 +140,21 @@ def new_entity_write(e: Entity) -> Write:
 # --------------------------------------------------------------------------- seed
 
 
-def seed(fs: Firestore, with_images: bool = True, budget: Budget | None = None) -> dict:
+SEED_RELINK_DAYS = 14  # new entities are relinked over this many days of analysed comments
+
+
+def seed(fs: Firestore, with_images: bool = True, budget: Budget | None = None, queue_followups: bool = True) -> dict:
     """Write curated entities and events; only documents whose content changed are written.
 
     With a budget, the writes stop at the remaining daily budget; running seed again later
-    continues (it only writes what still differs)."""
+    continues (it only writes what still differs).
+
+    Follow-up jobs (`queue_followups`), continued by the regular `run` within the budget:
+    * a `relink` of the entities this seed created (last SEED_RELINK_DAYS days), merged into an
+      already queued relink;
+    * a `prune` of existing entities that lost an alias to another entity ("Facebook" moved
+      from Meta Platforms to the Facebook platform): their mentions are re-checked, and the
+      new owners of the alias may take them over."""
     reg = Registry.from_yaml()
     meta_fields = list(next(iter(reg.entities.values())).metadata().keys())
     existing = {d.id: d.data for d in fs.query("entities", select=meta_fields)}
@@ -177,6 +187,7 @@ def seed(fs: Firestore, with_images: bool = True, budget: Budget | None = None) 
         if old_events.get(ev["id"]) != data:
             writes.append(Write(f"events/{ev['id']}", data))
     stopped = None
+    created: set[str] = set()
     for i in range(0, len(writes), 400):
         chunk = writes[i : i + 400]
         if budget is not None and not budget.allows(writes=len(chunk) + 2):
@@ -184,12 +195,18 @@ def seed(fs: Firestore, with_images: bool = True, budget: Budget | None = None) 
             log.warning("seed: %s", stopped)
             break
         fs.commit(chunk)
+        created |= {
+            w.path.split("/", 1)[1]
+            for w in chunk
+            if w.path.startswith("entities/") and w.path.split("/", 1)[1] not in existing
+        }
     # meta/registry: the Firestore-only (discovered / requested) entities, for runs without a full scan
     entries = registry_entries_from_docs(existing, reg)
     cur = fs.get("meta/registry")
     if cur is None or (cur.data.get("entities") or {}) != entries:
         write_registry_doc(fs, entries)
     new = len(reg.entities.keys() - existing.keys())
+    queued = _queue_seed_followups(fs, reg, existing, created) if queue_followups else {}
     out = {
         "entities": len(reg.entities),
         "newEntities": new,
@@ -198,19 +215,52 @@ def seed(fs: Firestore, with_images: bool = True, budget: Budget | None = None) 
         "withImage": sum(1 for e in reg.entities.values() if e.imageUrl),
         "events": len(events),
         "stopped": stopped,
+        **({"followups": queued} if queued else {}),
     }
     log.info("seed: %s", out)
     return out
 
 
-IMAGE_PROPS = {"P18": "img", "P154": "logo", "P8972": "icon", "P158": "seal"}
+def moved_aliases(reg: Registry, existing: dict[str, dict]) -> dict[str, set[str]]:
+    """Existing entities that lost an alias which another entity now owns -> those new owners."""
+    out: dict[str, set[str]] = {}
+    for eid, cur in existing.items():
+        e = reg.entities.get(eid)
+        if e is None or not cur.get("aliases"):
+            continue
+        now_aliases = {normalize_surface(a) for a in e.aliases}
+        for a in cur["aliases"]:
+            key = normalize_surface(a)
+            if key in now_aliases:
+                continue
+            owners = {o for o in reg.alias_index.get(key, []) if o != eid}
+            if owners:
+                out.setdefault(eid, set()).update(owners)
+    return out
+
+
+def _queue_seed_followups(fs: Firestore, reg: Registry, existing: dict[str, dict], created: set[str]) -> dict:
+    from datetime import date, timedelta
+
+    out: dict = {}
+    if created:
+        cutoff = (date.fromisoformat(today_berlin()) - timedelta(days=SEED_RELINK_DAYS - 1)).isoformat()
+        out["relink"] = queue_job(fs, "relink", {"cutoff": cutoff, "entityIds": sorted(created)})
+    moved = moved_aliases(reg, existing)
+    if moved:
+        out["prune"] = queue_job(fs, "prune", {"ids": sorted(moved), "add": sorted(set().union(*moved.values()))})
+    return out
+
+
+IMAGE_PROPS = {"P18": "img", "P154": "logo", "P8972": "icon", "P2910": "appicon", "P158": "seal"}
 
 
 def _fill_images(reg: Registry) -> None:
     """Thumbnail per entity from Wikidata (one SPARQL query per 150 items).
 
-    Persons: portrait (P18). Organisations, parties, clubs, media: logo only (P154, then P8972
-    small logo/icon, then P158 seal); never P18, which is often a photo of a building. No logo
+    Persons: portrait (P18). Organisations, parties, clubs, media, products: logo only (P154, then
+    P8972 small logo/icon, then P2910 icon (apps), then P158 seal); never P18, which is often a
+    photo of a building. No logo
     -> imageUrl None (the frontend shows initials).
     """
     import requests
@@ -251,7 +301,7 @@ def _fill_images(reg: Registry) -> None:
                     d[key] = unquote(b[key]["value"].rsplit("/", 1)[1])
     for e in reg.entities.values():
         f = files.get(e.wikidataId or "", {})
-        order = ("img",) if e.type == "PER" else ("logo", "icon", "seal")
+        order = ("img",) if e.type == "PER" else ("logo", "icon", "appicon", "seal")
         e.imageUrl = next((u for k in order if k in f and (u := commons_thumb(f[k]))), None)
         e.imageKind = ("portrait" if e.type == "PER" else "logo") if e.imageUrl else None
 
@@ -689,7 +739,8 @@ def refresh_rolling(fs: Firestore, entity_docs: dict[str, dict], already: set[st
 # invocation (or the regular `run`, once its backlog is done) continues where they stopped.
 
 JOB_AGG_PAIRS = 400  # long jobs aggregate their (entity, day) pairs in steps of this size
-JOB_NAMES = ("seed", "relink", "rescore", "reaggregate_since", "reaggregate")
+# order matters: prune and relink need the entities that a queued seed creates
+JOB_NAMES = ("seed", "prune", "relink", "rescore", "reaggregate_since", "reaggregate")
 
 
 def _jobs(fs: Firestore) -> dict:
@@ -746,6 +797,18 @@ def continue_jobs(fs: Firestore, budget: Budget, ner_backend: str = "bert", sent
             if res.get("stopped"):
                 break  # later jobs (relink) need the seeded entities
             _save_job(fs, "seed", None)
+        elif name == "prune":
+            res = prune(
+                fs,
+                set(job.get("ids") or []),
+                add_ids=set(job.get("add") or []),
+                ner_backend=ner_backend,
+                sentiment_key=sentiment_key,
+                budget=budget,
+            )
+            out[name] = res
+            if not res.get("stopped"):
+                _save_job(fs, "prune", None)
         elif name == "relink":
             out[name] = relink(
                 fs, ner_backend=ner_backend, sentiment_key=job.get("sentiment") or sentiment_key, budget=budget
@@ -926,12 +989,44 @@ def relink(
 
 def queue_job(fs: Firestore, name: str, data: dict) -> dict:
     """Register a one-off job without running it (1 write): the regular `run` continues it once
-    its own backlog is done, within the daily budget. relink data: {cutoff, entityIds}."""
+    its own backlog is done, within the daily budget.
+
+    relink data: {cutoff, entityIds}. A relink that is queued but not started yet takes the new
+    entities into the same scan; one that is already scanning keeps its entity set, and the new
+    entities wait in `relink_next`, which becomes the relink when the running one is done.
+    prune data: {ids, add}; merged into an already queued prune."""
+    jobs = _jobs(fs)
     job = {"startedAt": now(), **data}
+    slot = name
     if name == "relink":
         job = {"sentiment": "cal", "cursor": None, "scanned": 0, "candidates": 0, "newMentions": 0, **job}
-    _save_job(fs, name, job)
-    return {"queued": name, **{k: (len(v) if isinstance(v, list) else v) for k, v in job.items()}}
+        cur = jobs.get("relink")
+        if cur and cur.get("cursor") is not None:
+            new_ids = set(job.get("entityIds") or []) - set(cur.get("entityIds") or [])
+            if not new_ids:
+                return {"queued": name, "alreadyQueued": True}
+            slot, cur, job["entityIds"] = "relink_next", jobs.get("relink_next"), sorted(new_ids)
+        if cur:
+            job = {
+                **cur,
+                "entityIds": sorted(set(cur.get("entityIds") or []) | set(job.get("entityIds") or [])),
+                "cutoff": min(c for c in (cur.get("cutoff"), job.get("cutoff")) if c),
+            }
+    elif name == "prune" and jobs.get("prune"):
+        cur = jobs["prune"]
+        job = {
+            **cur,
+            "ids": sorted(set(cur.get("ids") or []) | set(job.get("ids") or [])),
+            "add": sorted(set(cur.get("add") or []) | set(job.get("add") or [])),
+        }
+    _save_job(fs, slot, job)
+    return {"queued": slot, **{k: (len(v) if isinstance(v, list) else v) for k, v in job.items()}}
+
+
+def _finish_relink(fs: Firestore) -> None:
+    """Remove the finished relink; entities queued while it was scanning get their own scan next."""
+    nxt = _jobs(fs).get("relink_next")
+    fs.commit([Write(STATE_DOC, {"jobs": {"relink": nxt} if nxt else {}}, mask=["jobs.relink", "jobs.relink_next"])])
 
 
 def _relink(fs, budget, days, entity_ids, ner_backend, sentiment_key, batch, page) -> dict:
@@ -967,7 +1062,7 @@ def _relink(fs, budget, days, entity_ids, ner_backend, sentiment_key, batch, pag
     names = {registry.entities[e].name for e in new}
     alias_texts = sorted({a.text.casefold() for a in registry.aliases if a.entity_id in new}, key=len, reverse=True)
     if not alias_texts:
-        _save_job(fs, "relink", None)
+        _finish_relink(fs)
         return {"newEntities": 0}
     prefilter = re.compile(r"(?<![\w])(" + "|".join(re.escape(a) for a in alias_texts) + r")", re.IGNORECASE)
     ner = sentiment = None
@@ -1049,7 +1144,10 @@ def _relink(fs, budget, days, entity_ids, ner_backend, sentiment_key, batch, pag
             break
         _save_job(fs, "relink", {**job, "pairs": _pairs_out(pairs)})
     info = aggregate_pairs(fs, pairs, entity_docs)
-    _save_job(fs, "relink", None if done else {**job, "pairs": []})
+    if done:
+        _finish_relink(fs)
+    else:
+        _save_job(fs, "relink", {**job, "pairs": []})
     return {
         "newEntities": len(new),
         "scanned": job["scanned"],
@@ -1232,7 +1330,7 @@ def _prune(fs, budget, entity_ids, add_ids, ner_backend, sentiment_key) -> dict:
     from .sentiment import load_sentiment
 
     entity_docs, _active = load_active_docs(fs, ENTITY_READ_FIELDS)
-    ensure_docs(fs, entity_docs, set(entity_ids), ENTITY_READ_FIELDS)
+    ensure_docs(fs, entity_docs, set(entity_ids) | set(add_ids), ENTITY_READ_FIELDS)
     reg = Registry.from_yaml()
     targets = {e for e in entity_ids if e in entity_docs}
     removed = {e for e in targets if e not in reg.entities}

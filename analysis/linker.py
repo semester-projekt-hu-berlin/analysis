@@ -28,7 +28,8 @@ DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 SEED_FILE = DATA_DIR / "entities.yaml"
 GENERATED_FILE = DATA_DIR / "entities_generated.yaml"  # from scripts/generate_entities.py
 
-TRACKED_TYPES = {"PER", "ORG", "PARTY"}
+# PRODUCT = "Apps & Dienste": apps, platforms, digital services, operating systems and games
+TRACKED_TYPES = {"PER", "ORG", "PARTY", "PRODUCT"}
 
 # Suffixes allowed after an alias (genitive / plural / inflection).
 PER_SUFFIXES = ["'s", "’s", "s", "'", "’"]
@@ -334,19 +335,21 @@ class Registry:
         self.add(e)
         return e
 
-    def _pattern(self, aliases: list[Alias]) -> re.Pattern | None:
+    def _pattern(self, aliases: list[Alias], fold: bool = False) -> re.Pattern | None:
         if not aliases:
             return None
         # a trie-shaped pattern: tens of thousands of aliases stay fast (a flat alternation is tried
-        # alias by alias at every position); greedy branches keep "longest alias first"
-        alt = _trie_pattern({a.text for a in aliases})
+        # alias by alias at every position); greedy branches keep "longest alias first". For the
+        # case-insensitive pattern the trie is built over lower-cased aliases, so "Twitter" and
+        # "twitter.com" share one branch and the longer one wins.
+        alt = _trie_pattern({a.text.lower() if fold else a.text for a in aliases})
         suffix = "|".join(re.escape(s) for s in sorted(set(PER_SUFFIXES + ORG_SUFFIXES), key=len, reverse=True))
         return re.compile(rf"(?<![\w])({alt})(?P<suf>{suffix})?(?![\w])")
 
     def compile(self) -> None:
         plain = [a for a in self.aliases if a.mode == "plain"]
         strict = [a for a in self.aliases if a.mode != "plain"]
-        self._re_plain = self._pattern(plain)
+        self._re_plain = self._pattern(plain, fold=True)
         if self._re_plain is not None:
             self._re_plain = re.compile(self._re_plain.pattern, re.IGNORECASE)
         self._re_strict = self._pattern(strict)
@@ -415,9 +418,11 @@ class Registry:
         for start, end, surface, als, suf in sorted(candidates, key=lambda c: (-(c[1] - c[0]), c[0])):
             if any(not (end <= m.start or start >= m.end) for m in out):
                 continue
-            eid = self._choose(als, start, end, suf, ner_spans, words, lowered, country)
+            eid = self._choose(als, start, end, suf, ner_spans, words, lowered, country, surface)
             if eid and self._other_first_name(text, start, surface, eid):
                 continue
+            if eid and self.entities[eid].type == "PRODUCT" and _in_url(text, start, end):
+                continue  # "de.wikipedia.org/wiki/...", "paulkrugman.substack.com": a link, not a mention
             if eid:
                 core = surface[: len(surface) - len(suf)] if suf else surface
                 out.append(Match(start, end, core, eid, "gazetteer"))
@@ -441,7 +446,7 @@ class Registry:
     @staticmethod
     def _ner_contradicts(e: Entity, start: int, end: int, ner_spans) -> bool:
         """An NER span covering exactly this surface says person where the entity is an
-        organisation, or the other way round."""
+        organisation or product, or the other way round."""
         for s, t, tag, score in ner_spans:
             if (
                 s <= start
@@ -453,14 +458,19 @@ class Registry:
                 return True
         return False
 
-    def _context_ok(self, e: Entity, words: set[str], lowered: str) -> bool:
+    def _context_ok(self, e: Entity, words: set[str], lowered: str, own: set[str] = frozenset()) -> bool:
+        """A context keyword in the comment or the article title. For products the alias itself does
+        not count ("Claude" is an AI keyword, but "Claude ist mein Nachbar" is no evidence for the
+        chatbot); the older context sets rely on it ("Kongress" in the US keywords)."""
+        own = own if e.type == "PRODUCT" else frozenset()
         for kw in e.context:
             k = kw.casefold()
-            if (" " in k and k in lowered) or k in words:
+            if (" " in k and k in lowered) or (k in words and k not in own):
                 return True
         return False
 
-    def _choose(self, als, start, end, suf, ner_spans, words, lowered, country) -> str | None:
+    def _choose(self, als, start, end, suf, ner_spans, words, lowered, country, surface: str = "") -> str | None:
+        own = _word_set(surface)
         ok: list[tuple[Entity, int]] = []  # (entity, evidence: 2 = context/NER confirmed, 1 = plain)
         for a in als:
             e = self.entities[a.entity_id]
@@ -472,10 +482,12 @@ class Registry:
                 and self._ner_contradicts(e, start, end, ner_spans)
             ):
                 continue  # "Lanz" tagged as a person is not the Heinrich Lanz AG
+            if e.type == "PRODUCT" and self._ner_contradicts(e, start, end, ner_spans):
+                continue  # "Claude" / "Bolt" tagged as a person is not the chatbot / the ride app
             ev = 1
             if a.mode == "weak":
                 ner_ok = any(s < end and start < t and _ner_compatible(tag, e.type) for s, t, tag, _score in ner_spans)
-                if not (ner_ok or (e.context and self._context_ok(e, words, lowered))):
+                if not (ner_ok or (e.context and self._context_ok(e, words, lowered, own))):
                     continue
                 ev = 2
             elif a.mode == "ner":
@@ -489,7 +501,7 @@ class Registry:
                 # ("Lanz" + "Sendung" -> the show, not the presenter)
                 ev = 1.5
             elif a.mode == "ctx":
-                if not self._context_ok(e, words, lowered):
+                if not self._context_ok(e, words, lowered, own):
                     continue
                 ev = 2
             elif a.mode == "local" and country and e.country and country != e.country:
@@ -539,6 +551,14 @@ class Registry:
                 return ids[0]
         return None
 
+    def rejected_alias(self, surface: str, qid: str) -> bool:
+        """`surface` is an alias of the known entity with this QID, so the gazetteer and the alias
+        lookup have already decided on it (e.g. a contextual alias without its context)."""
+        eid = self.by_qid.get(qid)
+        if not eid:
+            return False
+        return any(eid in self.alias_index.get(normalize_surface(v), []) for v in surface_variants(surface))
+
     def _lookup_ok(self, key: str, eid: str, country: str | None) -> bool:
         """An NER span may use an alias only where the gazetteer could: contextual aliases need
         their context (handled by the gazetteer), NER-only and local ones the right country."""
@@ -549,9 +569,27 @@ class Registry:
         return not (modes <= {"ner", "local"} and country and e.country and country != e.country)
 
 
+_URLISH = re.compile(r"^@|://|\bwww\.|\w\.(?:com|org|net|de|at|ch|eu|io|app|tv|fm|social|co|uk)\b", re.IGNORECASE)
+
+
+def _in_url(text: str, start: int, end: int) -> bool:
+    """The span is part of a link, domain or handle ("de.wikipedia.org/wiki/...",
+    "krugman.substack.com/p/the-starlink", "@spotify"). Aliases that are domains themselves
+    ("x.com", "booking.com", "web.de") are mentions of the service and still link."""
+    if "." in text[start:end]:
+        return False
+    a = max(text.rfind(c, 0, start) for c in (" ", "\n", "\t", "(", '"'))
+    b = min((i for i in (text.find(c, end) for c in (" ", "\n", "\t", ")", '"')) if i >= 0), default=len(text))
+    return _URLISH.search(text[a + 1 : b]) is not None
+
+
 def _ner_compatible(tag: str, etype: str) -> bool:
+    """NER tags that confirm a weak alias of this entity type. Products (apps, platforms, games)
+    are tagged ORG ("WhatsApp") or MISC ("Fortnite", "iOS") by the German NER models."""
     if etype == "PER":
         return tag == "PER"
+    if etype == "PRODUCT":
+        return tag in ("ORG", "MISC")
     return tag in ("ORG", "MISC")
 
 

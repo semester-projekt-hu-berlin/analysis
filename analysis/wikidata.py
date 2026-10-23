@@ -9,7 +9,9 @@ persons named in comments can never be allowlisted:
 * persons: instance of human (Q5), full name (>= 2 tokens) in the comment, at least one
   occupation (P106) or position held (P39) and >= MIN_PERSON_SITELINKS Wikipedia/
   sitelinks (a proxy for notability),
-* organisations: instance of one of ORG_CLASSES and >= MIN_ORG_SITELINKS sitelinks.
+* organisations: instance of one of ORG_CLASSES and >= MIN_ORG_SITELINKS sitelinks,
+* apps & digital services (type PRODUCT): instance of one of PRODUCT_CLASSES (software, mobile
+  app, website, online service, video game ...) and >= MIN_PRODUCT_SITELINKS sitelinks.
 
 The lookup cache is keyed by a SHA-1 of the surface form, so surface strings from
 comments (which might be private names) are never written to disk in clear text.
@@ -39,6 +41,7 @@ USER_AGENT = (
 
 MIN_PERSON_SITELINKS = 15
 MIN_ORG_SITELINKS = 10
+MIN_PRODUCT_SITELINKS = 20  # app and game names are often words: only well-known ones
 
 HUMAN = "Q5"
 DISAMBIGUATION = "Q4167410"
@@ -79,6 +82,83 @@ ORG_CLASSES = {
     "Q4438121": "sports organization",
     "Q15911314": "association",
 }
+
+
+# Apps, platforms, digital services, operating systems and games -> entity type PRODUCT.
+PRODUCT_CLASSES = {
+    "Q7397": "software",
+    "Q166142": "application software",
+    "Q218616": "proprietary software",
+    "Q341": "free software",
+    "Q506883": "free and open-source software",
+    "Q620615": "mobile app",
+    "Q189210": "web application",
+    "Q35127": "website",
+    "Q19967801": "online service",
+    "Q1668024": "service on Internet",
+    "Q3220391": "social networking service",
+    "Q118140435": "very large online platform",
+    "Q122759350": "user-generated content platform",
+    "Q92438": "microblogging",
+    "Q2462003": "instant messaging client",
+    "Q58199": "instant messaging",
+    "Q15614021": "VoIP software",
+    "Q28051323": "video-conferencing software",
+    "Q59152282": "video streaming service",
+    "Q15590336": "music streaming service",
+    "Q102336293": "live streaming service",
+    "Q559856": "online video platform",
+    "Q723685": "video on demand",
+    "Q841645": "Internet television",
+    "Q870780": "chatbot",
+    "Q133284163": "generative artificial intelligence chatbot",
+    "Q116961403": "conversational AI",
+    "Q115305900": "large language model",
+    "Q3467906": "virtual assistant",
+    "Q125265855": "voice assistant",
+    "Q4182287": "search engine",
+    "Q6368": "web browser",
+    "Q9135": "operating system",
+    "Q920890": "mobile operating system",
+    "Q131669": "Linux distribution",
+    "Q3390477": "online marketplace",
+    "Q57590076": "hotel booking website",
+    "Q1343205": "file-hosting service",
+    "Q914359": "cloud storage",
+    "Q207170": "office suite",
+    "Q986008": "payment system",
+    "Q25401607": "cryptocurrency exchange",
+    "Q28134845": "dating app",
+    "Q612825": "online dating service",
+    "Q28031555": "machine translation software",
+    "Q124587498": "internet map service",
+    "Q89288125": "COVID-19 app",
+    "Q7889": "video game",
+    "Q7058673": "video game series",
+    "Q81989119": "video game distribution platform",
+    "Q19307174": "digital distribution platform",
+}
+# media organisations are often also "website": they stay organisations
+MEDIA_ORG_CLASSES = {"Q11032", "Q1002697", "Q192283", "Q1126006", "Q15265344"}
+
+
+def entity_type(item: dict) -> str | None:
+    """PER / PARTY / ORG / PRODUCT from the item's P31 classes (None: not a tracked kind).
+
+    An item that is both a company and a service (Netflix, Uber, Airbnb) is a PRODUCT: the brand
+    is discussed as the service. Newspapers and broadcasters with a website stay ORG."""
+    p31 = set(WikidataClient.claim_ids(item, "P31"))
+    if HUMAN in p31:
+        return "PER"
+    if "Q7278" in p31:
+        return "PARTY"
+    if p31 & MEDIA_ORG_CLASSES:
+        return "ORG"
+    if p31 & PRODUCT_CLASSES.keys():
+        return "PRODUCT"
+    if p31 & ORG_CLASSES.keys():
+        return "ORG"
+    return None
 
 
 def _cache_dir() -> Path:
@@ -217,8 +297,9 @@ def commons_thumb(filename: str, width: int = THUMB_WIDTH) -> str | None:
 
 
 def image_url(item: dict, person: bool) -> tuple[str | None, str | None]:
-    """(thumbnail URL, kind): persons -> portrait (P18); organisations -> logo (P154/P8972/P158) or None."""
-    props = ("P18",) if person else ("P154", "P8972", "P158")
+    """(thumbnail URL, kind): persons -> portrait (P18); organisations and products -> logo
+    (P154/P8972/P2910/P158) or None."""
+    props = ("P18",) if person else ("P154", "P8972", "P2910", "P158")
     for prop in props:
         for f in WikidataClient.claim_strings(item, prop):
             url = commons_thumb(f)
@@ -249,13 +330,14 @@ def public_figure_check(item: dict, surface: str, ner_type: str) -> tuple[bool, 
     if ner_type == "ORG":
         if HUMAN in p31:
             return False, "is a human"
-        if not p31 & ORG_CLASSES.keys():
-            return False, "not an organisation class"
-        if sitelinks < MIN_ORG_SITELINKS:
+        etype = entity_type(item)
+        if etype not in ("ORG", "PARTY", "PRODUCT"):
+            return False, "not an organisation or product class"
+        if sitelinks < (MIN_PRODUCT_SITELINKS if etype == "PRODUCT" else MIN_ORG_SITELINKS):
             return False, f"only {sitelinks} sitelinks"
         if len(surface) < 3:
             return False, "too short"
-        return True, "public organisation"
+        return True, "app or digital service" if etype == "PRODUCT" else "public organisation"
     return False, f"type {ner_type} not tracked"
 
 
@@ -311,9 +393,7 @@ class WikidataLinker:
                         "name": label(it) or surface,
                         "description": description(it)[:120],
                         "aliases": all_names(it)[:12],
-                        "type": "PER"
-                        if ner_type == "PER"
-                        else ("PARTY" if "Q7278" in self.client.claim_ids(it, "P31") else "ORG"),
+                        "type": "PER" if ner_type == "PER" else (entity_type(it) or "ORG"),
                         "imageUrl": image_url(it, person=ner_type == "PER")[0],
                         "imageKind": image_url(it, person=ner_type == "PER")[1],
                     }

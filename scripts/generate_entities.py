@@ -246,7 +246,7 @@ MEDIA_TECH: dict[str, tuple[str, list[str]]] = {
     # international and German tech
     "Q20800404": ("business", []),  # Alphabet Inc.
     "Q117617480": ("business", ["X Corp"]),  # X Corp.
-    "Q1390577": ("business", ["Twitter"]),  # Twitter, Inc.
+    "Q1390577": ("business", []),  # Twitter, Inc. (the platform "Twitter" / X is the curated PRODUCT x-twitter)
     "Q55606242": ("business", ["Bytedance"]),
     "Q907311": ("business", []),  # Netflix
     "Q689141": ("business", []),  # Spotify

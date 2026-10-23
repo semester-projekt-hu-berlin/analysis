@@ -22,7 +22,7 @@ def test_seed_file_is_valid():
         assert e["id"] == e["id"].lower() and " " not in e["id"]
         assert e["id"] not in seen
         seen.add(e["id"])
-        assert e["type"] in {"PER", "ORG", "PARTY"}
+        assert e["type"] in {"PER", "ORG", "PARTY", "PRODUCT"}
         assert str(e.get("wikidata", "")).startswith("Q"), e["id"]
     qids = [e["wikidata"] for e in ents]
     assert len(qids) == len(set(qids)), "duplicate Wikidata ids"

@@ -1,7 +1,7 @@
 """Linking precision on the hand-labelled gold pairs, seed-only vs. seed + generated registry.
 
 Reads the local (gitignored) eval/sample*.local.jsonl texts and eval/labels.csv (linkOk).
-Prints aggregate numbers and writes the new (generated-entity) matches to
+Prints aggregate numbers and writes the new (generated-entity and PRODUCT) matches to
 eval/new_matches.local.jsonl for a manual spot check. No comment text is printed.
 
     python scripts/eval_linking.py
@@ -59,13 +59,15 @@ def main() -> None:
         for name, reg in (("old", old), ("new", new)):
             for m in link_comment(text, sents, ner_out[off : off + len(sents)], reg, country=country):
                 links[name].add(f"{cid}_{m.entity_id}")
-                if name == "new" and new.entities[m.entity_id].source == "generated":
+                ent = new.entities[m.entity_id]
+                if name == "new" and (ent.source == "generated" or ent.type == "PRODUCT"):
                     new_matches.append(
                         {
                             "mentionId": f"{cid}_{m.entity_id}",
                             "surface": m.surface,
                             "source": c["source"],
-                            "description": new.entities[m.entity_id].description,
+                            "description": ent.description,
+                            "type": ent.type,
                         }
                     )
     gold = {mid for mid in rows if mid in labels}
@@ -81,7 +83,8 @@ def main() -> None:
     print("correct pairs lost by the new registry:", sorted(m.split("_", 1)[1] for m in lost))
     changed = (links["old"] & gold) - links["new"]
     print("gold pairs (any) no longer linked:", sorted(m.split("_", 1)[1] for m in changed))
-    print("new generated-entity matches:", len(new_matches))
+    print("new generated-entity matches:", sum(1 for m in new_matches if m["type"] != "PRODUCT"))
+    print("product (PRODUCT) matches:", sum(1 for m in new_matches if m["type"] == "PRODUCT"))
     with (EVAL / "new_matches.local.jsonl").open("w", encoding="utf-8") as f:
         for m in new_matches:
             f.write(json.dumps(m, ensure_ascii=False) + "\n")

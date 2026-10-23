@@ -5,10 +5,12 @@ The API writes `entity_requests/{qid}` with `status: "accepted"`. Every analysis
 
 * the item exists and is not a disambiguation page, and has >= MIN_SITELINKS sitelinks,
 * persons: instance of human (Q5) with an occupation (P106) or a position held (P39),
-* organisations: instance of one of the organisation classes in `wikidata.ORG_CLASSES`.
+* organisations: instance of one of the organisation classes in `wikidata.ORG_CLASSES`,
+* apps & digital services (PRODUCT): instance of one of `wikidata.PRODUCT_CLASSES` (software,
+  mobile app, website, online service, video game ...).
 
 Valid requests are seeded as allowlisted entities (name, aliases from German/English labels,
-description, portrait or logo thumbnail, type PER / PARTY / ORG) and marked `done`. Invalid
+description, portrait or logo thumbnail, type PER / PARTY / ORG / PRODUCT) and marked `done`. Invalid
 ones are marked `failed` with a reason. If Wikidata is unavailable or rate-limited, the
 requests stay `accepted` and are retried in the next run.
 """
@@ -21,13 +23,12 @@ from datetime import UTC, datetime
 from .firestore import Firestore, Write
 from .linker import Entity, Registry
 from .textutil import slugify
-from .wikidata import DISAMBIGUATION, HUMAN, ORG_CLASSES, WikidataClient, all_names, commons_thumb, description, label
+from .wikidata import DISAMBIGUATION, HUMAN, WikidataClient, all_names, commons_thumb, description, entity_type, label
 
 log = logging.getLogger(__name__)
 
 MIN_SITELINKS = 10
 COLLECTION = "entity_requests"
-PARTY = "Q7278"
 
 
 def validate(item: dict) -> tuple[str | None, str]:
@@ -42,11 +43,10 @@ def validate(item: dict) -> tuple[str | None, str]:
         if not (WikidataClient.claim_ids(item, "P106") or WikidataClient.claim_ids(item, "P39")):
             return None, "person without occupation or position"
         return "PER", ""
-    if PARTY in p31:
-        return "PARTY", ""
-    if p31 & ORG_CLASSES.keys():
-        return "ORG", ""
-    return None, "not a person or a known organisation class"
+    etype = entity_type(item)
+    if etype:
+        return etype, ""
+    return None, "not a person, a known organisation class or an app/digital service"
 
 
 def entity_from_item(qid: str, item: dict, etype: str, taken: set[str]) -> Entity:
@@ -54,7 +54,7 @@ def entity_from_item(qid: str, item: dict, etype: str, taken: set[str]) -> Entit
     eid = slugify(name)
     if eid in taken:
         eid = f"{eid}-{qid.lower()}"
-    props = ("P18",) if etype == "PER" else ("P154", "P8972", "P158")
+    props = ("P18",) if etype == "PER" else ("P154", "P8972", "P2910", "P158")
     url = next((u for p in props for f in WikidataClient.claim_strings(item, p) if (u := commons_thumb(f))), None)
     return Entity(
         id=eid,

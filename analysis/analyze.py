@@ -63,6 +63,8 @@ def link_comment(
         via = "ner"
         if eid is None and wikidata is not None:
             info = wikidata.lookup(strip_titles(surface), tag)
+            if info and registry.rejected_alias(strip_titles(surface), info["qid"]):
+                info = None  # "Signal" without messenger context: Wikidata must not bypass the alias rules
             if info:
                 before = len(registry.entities)
                 ent = registry.add_discovered(info)
