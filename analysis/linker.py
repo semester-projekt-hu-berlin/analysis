@@ -198,6 +198,26 @@ def _load_yaml_cached(path: str, _mtime: int, _size: int):
         return yaml.load(f, Loader=loader)
 
 
+def _trie_pattern(words: set[str]) -> str:
+    trie: dict = {}
+    for w in words:
+        node = trie
+        for ch in w:
+            node = node.setdefault(ch, {})
+        node[""] = {}
+
+    def build(node: dict) -> str:
+        alts = [re.escape(ch) + build(child) for ch, child in sorted(node.items()) if ch]
+        if not alts:
+            return ""
+        body = alts[0] if len(alts) == 1 else "(?:" + "|".join(alts) + ")"
+        if "" in node:
+            body = "(?:" + body + ")?"
+        return body
+
+    return build(trie)
+
+
 def parse_alias(raw: str) -> tuple[str, str]:
     raw = str(raw)
     if raw.startswith("~"):
@@ -277,7 +297,9 @@ class Registry:
             # Discovered entities: every alias needs NER confirmation.
             specs = [(a, "weak") for a in e.aliases]
         names = {t for t, _ in specs}
-        if e.name not in names:
+        # generated entities list exactly the aliases they want (a dropped name such as "Sandra" or
+        # "Haftbefehl" must not come back as a plain alias)
+        if e.name not in names and e.source != "generated":
             specs = [(e.name, "plain" if e.source in ("seed", "generated") else "weak"), *specs]
         for text, mode in specs:
             text = text.strip()
@@ -315,8 +337,9 @@ class Registry:
     def _pattern(self, aliases: list[Alias]) -> re.Pattern | None:
         if not aliases:
             return None
-        texts = sorted({a.text for a in aliases}, key=len, reverse=True)
-        alt = "|".join(re.escape(t) for t in texts)
+        # a trie-shaped pattern: tens of thousands of aliases stay fast (a flat alternation is tried
+        # alias by alias at every position); greedy branches keep "longest alias first"
+        alt = _trie_pattern({a.text for a in aliases})
         suffix = "|".join(re.escape(s) for s in sorted(set(PER_SUFFIXES + ORG_SUFFIXES), key=len, reverse=True))
         return re.compile(rf"(?<![\w])({alt})(?P<suf>{suffix})?(?![\w])")
 
@@ -346,8 +369,9 @@ class Registry:
         if not suffix:
             return True
         if entity.source == "generated":
-            # inflected forms only for curated names ("Grünen"); "Norma" in "Norman", "smart" in "smarten"
-            return suffix in ("s", "'s", "’s")
+            # inflected forms only for curated names ("Grünen"); "Norma" in "Norman", "smart" in "smarten";
+            # a bare genitive "s" only for persons ("Kimmichs"), not "Hama" in "Hamas"
+            return suffix in (("s", "'s", "’s") if entity.type == "PER" else ("'s", "’s"))
         allowed = PER_SUFFIXES if entity.type == "PER" else ORG_SUFFIXES
         return suffix in allowed
 
@@ -414,6 +438,21 @@ class Registry:
             return False
         return first in self._first_names and first not in e.name.split() and first not in " ".join(e.aliases)
 
+    @staticmethod
+    def _ner_contradicts(e: Entity, start: int, end: int, ner_spans) -> bool:
+        """An NER span covering exactly this surface says person where the entity is an
+        organisation, or the other way round."""
+        for s, t, tag, score in ner_spans:
+            if (
+                s <= start
+                and end <= t
+                and score >= 0.9
+                and tag in ("PER", "ORG")
+                and (tag == "PER") != (e.type == "PER")
+            ):
+                return True
+        return False
+
     def _context_ok(self, e: Entity, words: set[str], lowered: str) -> bool:
         for kw in e.context:
             k = kw.casefold()
@@ -427,6 +466,12 @@ class Registry:
             e = self.entities[a.entity_id]
             if not self._suffix_ok(e, suf):
                 continue
+            if (
+                e.source == "generated"
+                and a.mode in ("plain", "cs")
+                and self._ner_contradicts(e, start, end, ner_spans)
+            ):
+                continue  # "Lanz" tagged as a person is not the Heinrich Lanz AG
             ev = 1
             if a.mode == "weak":
                 ner_ok = any(s < end and start < t and _ner_compatible(tag, e.type) for s, t, tag, _score in ner_spans)
@@ -440,7 +485,9 @@ class Registry:
                     continue
                 if not any(s < end and start < t and _ner_compatible(tag, e.type) for s, t, tag, _score in ner_spans):
                     continue
-                ev = 2
+                # a bare surname is weaker evidence than a contextual reading of the same span
+                # ("Lanz" + "Sendung" -> the show, not the presenter)
+                ev = 1.5
             elif a.mode == "ctx":
                 if not self._context_ok(e, words, lowered):
                     continue

@@ -48,13 +48,13 @@ def test_entities_leave_the_active_set(fs):
 def test_discovered_entities_are_registered(fs, monkeypatch):
     from tests.fakes import FakeNer
 
-    monkeypatch.setattr("analysis.ner.load_ner", lambda name: FakeNer({"Hape Kerkeling": "PER"}))
+    monkeypatch.setattr("analysis.ner.load_ner", lambda name: FakeNer({"Hanno Testmeier": "PER"}))
     fs.docs["entity_requests/Q1"] = {"qid": "Q1", "status": "accepted"}
-    process_entity_requests(fs, client=StubClient({"Q1": wd_item("Hape Kerkeling", ["Q5"], sitelinks=40)}))
-    assert fs.docs[REGISTRY_DOC]["entities"]["hape-kerkeling"]["wikidataId"] == "Q1"
-    fs.docs["comments/k1"] = comment("k1", "Hape Kerkeling ist super.")
+    process_entity_requests(fs, client=StubClient({"Q1": wd_item("Hanno Testmeier", ["Q5"], sitelinks=40)}))
+    assert fs.docs[REGISTRY_DOC]["entities"]["hanno-testmeier"]["wikidataId"] == "Q1"
+    fs.docs["comments/k1"] = comment("k1", "Hanno Testmeier ist super.")
     pipeline.run(fs, limit=100, use_wikidata=False)
-    assert fs.docs["mentions/k1_hape-kerkeling"]["label"] == "pos"
+    assert fs.docs["mentions/k1_hanno-testmeier"]["label"] == "pos"
 
 
 def test_sources_without_country_keep_baselines(fs):

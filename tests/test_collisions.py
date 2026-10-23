@@ -122,3 +122,45 @@ def test_second_spot_check_errors():
     assert "basler-ag" not in ids("Feuerzeuge an Basler Schulen.", country="CH")
     assert "netto-marken-discount" not in ids("Für die Mitarbeiter mehr Netto vom Brutto.")
     assert ids("Grünen und SPD") == ["gruene", "spd"]  # curated inflection still works
+
+
+# ---------------------------------------------------------------- public persons, media, tech, shows
+
+
+def test_show_vs_presenter():
+    assert ids("Markus Lanz ist ein guter Journalist.") == ["markus-lanz"]
+    assert ids("Gestern in der Sendung Markus Lanz war Merz zu Gast.") == ["markus-lanz-sendung", "friedrich-merz"]
+    assert ids("Das war gestern bei Lanz peinlich.") == ["markus-lanz-sendung"]
+    assert ids("Das ist hart aber fair.") == []
+    assert ids("Die Talkshow hart aber fair war schlecht.") == ["hart-aber-fair"]
+    assert ids("Wir haben am Tatort Spuren gefunden.") == []
+    assert "tatort" in ids("Das ZDF zeigt den Tatort nicht, die ARD schon.")
+    assert ids("Er saß am Monitor.") == [] and ids("Das ist ein Panorama der Stadt.") == []
+    assert ids("Der Bauer sucht Frau und Kind.") == []
+
+
+def test_media_names_that_are_phrases():
+    assert ids("Die Zeit drängt.") == [] and ids("Die Welt ist schlecht.") == []
+    t = "Willkommen in den sozialen Medien, in der Welt der Smartphones, in einer Zeit ohne Gespräche."
+    assert ids(t) == []
+    assert ids("Laut Zeit Online ist das falsch.") == ["die-zeit"]
+    assert ids("Der WDR und der NDR sparen.") == ["westdeutscher-rundfunk", "norddeutscher-rundfunk"]
+    assert ids("Der Stern ist hell.") == []
+
+
+def test_public_persons_and_artists():
+    t = "Kimmich und Musiala spielen stark."
+    assert ids(t, per(t, "Kimmich") + per(t, "Musiala")) == ["joshua-kimmich", "jamal-musiala"]
+    t = "Neuer hält alles."
+    assert ids(t, per(t, "Neuer")) == [] and ids("Ein neuer Tag beginnt.") == []
+    assert ids("Christian Drosten hatte recht.") == ["christian-drosten"]
+    t = "Sandra sagt, der Haftbefehl kam per Apparat."
+    assert ids(t, per(t, "Sandra")) == []  # artist names that are first names or words
+
+
+def test_tech_and_genitive():
+    assert ids("Die Telekom und Vodafone und O2.") == ["deutsche-telekom", "vodafone", "telefonica-deutschland"]
+    t = "Die Hamas hat angegriffen."
+    assert "hama" not in ids(t, [(4, 9, "ORG", 0.99)])
+    t = "Lanz hat ihn unterbrochen."
+    assert "heinrich-lanz-ag" not in ids(t, per(t, "Lanz"))

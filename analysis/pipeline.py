@@ -140,8 +140,11 @@ def new_entity_write(e: Entity) -> Write:
 # --------------------------------------------------------------------------- seed
 
 
-def seed(fs: Firestore, with_images: bool = True) -> dict:
-    """Write curated entities and events; only documents whose content changed are written."""
+def seed(fs: Firestore, with_images: bool = True, budget: Budget | None = None) -> dict:
+    """Write curated entities and events; only documents whose content changed are written.
+
+    With a budget, the writes stop at the remaining daily budget; running seed again later
+    continues (it only writes what still differs)."""
     reg = Registry.from_yaml()
     meta_fields = list(next(iter(reg.entities.values())).metadata().keys())
     existing = {d.id: d.data for d in fs.query("entities", select=meta_fields)}
@@ -173,7 +176,14 @@ def seed(fs: Firestore, with_images: bool = True) -> dict:
         data["entityIds"] = data["entityIds"] or []
         if old_events.get(ev["id"]) != data:
             writes.append(Write(f"events/{ev['id']}", data))
-    fs.commit(writes)
+    stopped = None
+    for i in range(0, len(writes), 400):
+        chunk = writes[i : i + 400]
+        if budget is not None and not budget.allows(writes=len(chunk) + 2):
+            stopped = f"daily Firestore budget reached after {i} of {len(writes)} writes; run seed again"
+            log.warning("seed: %s", stopped)
+            break
+        fs.commit(chunk)
     # meta/registry: the Firestore-only (discovered / requested) entities, for runs without a full scan
     entries = registry_entries_from_docs(existing, reg)
     cur = fs.get("meta/registry")
@@ -187,6 +197,7 @@ def seed(fs: Firestore, with_images: bool = True) -> dict:
         "changedImages": changed_images,
         "withImage": sum(1 for e in reg.entities.values() if e.imageUrl),
         "events": len(events),
+        "stopped": stopped,
     }
     log.info("seed: %s", out)
     return out

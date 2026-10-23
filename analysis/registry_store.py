@@ -63,12 +63,29 @@ def registry_entries_from_docs(docs: dict[str, dict], file_registry: Registry | 
     return out
 
 
+def _chunks(entries: dict[str, dict]) -> list[dict[str, dict]]:
+    """Split the entries into docs below the 1 MiB document limit."""
+    out: list[dict[str, dict]] = [{}]
+    size = 0
+    for eid, e in sorted(entries.items()):
+        n = len(json.dumps({eid: e}, ensure_ascii=False, default=str)) + 16
+        if out[-1] and size + n > MAX_DOC_BYTES:
+            out.append({})
+            size = 0
+        out[-1][eid] = e
+        size += n
+    return out
+
+
 def write_registry_doc(fs, entries: dict[str, dict]) -> None:
-    size = len(json.dumps(entries, ensure_ascii=False, default=str))
-    if size > MAX_DOC_BYTES:  # pragma: no cover - thousands of discovered entities
-        raise RuntimeError(f"meta/registry would be {size} bytes; split it into chunk docs")
-    # complete: built from all entity docs (merge-writes of single entries alone are not)
-    fs.commit([Write(REGISTRY_DOC, {"entities": entries, "count": len(entries), "complete": True})])
+    """meta/registry (+ meta/registry_1 ... when large). `complete`: built from all entity docs
+    (merge-writes of single new entries alone do not make it complete)."""
+    parts = _chunks(entries)
+    writes = [
+        Write(REGISTRY_DOC, {"entities": parts[0], "count": len(entries), "chunks": len(parts), "complete": True})
+    ]
+    writes += [Write(f"{REGISTRY_DOC}_{i}", {"entities": part}) for i, part in enumerate(parts[1:], 1)]
+    fs.commit(writes)
 
 
 def load_registry(fs) -> Registry:
@@ -81,7 +98,12 @@ def load_registry(fs) -> Registry:
         entries = registry_entries_from_docs(docs, reg)
         write_registry_doc(fs, entries)
     else:
-        entries = doc.data.get("entities") or {}
+        entries = dict(doc.data.get("entities") or {})
+        n = int(doc.data.get("chunks") or 1)
+        if n > 1:
+            more = fs.batch_get([f"{REGISTRY_DOC}_{i}" for i in range(1, n)])
+            for d in more.values():
+                entries.update((d.data.get("entities") or {}) if d else {})
     _add_entries(reg, entries)
     return reg
 

@@ -33,6 +33,9 @@ def main(argv: list[str] | None = None) -> int:
     rs.add_argument("--sentiment", default=os.environ.get("ANALYSIS_SENTIMENT", "cal"))
     rl = sub.add_parser("relink", help="add mentions of new entities to analysed comments of the last N days")
     rl.add_argument("--days", type=int, default=14)
+    rl.add_argument(
+        "--ids-file", help="file with the entity ids to relink (default: generated entities without mentions)"
+    )
     pr = sub.add_parser("prune", help="re-check mentions of given entities, delete those no longer linked")
     pr.add_argument("--ids", default="", help="comma-separated entity ids")
     pr.add_argument("--ids-file", help="file with one entity id per line")
@@ -71,7 +74,11 @@ def main(argv: list[str] | None = None) -> int:
             agg_every=args.agg_every,
         )
     elif args.cmd == "relink":
-        out = relink(fs, days=args.days)
+        ids = None
+        if args.ids_file:
+            with open(args.ids_file, encoding="utf-8") as f:
+                ids = {line.strip() for line in f if line.strip()}
+        out = relink(fs, days=args.days, entity_ids=ids)
     elif args.cmd == "prune":
         ids = {x.strip() for x in args.ids.split(",") if x.strip()}
         if args.ids_file:
@@ -98,7 +105,7 @@ def main(argv: list[str] | None = None) -> int:
 
                     out = process_entity_requests(fs)
                 else:
-                    out = seed(fs, with_images=not args.no_images)
+                    out = seed(fs, with_images=not args.no_images, budget=budget)
             finally:
                 budget.record()
             out["budget"] = budget.summary()

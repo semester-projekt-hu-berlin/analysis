@@ -299,7 +299,7 @@ def test_entity_requests(fs):
         fs.docs[f"entity_requests/{q}"] = {"qid": q, "status": "accepted"}
     client = StubClient(
         {
-            "Q1": wd_item("Hape Kerkeling", ["Q5"]),
+            "Q1": wd_item("Hanno Testmeier", ["Q5"]),
             "Q2": wd_item("Max Mustermann", ["Q5"], sitelinks=2),  # not notable enough
             "Q3": wd_item("Testpartei Deutschland", ["Q7278"], p106=False, logo="Logo Testpartei.svg"),
             "Q4": wd_item("Inflation", ["Q1"], p106=False),  # concept, not an organisation
@@ -307,9 +307,9 @@ def test_entity_requests(fs):
     )
     out = process_entity_requests(fs, client=client)
     assert out == {"requests": 5, "done": 3, "failed": 2}
-    e = fs.docs["entities/hape-kerkeling"]
+    e = fs.docs["entities/hanno-testmeier"]
     assert e["allowlisted"] is True and e["type"] == "PER" and e["wikidataId"] == "Q1" and e["mentions"] == 0
-    assert "kerkeling" in e["searchTokens"]
+    assert "testmeier" in e["searchTokens"]
     p = fs.docs["entities/testpartei-deutschland"]
     assert p["type"] == "PARTY" and p["imageKind"] == "logo" and p["imageUrl"].endswith(".svg.png")
     assert (

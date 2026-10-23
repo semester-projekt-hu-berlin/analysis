@@ -108,12 +108,12 @@ def test_wikidata_fallback_reuses_seed_qid_and_drops_private_names():
 
 def test_wikidata_discovered_entity_added():
     r = reg()
-    text = "Ich finde Hape Kerkeling super."
-    a = text.index("Hape Kerkeling")
-    wd = StubWikidata({("Hape Kerkeling", "PER"): {"qid": "Q57653", "name": "Hape Kerkeling", "type": "PER"}})
-    matches = link_comment(text, split_sentences(text), [[(a, a + 14, "PER", 0.99)]], r, wikidata=wd)
-    assert [m.entity_id for m in matches] == ["hape-kerkeling"]
-    assert r.entities["hape-kerkeling"].source == "wikidata"
+    text = "Ich finde Hanno Testmeier super."
+    a = text.index("Hanno Testmeier")
+    wd = StubWikidata({("Hanno Testmeier", "PER"): {"qid": "Q999999901", "name": "Hanno Testmeier", "type": "PER"}})
+    matches = link_comment(text, split_sentences(text), [[(a, a + 15, "PER", 0.99)]], r, wikidata=wd)
+    assert [m.entity_id for m in matches] == ["hanno-testmeier"]
+    assert r.entities["hanno-testmeier"].source == "wikidata"
 
 
 def test_strip_titles():

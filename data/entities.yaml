@@ -33,6 +33,14 @@ contexts:
   politics: [Partei, Parteien, Wahl, Wahlen, Regierung, Koalition, Bundestag, Minister, Ministerin, Kanzler,
     Opposition, Fraktion, Politik, Politiker, Abgeordnete, Abgeordneten, Umfrage, Umfragen, Landtag,
     CDU, CSU, SPD, AfD, FDP, Grüne, Grünen, Linke, BSW, Merz, Söder, Ampel, Groko, Wähler, Wahlkampf, Kanzleramt]
+  tv: [Sendung, Sendungen, Talkshow, Talkshows, Talk, Talkrunde, Show, Folge, Folgen, Staffel, Episode,
+    Moderator, Moderatorin, Moderation, moderiert, Studio, Gast, Gäste, Zuschauer, Zuschauerin, Quote,
+    Einschaltquote, ausgestrahlt, Ausstrahlung, Mediathek, Fernsehen, TV, Sender, Krimi, Kommissar,
+    Kommissarin, Nachrichten, Magazin, Doku, Reportage, gestern Abend, Sonntagabend, ARD, ZDF, RTL]
+  media: [Zeitung, Zeitungen, Artikel, Journalist, Journalistin, Journalisten, Redaktion, Bericht, berichtet,
+    Interview, Schlagzeile, Leitartikel, Kommentar, Abo, Paywall, Presse, Medien, Sender, Sendung, Fernsehen,
+    TV, Radio, Mediathek, Reporter, Reporterin, Nachrichten, Rundfunk, Rundfunkbeitrag, GEZ, Programm,
+    öffentlich-rechtlich, öffentlich-rechtlichen, ÖRR, Moderator, Moderatorin, Talkshow, Magazin, Ausgabe]
 
 entities:
 # ------------------------------------------------------------------ German parties
