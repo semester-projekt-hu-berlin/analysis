@@ -109,18 +109,59 @@ The default pipeline is entirely open-source and free. The HU LLM offer is not u
 * **Generated list** [`data/entities_generated.yaml`](data/entities_generated.yaml), built by
   `scripts/generate_entities.py` from a few large Wikidata SPARQL queries (descriptive
   User-Agent, backoff on 429, results cached in `data/wikidata_cache/`; `--refresh` re-queries)
-  and loaded after the seed list (curated QIDs and aliases always win). It has 1,745 entities:
-  * **1,141 politicians**: 630 Bundestag members of the 21st term, 95 German MEPs, 130 current
-    office holders (federal cabinet, Ministerpräsident:innen, state ministers and senators,
-    Bundespräsident…), 168 federal and state party leaders, 138 living former chancellors,
-    federal ministers and heads of state governments, and 325 German politicians with ≥ 15
-    sitelinks (groups overlap). Description from the role, e.g. "Bundestagsabgeordnete (SPD)";
-    party from P102, preferring curated parties.
-  * **310 companies**: DAX/MDAX/SDAX/TecDAX members, German companies with > 10,000 employees
-    (P1128), notable companies (≥ 25 sitelinks), and a brand list (Aldi, Kaufland, Penny,
+  and loaded after the seed list (curated QIDs and aliases always win). It has 6,359 entities
+  (6,744 with the curated list); groups overlap:
+  * **1,423 politicians**:
+
+    | group | count |
+    |---|---|
+    | Bundestag members, 21st term | 630 |
+    | German MEPs | 95 |
+    | current federal and state office holders | 130 |
+    | federal and state party leaders | 168 |
+    | parliamentary group leaders | 10 |
+    | Landtag members with ≥ 5 sitelinks | 134 |
+    | living former chancellors, federal ministers and heads of state governments | 138 |
+    | German politicians with ≥ 10 sitelinks | 598 |
+
+    Descriptions come from the role, e.g. "Bundestagsabgeordnete (SPD)" or
+    "Landtagsabgeordneter (CDU)"; the party comes from P102.
+  * **3,772 public persons** (German citizens, alive):
+
+    | group | count |
+    |---|---|
+    | athletes with ≥ 20 sitelinks (sports bots inflate sitelinks) | 1,195 |
+    | current Bundesliga players and coaches, any nationality | 116 |
+    | TV presenters and journalists with ≥ 5 sitelinks | 696 |
+    | everyone else with ≥ 10 sitelinks (actors, musicians, entrepreneurs, scientists, YouTubers…) | 1,760 |
+    | DAX/MDAX CEOs | 67 |
+    | BVerfG judges, EKD and DBK heads, Bundesbank and RKI presidents | 6 |
+
+    The description comes from Wikidata ("deutscher Fernsehmoderator"), or from the role
+    ("Vorstandsvorsitz SAP").
+  * **782 companies**: DAX/MDAX/SDAX/TecDAX members, German companies with > 10,000 employees
+    (P1128), companies and brands with ≥ 8 sitelinks, and a brand list (Aldi, Kaufland, Penny,
     Rossmann, MediaMarkt, Bertelsmann, Otto, Flixbus…). Public bodies and non-profits
     (ministries, Bundeswehr, police, churches, clinics…) are filtered out by description. Legal
     forms are stripped for short names ("Rational AG" → "Rational").
+  * **82 tech and media entities**, from a hand-checked QID list (`MEDIA_TECH`):
+    * Tech: Alphabet, X/Twitter, ByteDance, Netflix, Spotify, Samsung, Huawei, Delivery Hero,
+      N26, Celonis, United Internet/1&1, TeamViewer, Helsing, Aleph Alpha, DeepL, Temu, Shein,
+      Anthropic, Mistral…
+    * Broadcasters: WDR, NDR, BR, SWR, MDR, RBB, HR, SR, Radio Bremen, DW, Deutschlandfunk,
+      RTL, Sat.1, VOX, n-tv, WELT TV, 3sat, KiKA…
+    * Newspapers and agencies: SZ, FAZ, ZEIT, WELT, Handelsblatt, Stern, Tagesspiegel, NZZ,
+      dpa, Correctiv…
+
+    Apple, Google, Meta, Microsoft, Amazon, OpenAI, Nvidia, Tesla, TikTok, SAP, Telekom, ARD
+    and ZDF were already curated. Product names are left out.
+  * **28 TV shows** (`SHOWS`, type ORG, description "TV-Sendung (ZDF)"): Tagesschau,
+    Tagesthemen, heute journal, Markus Lanz, maischberger, hart aber fair, Caren Miosga, Maybrit
+    Illner, Tatort, GNTM, Wer wird Millionär?, Dschungelcamp…
+    * Shows named after their presenter link only with a TV context word (Sendung, Talkshow,
+      Gäste, Moderator, Mediathek…) or as "bei Lanz". Otherwise "Markus Lanz" is the person.
+    * Show names that are ordinary words ("Tatort", "Monitor", "Panorama", "hart aber fair")
+      also need TV context.
   * **296 universities** (P31/P279* Q3918 in Germany, with abbreviations); universities of
     applied sciences only with ≥ 10 sitelinks.
 
@@ -144,6 +185,17 @@ The default pipeline is entirely open-source and free. The HU LLM offer is not u
   notable namesake is skipped. A bare surname directly after a *different* known first name
   is not linked ("Hermann Merz" is not Friedrich Merz; "Olav Scholz" is still Olaf Scholz). NER
   spans resolved by exact alias lookup follow the same contextual, local and NER-only rules.
+  More rules for the larger list:
+  * One-word artist names link only when they are not first names or words ("Nena", "Sido";
+    not "Sandra", "Haftbefehl").
+  * Generated organisation names take no inflection endings, and no bare genitive "s"
+    ("Hama" never matches "Hamas").
+  * An NER span of the other type vetoes a generated alias ("Lanz" tagged as a person is not
+    the Heinrich Lanz AG).
+  * Names that are everyday phrases ("Die Welt", "Die Zeit") need media context; "WELT",
+    "ZEIT" and "Zeit Online" link directly.
+  * The alias regex is built as a trie, so tens of thousands of aliases stay fast.
+
   Collision tests: `tests/test_collisions.py`. Precision check: `scripts/eval_linking.py`.
 * **Images** (`seed`): direct `upload.wikimedia.org` thumbnail URLs (250 px, the smallest
   standard width Wikimedia serves near the requested 160 px; 160 px returns HTTP 400). Persons:
@@ -304,6 +356,21 @@ The relink and prune steps aggregated every affected (entity, day) pair. A check
 that the totals of all 91 touched entities match their mention docs, so no full
 `reaggregate` was run (it would have used most of the day's remaining read budget). The
 whole rollout used 4,526 writes and 96,655 reads of the analysis share on 23 Oct.
+
+## Reads per run do not grow with the number of entities
+
+* The registry comes from the two entity files plus one compact doc, `meta/registry`, which
+  holds the Firestore-only entities (Wikidata fallback, entity requests). `seed` rebuilds it.
+* Aggregation reads only the entity docs listed in `meta/active` (entities whose windows,
+  relative sentiment or peers can still change) plus the docs the batch touches.
+* The number of entities with mentions is a count query.
+* An entity that is never mentioned costs its one seed write and a few KB of storage.
+
+Before this change, every run read all entity docs (2,130 reads at the time, and it would have
+been about 6,750 with the larger list). Now it reads 1 doc for the registry, plus the active
+set and the touched entities. That is a few hundred reads, whatever the total entity count
+(`tests/test_scaling.py` adds 5,000 never-mentioned entities and checks that the reads of a
+run stay the same).
 
 ## Daily Firestore budget
 
