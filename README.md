@@ -1,7 +1,8 @@
 # Analysis · Meinungspuls
 
 Component 2 of the HU Berlin semester project *Stimmungsanalyse im Web*: finds which **public
-persons and organisations** German-language news comments talk about, determines the
+persons and organisations**, and which **apps and digital services**, German-language news
+comments talk about, determines the
 **sentiment toward each of them**, and writes the aggregates that the API and the dashboard
 serve ("how often is the SPD mentioned positively / negatively per day").
 
@@ -21,7 +22,8 @@ The data contract is [`infrastructure/SCHEMA.md`](https://github.com/semester-pr
         │
         ▼
  Entity linking
-   1. gazetteer over data/entities.yaml (384 curated entities, ~1100 aliases)
+   1. gazetteer over data/entities.yaml (591 curated entities incl. 207 apps & services, ~1560
+        aliases) and data/entities_generated.yaml (6,343 entities)
         plain alias  ─ always             "Merz", "Sozis", "AfD-Wähler"
         weak alias   ─ needs NER span     "Reiche" (PER) vs. "die Reiche Elite"
         context alias─ needs keywords     "Leverkusen" + Spiel/Tor/Bundesliga… (comment or article title)
@@ -106,11 +108,14 @@ The default pipeline is entirely open-source and free. The HU LLM offer is not u
   match, type/description plausibility check, largest sitelink count) and checked by hand
   (44 manual overrides for homonyms such as "Daniel Günther" the Swedish singer; clubs via a
   football-specific search that excludes women's/youth teams).
+* **Apps & Dienste** (type `PRODUCT`, 207 entities in the seed list): apps, platforms, digital
+  services, operating systems and games that people in Germany discuss. See
+  [Apps & Dienste](#apps--dienste-type-product) below.
 * **Generated list** [`data/entities_generated.yaml`](data/entities_generated.yaml), built by
   `scripts/generate_entities.py` from a few large Wikidata SPARQL queries (descriptive
   User-Agent, backoff on 429, results cached in `data/wikidata_cache/`; `--refresh` re-queries)
-  and loaded after the seed list (curated QIDs and aliases always win). It has 6,359 entities
-  (6,744 with the curated list); groups overlap:
+  and loaded after the seed list (curated QIDs and aliases always win). It has 6,343 entities
+  (6,934 with the curated list); groups overlap:
   * **1,423 politicians**:
 
     | group | count |
@@ -139,22 +144,23 @@ The default pipeline is entirely open-source and free. The HU LLM offer is not u
 
     The description comes from Wikidata ("deutscher Fernsehmoderator"), or from the role
     ("Vorstandsvorsitz SAP").
-  * **782 companies**: DAX/MDAX/SDAX/TecDAX members, German companies with > 10,000 employees
+  * **781 companies**: DAX/MDAX/SDAX/TecDAX members, German companies with > 10,000 employees
     (P1128), companies and brands with ≥ 8 sitelinks, and a brand list (Aldi, Kaufland, Penny,
     Rossmann, MediaMarkt, Bertelsmann, Otto, Flixbus…). Public bodies and non-profits
     (ministries, Bundeswehr, police, churches, clinics…) are filtered out by description. Legal
     forms are stripped for short names ("Rational AG" → "Rational").
-  * **82 tech and media entities**, from a hand-checked QID list (`MEDIA_TECH`):
-    * Tech: Alphabet, X/Twitter, ByteDance, Netflix, Spotify, Samsung, Huawei, Delivery Hero,
-      N26, Celonis, United Internet/1&1, TeamViewer, Helsing, Aleph Alpha, DeepL, Temu, Shein,
-      Anthropic, Mistral…
+  * **67 tech and media entities**, from a hand-checked QID list (`MEDIA_TECH`):
+    * Tech: Alphabet, X Corp., Twitter Inc., ByteDance, Samsung, Huawei, Delivery Hero, Celonis,
+      United Internet/1&1, TeamViewer, Helsing, Aleph Alpha, Anthropic, Mistral…
     * Broadcasters: WDR, NDR, BR, SWR, MDR, RBB, HR, SR, Radio Bremen, DW, Deutschlandfunk,
       RTL, Sat.1, VOX, n-tv, WELT TV, 3sat, KiKA…
     * Newspapers and agencies: SZ, FAZ, ZEIT, WELT, Handelsblatt, Stern, Tagesspiegel, NZZ,
       dpa, Correctiv…
 
-    Apple, Google, Meta, Microsoft, Amazon, OpenAI, Nvidia, Tesla, TikTok, SAP, Telekom, ARD
-    and ZDF were already curated. Product names are left out.
+    Apple, Google, Meta, Microsoft, Amazon, OpenAI, Nvidia, Tesla, SAP, Telekom, ARD and ZDF
+    were already curated. Brands that are mainly discussed as a service (Netflix, Spotify,
+    PayPal, N26, Trade Republic, Temu, Shein, Uber, Wolt, Airbnb, DeepL, DAZN, idealo, Check24,
+    trivago, GMX) are curated `PRODUCT` entities with their old ids, so the generator skips them.
   * **28 TV shows** (`SHOWS`, type ORG, description "TV-Sendung (ZDF)"): Tagesschau,
     Tagesthemen, heute journal, Markus Lanz, maischberger, hart aber fair, Caren Miosga, Maybrit
     Illner, Tatort, GNTM, Wer wird Millionär?, Dschungelcamp…
@@ -199,13 +205,13 @@ The default pipeline is entirely open-source and free. The HU LLM offer is not u
   Collision tests: `tests/test_collisions.py`. Precision check: `scripts/eval_linking.py`.
 * **Images** (`seed`): direct `upload.wikimedia.org` thumbnail URLs (250 px, the smallest
   standard width Wikimedia serves near the requested 160 px; 160 px returns HTTP 400). Persons:
-  portrait (P18). Organisations, parties, clubs, media: logo only (P154, P8972, P158), never
-  P18 (often a photo of the headquarters). No logo → `imageUrl: null`. `imageKind` is
+  portrait (P18). Organisations, parties, clubs, media, products: logo only (P154, P8972, P2910
+  app icon, P158), never P18 (often a photo of the headquarters). No logo → `imageUrl: null`. `imageKind` is
   `"logo" | "portrait" | null`.
 * **Alias modes** (see the header of the YAML): plain (case-insensitive), `=` case-sensitive
   (`=UN`, `=SAP`), `~` weak (must overlap an NER span of a compatible type, or a context
   keyword is present: `~Reiche`, `~Union`, `~Bas`), `@` contextual (needs a keyword from a
-  context set – football, US politics, business, politics – in the comment or the article
+  context set – football, US politics, business, politics, apps, AI, messenger, games … – in the comment or the article
   title: `@Leverkusen`, `@Bayern`, `@Demokraten`), `^` local (only on sources of the
   entity's own country: `^Linke` is *Die Linke* on taz.de but just "the left" on blick.ch). Longest match wins ("Siemens Energy" vs
   "Siemens", "CDU/CSU" vs "CDU"); German inflection suffixes are accepted ("Trumps", "Merz'",
@@ -219,9 +225,14 @@ The default pipeline is entirely open-source and free. The HU LLM offer is not u
   * persons: instance of human (Q5), the comment contains the full name (≥ 2 tokens), the item
     has an occupation (P106) or position held (P39), and ≥ 15 sitelinks;
   * organisations: instance of a whitelisted organisation class (party, company, club,
-    institution, union, broadcaster, …) and ≥ 10 sitelinks.
+    institution, union, broadcaster, …) and ≥ 10 sitelinks;
+  * apps & services (ORG spans): instance of a product class (software, mobile app, website,
+    online service, social network, streaming service, chatbot, video game, …; `PRODUCT_CLASSES`
+    in `analysis/wikidata.py`) and ≥ 20 sitelinks; type `PRODUCT`.
 
-  If the item's QID belongs to a seed entity, the seed entity is used. New entities get
+  If the item's QID belongs to a seed entity, the seed entity is used, unless the surface is an
+  alias of that entity which the gazetteer rejected ("Signal" without messenger context is not
+  linked through Wikidata either). New entities get
   `allowlisted: true` and only weak aliases (later matches need NER confirmation). Lookup
   results are cached in `.cache/wikidata.json` (restored between CI runs via `actions/cache`)
   keyed by **SHA-1 of the surface form**, so names typed by commenters are never stored in
@@ -272,8 +283,12 @@ The default pipeline is entirely open-source and free. The HU LLM offer is not u
   `communityText7d`.
 * **Entity requests**: at the start of every run (and with `python -m analysis seed-requests`),
   accepted `entity_requests/{qid}` are re-validated with Wikidata (≥ 10 sitelinks; persons
-  need an occupation or position, organisations an organisation class) and seeded as allowlisted
-  entities, or marked `failed` with a reason. If Wikidata rate-limits, they are retried in the
+  need an occupation or position, organisations an organisation class; apps and services a
+  product class → type `PRODUCT`) and seeded as allowlisted entities, or marked `failed` with a
+  reason. Type inference (`wikidata.entity_type`): human → `PER`, party → `PARTY`, newspaper /
+  broadcaster / news agency → `ORG` (even with a website), software / mobile app / website /
+  online service / video game … → `PRODUCT` (also when the item is a company too, e.g. Netflix),
+  other organisation classes → `ORG`. If Wikidata rate-limits, they are retried in the
   next run.
 * Rolling windows are recomputed every run for all entities (they slide even without new
   mentions) from `recentDays`; only entity docs whose values change are written. `meta/trending` and `meta/stats` (`mentions`, `entities` = allowlisted entities
@@ -328,6 +343,7 @@ python -m analysis rescore              # re-run only the sentiment step for all
 python -m analysis seed-requests        # seed accepted entity_requests (also done at the start of `run`)
 python -m analysis relink --days 14     # add mentions of new (generated) entities to the last 14 days
 python -m analysis prune --ids-file ids.txt --add rewe   # re-check mentions of these entities after an alias change
+python -m analysis prune --queue --ids meta-platforms --add facebook   # same, continued by `run` within the budget
 python -m analysis reaggregate --since 2026-10-20   # recompute only pairs from that day on (cheap)
 python -m analysis reaggregate          # full rebuild from all mentions (full scan, use rarely)
 python scripts/eval_sentiment.py score  # sentiment evaluation (see eval/README.md)
@@ -356,6 +372,72 @@ The relink and prune steps aggregated every affected (entity, day) pair. A check
 that the totals of all 91 touched entities match their mention docs, so no full
 `reaggregate` was run (it would have used most of the day's remaining read budget). The
 whole rollout used 4,526 writes and 96,655 reads of the analysis share on 23 Oct.
+
+## Apps & Dienste (type `PRODUCT`)
+
+207 curated entities in [`data/entities.yaml`](data/entities.yaml), each with a hand-checked
+Wikidata id, a German description, aliases and a context set. The type string is exactly
+`PRODUCT` (the dashboard label is "Apps & Dienste"); ids are stable slugs (`whatsapp`,
+`x-twitter`, `ard-mediathek`), so a source that already knows its target (e.g. app-store
+reviews with a `targetEntityId`) can refer to them directly.
+
+| group | examples |
+|---|---|
+| messenger, social media | WhatsApp, Instagram, Facebook, TikTok, YouTube, X (Twitter), Threads, Telegram, Signal, Threema, Bluesky, Mastodon, Snapchat, Reddit, LinkedIn, Discord, Twitch, Truth Social, OnlyFans, Teams, Zoom |
+| AI | ChatGPT, Gemini, Claude, Microsoft Copilot, Perplexity, DeepL, Grok, DeepSeek, Midjourney, Sora, Siri, Alexa |
+| search, browsers, platforms | Google Suche, Google Maps, Gmail, Chrome, Firefox, Wikipedia, App Store, Google Play, Microsoft Office/365, Excel, Outlook, iCloud, Starlink |
+| operating systems | iOS, Android, Windows, macOS, Linux, HarmonyOS |
+| streaming | Netflix, Disney+, Prime Video, Amazon Prime, Joyn, RTL+, ARD Mediathek, ZDFmediathek, DAZN, Spotify, Apple Music, Audible |
+| shopping, travel | eBay, Kleinanzeigen, Temu, Shein, AliExpress, Vinted, idealo, Check24, Booking.com, Airbnb, Too Good To Go, Payback, Doctolib |
+| delivery, mobility | Uber, Uber Eats, Bolt, Free Now, Lieferando, Wolt, Flink, BlaBlaCar, DB Navigator |
+| finance | PayPal, Klarna, N26, Trade Republic, Scalable Capital, Revolut, Bitpanda, Coinbase |
+| public services | ELSTER, BundID, elektronische Patientenakte (ePA), E-Rezept, Corona-Warn-App, NINA, KATWARN, AusweisApp, EUDI-Wallet |
+| dating, learning, games | Tinder, Bumble, Parship, Duolingo, Moodle, Pokémon Go, Fortnite, Minecraft, Roblox, Steam, GTA VI, EA Sports FC |
+
+Decisions:
+
+* The platform is the product, the company stays an organisation: `facebook` (PRODUCT) vs.
+  `meta-platforms` (ORG, keeps "Meta", "Meta-Konzern", "Facebook-Konzern"), `google-suche` vs.
+  `google`, `amazon-prime-video` vs. `amazon`. Zalando, Otto and Delivery Hero stay companies.
+* `tiktok` moved from ORG to PRODUCT and kept its id; 16 generated companies that are mainly
+  the service (Netflix, PayPal, Uber …) became curated products with their ids and QIDs.
+* Hardware (iPhone, PlayStation) and tariffs (Deutschlandticket) are not products here.
+
+Precision rules for names that are words or first names:
+
+* **X** never links alone (aliases need ≥ 2 characters anyway). "X (Twitter)", "X (ehemals
+  Twitter)", "Twitter/X", "x.com", "Plattform X", "Twitter" link directly; "auf X" / "bei X"
+  only with a social-media keyword (Musk, gepostet, Follower, Plattform …).
+* **Contextual** (`@`, need a keyword of the entity's context): Signal (messenger words:
+  WhatsApp, verschlüsselt, Gruppenchat …), Threads (Meta, Instagram, Bluesky …), Claude and
+  Gemini (KI, Chatbot, ChatGPT …), Copilot (Microsoft, KI …; "der Copilot im Flugzeug" is not
+  linked), Teams, Bolt, Flink, Sora, Alexa, Safari, Edge, Kick, Hinge (Austrian dialect
+  "hinge"), Elster (the bird), NINA (Nina Warken), Payback. Compounds link directly
+  ("Signal-App", "Threads-App", "Google Gemini", "Anthropic Claude", "Bolt-App").
+* For products the alias itself is never its own context ("Claude ist mein Nachbar" has no AI
+  keyword even though "Claude" is in the AI set).
+* **Weak** (`~`, NER ORG or MISC span, or context): Steam, Wolt ("Wolt ihr …" is a typo),
+  Zoom, Siri, Bing, Chrome, Outlook, Kleinanzeigen.
+* **Case-sensitive** (`=`): Uber (never "über"/"Über"), iOS, Windows, Excel, GTA, DAZN, Grok,
+  Slack, Perplexity, AWS, Azure, WoW, PSN.
+* An NER **person** span (score ≥ 0.9) over a product alias vetoes it ("Jean-Claude Juncker",
+  "Usain Bolt", "Claude" as a person).
+* Product names inside links or handles are not mentions ("de.wikipedia.org/wiki/…",
+  "krugman.substack.com/p/the-starlink", "@spotify"); domain aliases ("x.com", "booking.com",
+  "web.de") still link.
+* The case-insensitive alias trie is built over lower-cased aliases, so "twitter.com" beats
+  "Twitter" (before, the first case variant of a branch won).
+
+Tests: `tests/test_products.py` (X, Signal, Threads, Claude, Gemini, Uber/über, Bolt, Steam,
+Wolt, Temu, Alexa, Copilot, Elster, NINA, Teams, Kleinanzeigen, links, type inference, the
+rollout jobs).
+
+**Evaluation** (`scripts/eval_linking.py`, 480 gold pairs): precision on gold 0.975 before and
+after (436 → 433 gold pairs linked; the 3 missing are re-assignments to the more specific
+product: 2× "Facebook" → `facebook` instead of `meta-platforms`, 1× "Google Drive" →
+`google-drive` instead of `google`); no new wrong link. All 11 product links in the gold
+comments are correct. Read-only spot check on 2 × 1,000 recent production comments: 36 of 36
+product links correct (two links inside URLs in the first sample led to the URL rule).
 
 ## Reads per run do not grow with the number of entities
 
@@ -396,6 +478,16 @@ To keep the project under about €3.70 a month, every command follows the share
   there, and so does the regular `run` once its own backlog is done. A 14-day relink can
   therefore spread over several days without manual work. `seed` and `seed-requests` are
   counted too.
+* **Rollout of new entities** needs no manual Firestore work: `seed` (run by `seed.yml` on
+  every push to `data/*.yaml`, or queued by itself when the budget is used up) queues
+  * a `relink` of the entities it created (last 14 days). A relink that is queued but has not
+    started takes the new ids into the same scan; one that is already scanning keeps its set,
+    and the new ids wait in `jobs.relink_next`, which becomes the relink when it is done;
+  * a `prune` of existing entities that lost an alias to another entity (here: "Facebook" moved
+    from `meta-platforms` to `facebook`): their mentions are re-checked and the new owner takes
+    them over (`prune --ids meta-platforms --add facebook`, but within the budget).
+
+  `run` continues the jobs in the order seed → prune → relink → rescore → reaggregate.
 
 ## Schedule (GitHub Actions)
 
