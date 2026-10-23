@@ -227,3 +227,14 @@ def test_prune_removes_mentions_no_longer_linked(fs, monkeypatch):
     assert not any(p.startswith("entities/lidl/days/") for p in fs.docs)
     assert fs.docs["mentions/r00_friedrich-merz"]["coEntityIds"] == []
     assert fs.docs["meta/analysis"]["pendingPairs"] == []
+
+
+def test_queued_seed_and_relink_run_after_the_backlog(fs, monkeypatch):
+    _relink_setup(fs, monkeypatch)
+    monkeypatch.setattr(pipeline, "_fill_images", lambda reg: None)
+    pipeline.queue_job(fs, "seed", {})
+    pipeline.queue_job(fs, "relink", {"cutoff": "2000-01-01", "entityIds": ["lidl"]})
+    out = pipeline.run(fs, limit=1000, use_wikidata=False, budget=big(fs))
+    assert set(out["jobs"]) == {"seed", "relink"} and out["jobs"]["relink"]["done"] is True
+    assert fs.docs["meta/analysis"]["jobs"] == {}
+    assert fs.docs["entities/lidl"]["mentions"] == 12

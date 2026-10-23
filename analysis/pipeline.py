@@ -689,7 +689,7 @@ def refresh_rolling(fs: Firestore, entity_docs: dict[str, dict], already: set[st
 # invocation (or the regular `run`, once its backlog is done) continues where they stopped.
 
 JOB_AGG_PAIRS = 400  # long jobs aggregate their (entity, day) pairs in steps of this size
-JOB_NAMES = ("relink", "rescore", "reaggregate_since", "reaggregate")
+JOB_NAMES = ("seed", "relink", "rescore", "reaggregate_since", "reaggregate")
 
 
 def _jobs(fs: Firestore) -> dict:
@@ -740,7 +740,13 @@ def continue_jobs(fs: Firestore, budget: Budget, ner_backend: str = "bert", sent
             out[name] = "waiting for budget"
             continue
         log.info("continuing unfinished job %s", name)
-        if name == "relink":
+        if name == "seed":
+            res = seed(fs, with_images=True, budget=budget)
+            out[name] = res
+            if res.get("stopped"):
+                break  # later jobs (relink) need the seeded entities
+            _save_job(fs, "seed", None)
+        elif name == "relink":
             out[name] = relink(
                 fs, ner_backend=ner_backend, sentiment_key=job.get("sentiment") or sentiment_key, budget=budget
             )
@@ -916,6 +922,16 @@ def relink(
     the cutoff day are kept in meta/analysis.jobs.relink until the scan is complete.
     """
     return _budgeted(fs, budget, _relink, days, entity_ids, ner_backend, sentiment_key, batch, page)
+
+
+def queue_job(fs: Firestore, name: str, data: dict) -> dict:
+    """Register a one-off job without running it (1 write): the regular `run` continues it once
+    its own backlog is done, within the daily budget. relink data: {cutoff, entityIds}."""
+    job = {"startedAt": now(), **data}
+    if name == "relink":
+        job = {"sentiment": "cal", "cursor": None, "scanned": 0, "candidates": 0, "newMentions": 0, **job}
+    _save_job(fs, name, job)
+    return {"queued": name, **{k: (len(v) if isinstance(v, list) else v) for k, v in job.items()}}
 
 
 def _relink(fs, budget, days, entity_ids, ner_backend, sentiment_key, batch, page) -> dict:

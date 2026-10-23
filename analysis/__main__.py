@@ -33,6 +33,7 @@ def main(argv: list[str] | None = None) -> int:
     rs.add_argument("--sentiment", default=os.environ.get("ANALYSIS_SENTIMENT", "cal"))
     rl = sub.add_parser("relink", help="add mentions of new entities to analysed comments of the last N days")
     rl.add_argument("--days", type=int, default=14)
+    rl.add_argument("--queue", action="store_true", help="only register the job; `run` continues it")
     rl.add_argument(
         "--ids-file", help="file with the entity ids to relink (default: generated entities without mentions)"
     )
@@ -78,7 +79,16 @@ def main(argv: list[str] | None = None) -> int:
         if args.ids_file:
             with open(args.ids_file, encoding="utf-8") as f:
                 ids = {line.strip() for line in f if line.strip()}
-        out = relink(fs, days=args.days, entity_ids=ids)
+        if args.queue:
+            from datetime import date, timedelta
+
+            from .pipeline import queue_job
+            from .textutil import today_berlin
+
+            cutoff = (date.fromisoformat(today_berlin()) - timedelta(days=args.days - 1)).isoformat()
+            out = queue_job(fs, "relink", {"cutoff": cutoff, "entityIds": sorted(ids or [])})
+        else:
+            out = relink(fs, days=args.days, entity_ids=ids)
     elif args.cmd == "prune":
         ids = {x.strip() for x in args.ids.split(",") if x.strip()}
         if args.ids_file:
@@ -98,6 +108,10 @@ def main(argv: list[str] | None = None) -> int:
         if why:
             logging.getLogger("analysis").warning("daily Firestore budget: %s - skipping %s", why, args.cmd)
             out = {"skipped": why}
+            if args.cmd == "seed":  # the regular run seeds once the budget allows
+                from .pipeline import queue_job
+
+                out["queued"] = queue_job(fs, "seed", {})
         else:
             try:
                 if args.cmd == "seed-requests":
@@ -106,6 +120,10 @@ def main(argv: list[str] | None = None) -> int:
                     out = process_entity_requests(fs)
                 else:
                     out = seed(fs, with_images=not args.no_images, budget=budget)
+                    if out.get("stopped"):
+                        from .pipeline import queue_job
+
+                        out["queued"] = queue_job(fs, "seed", {})
             finally:
                 budget.record()
             out["budget"] = budget.summary()
