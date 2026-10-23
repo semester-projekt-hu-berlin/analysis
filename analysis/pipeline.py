@@ -14,8 +14,18 @@ import yaml
 from . import aggregate as agg
 from .analyze import Stats, analyze_comments
 from .budget import Budget
-from .firestore import Firestore, Write
+from .firestore import Doc, Firestore, Write
 from .linker import DATA_DIR, Entity, Registry
+from .registry_store import (
+    ACTIVE_DOC,
+    ensure_docs,
+    load_active_docs,
+    load_registry,
+    needs_upkeep,
+    registry_add_writes,
+    registry_entries_from_docs,
+    write_registry_doc,
+)
 from .textutil import today_berlin
 
 log = logging.getLogger(__name__)
@@ -102,30 +112,6 @@ def load_entity_docs(fs: Firestore) -> dict[str, dict]:
     return {d.id: d.data for d in fs.query("entities", select=ENTITY_READ_FIELDS)}
 
 
-def build_registry(entity_docs: dict[str, dict]) -> Registry:
-    """Seed registry + allowlisted entities discovered earlier (stored in Firestore)."""
-    reg = Registry.from_yaml()
-    for eid, d in entity_docs.items():
-        if eid in reg.entities or not d.get("allowlisted") or not d.get("wikidataId"):
-            continue
-        if d["wikidataId"] in reg.by_qid or d.get("type") not in ("PER", "ORG", "PARTY"):
-            continue
-        reg.add(
-            Entity(
-                id=eid,
-                name=d.get("name", eid),
-                type=d["type"],
-                description=d.get("description", ""),
-                wikidataId=d["wikidataId"],
-                aliases=list(d.get("aliases") or [d.get("name", eid)]),
-                imageUrl=d.get("imageUrl"),
-                imageKind=d.get("imageKind"),
-                source="wikidata",
-            )
-        )
-    return reg
-
-
 def source_countries(fs: Firestore) -> dict[str, str]:
     try:
         return {d.id: d.data.get("country") or "" for d in fs.query("sources", select=["country"])}
@@ -188,6 +174,11 @@ def seed(fs: Firestore, with_images: bool = True) -> dict:
         if old_events.get(ev["id"]) != data:
             writes.append(Write(f"events/{ev['id']}", data))
     fs.commit(writes)
+    # meta/registry: the Firestore-only (discovered / requested) entities, for runs without a full scan
+    entries = registry_entries_from_docs(existing, reg)
+    cur = fs.get("meta/registry")
+    if cur is None or (cur.data.get("entities") or {}) != entries:
+        write_registry_doc(fs, entries)
     new = len(reg.entities.keys() - existing.keys())
     out = {
         "entities": len(reg.entities),
@@ -332,7 +323,8 @@ def _run(fs, budget, limit, batch, ner_backend, sentiment_key, use_wikidata, max
 
     t0 = time.time()
     requests_info = seed_entity_requests(fs)
-    entity_docs = load_entity_docs(fs)
+    # entity docs: only those still needing upkeep (meta/active); touched ones are read on demand
+    entity_docs, _active = load_active_docs(fs, ENTITY_READ_FIELDS)
     # only fetch what the remaining budget can process (fetching costs 1 read per comment)
     fit = int(
         min(
@@ -353,7 +345,7 @@ def _run(fs, budget, limit, batch, ner_backend, sentiment_key, use_wikidata, max
         if pending:
             fs.commit([Write(STATE_DOC, {"pendingPairs": []}, mask=["pendingPairs"])])
         return {"comments": 0, "recoveredPairs": len(pending), "backlogDone": limit > 0, **info}
-    registry = build_registry(entity_docs)
+    registry = load_registry(fs)
     ner = load_ner(ner_backend)
     sentiment = load_sentiment(sentiment_key)
     version = f"{ner.version}+{sentiment.version}+link@1"
@@ -368,7 +360,7 @@ def _run(fs, budget, limit, batch, ner_backend, sentiment_key, use_wikidata, max
     all_days: set[str] = set()
     changed_entities = 0
     last_agg = 0
-    known_entities = set(entity_docs)
+    known_entities = set(registry.entities)
     stopped = None
     w_start, r_start = fs.writes, fs.reads
 
@@ -387,11 +379,18 @@ def _run(fs, budget, limit, batch, ner_backend, sentiment_key, use_wikidata, max
         )
         pre: list[Write] = []
         # New entities discovered through Wikidata must exist before mentions reference them.
-        for eid, e in registry.entities.items():
-            if eid not in known_entities:
+        found = [e for eid, e in registry.entities.items() if eid not in known_entities]
+        if found:
+            ensure_docs(fs, entity_docs, {e.id for e in found}, ENTITY_READ_FIELDS)
+            fresh_entities = []
+            for e in found:
+                known_entities.add(e.id)
+                if e.id in entity_docs:  # a doc exists already (e.g. not allowlisted): never overwrite it
+                    continue
                 pre.append(new_entity_write(e))
-                known_entities.add(eid)
-                entity_docs[eid] = {**e.metadata(), **ZERO_STATS}
+                entity_docs[e.id] = {**e.metadata(), **ZERO_STATS}
+                fresh_entities.append(e)
+            pre += registry_add_writes(fresh_entities)
         groups: list[list[Write]] = []  # one atomic group per comment: its mentions + its flags
         batch_pairs: set[tuple[str, str]] = set()
         ts = now()
@@ -491,6 +490,7 @@ def aggregate_pairs(
     intermediate steps of long jobs).
     """
     today = today_berlin()
+    ensure_docs(fs, entity_docs, {e for e, _ in pairs}, ENTITY_READ_FIELDS)
     pairs = {(e, d) for e, d in pairs if e in entity_docs and entity_docs[e].get("allowlisted", True)}
     old = fs.batch_get([f"entities/{e}/days/{d}" for e, d in sorted(pairs)]) if pairs else {}
     changes: dict[str, list[tuple[str, dict | None, dict | None]]] = {}
@@ -638,15 +638,22 @@ def refresh_rolling(fs: Firestore, entity_docs: dict[str, dict], already: set[st
     trend["baseline7d"] = baseline
     trend["baselineBySource7d"] = by_source
     total_mentions = fs.count("mentions") - fs.count("mentions", [("sourceId", "EQUAL", agg.COMMUNITY)])
-    tracked = sum(1 for d in entity_docs.values() if d.get("allowlisted") and (d.get("mentions") or 0) > 0)
+    # entities with any mention: a count query (1 read per 1000 index entries), not a scan
+    tracked = fs.count("entities", [("mentions", "GREATER_THAN", 0)])
     peers = {"updatedAt": ts, "baseline7d": baseline, "byType": strip}
-    # meta/trending and meta/peers are only written when their content changed
-    cur = fs.batch_get(["meta/trending", "meta/peers"])
+    # meta/trending, meta/peers and meta/active are only written when their content changed
+    cur = fs.batch_get(["meta/trending", "meta/peers", ACTIVE_DOC])
     meta_writes = []
     for path, doc in (("meta/trending", trend), ("meta/peers", peers)):
         old = cur.get(path)
         if old is None or _strip_ts(old.data) != _strip_ts(doc):
             meta_writes.append(Write(path, doc))
+    old_active = cur.get(ACTIVE_DOC)
+    # entities not loaded in this run keep their state; loaded ones are in or out by their fields
+    before = set(old_active.data.get("ids") or []) if old_active else set()
+    active = sorted((before - set(entity_docs)) | {eid for eid, d in entity_docs.items() if needs_upkeep(d)})
+    if old_active is None or sorted(before) != active:
+        meta_writes.append(Write(ACTIVE_DOC, {"ids": active, "count": len(active), "updatedAt": ts}))
     fs.commit(
         [
             *meta_writes,
@@ -765,8 +772,8 @@ def _rescore(fs, budget, sentiment_key, ner_version, batch, model_kw) -> dict:
         log.warning("unfinished rescore with %s replaced by a rescore with %s", job.get("sentiment"), sentiment_key)
         job = {}
     job = {"sentiment": sentiment_key, "cursor": "", "changed": 0, "mentions": 0, "startedAt": now(), **job}
-    entity_docs = load_entity_docs(fs)
-    registry = build_registry(entity_docs)
+    entity_docs, _active = load_active_docs(fs, ENTITY_READ_FIELDS)
+    registry = load_registry(fs)
     countries = source_countries(fs)
     model = load_sentiment(sentiment_key, **model_kw)
     by_comment: dict[str, list] = {}
@@ -908,18 +915,16 @@ def _relink(fs, budget, days, entity_ids, ner_backend, sentiment_key, batch, pag
     from .textutil import clean_text
 
     t0 = time.time()
-    entity_docs = load_entity_docs(fs)
-    registry = build_registry(entity_docs)
+    entity_docs, _active = load_active_docs(fs, ENTITY_READ_FIELDS)
+    registry = load_registry(fs)
     job = _jobs(fs).get("relink")
     if job:
         log.info("relink: resuming (cutoff %s, cursor %s)", job.get("cutoff"), job.get("cursor"))
     else:
-        if entity_ids is None:  # default: generated entities without any mention yet
-            entity_ids = {
-                eid
-                for eid, e in registry.entities.items()
-                if e.source == "generated" and not (entity_docs.get(eid) or {}).get("mentions")
-            }
+        if entity_ids is None:  # default: generated entities without any mention yet (reads their docs once)
+            gen = [eid for eid, e in registry.entities.items() if e.source == "generated"]
+            got = fs.batch_get([f"entities/{e}" for e in gen], mask=["mentions"])
+            entity_ids = {e for e in gen if not ((got.get(f"entities/{e}") or Doc("", "", {})).data.get("mentions"))}
         cutoff = (date.fromisoformat(today_berlin()) - timedelta(days=days - 1)).isoformat()
         job = {
             "cutoff": cutoff,
@@ -1016,7 +1021,7 @@ def _relink(fs, budget, days, entity_ids, ner_backend, sentiment_key, batch, pag
             done = True
             break
         _save_job(fs, "relink", {**job, "pairs": _pairs_out(pairs)})
-    info = aggregate_pairs(fs, pairs, load_entity_docs(fs) if done else entity_docs)
+    info = aggregate_pairs(fs, pairs, entity_docs)
     _save_job(fs, "relink", None if done else {**job, "pairs": []})
     return {
         "newEntities": len(new),
@@ -1041,7 +1046,7 @@ def _reaggregate_since(fs, budget, since) -> dict:
     job = _jobs(fs).get("reaggregate_since") or {}
     if job.get("since") != since:
         job = {"since": since, "cursor": "", "startedAt": now()}
-    entity_docs = load_entity_docs(fs)
+    entity_docs, _active = load_active_docs(fs, ENTITY_READ_FIELDS)
     keys = sorted(
         {
             f"{d.data.get('entityId', '')}|{d.data.get('day', '')}"
@@ -1199,7 +1204,8 @@ def _prune(fs, budget, entity_ids, add_ids, ner_backend, sentiment_key) -> dict:
     from .ner import load_ner
     from .sentiment import load_sentiment
 
-    entity_docs = load_entity_docs(fs)
+    entity_docs, _active = load_active_docs(fs, ENTITY_READ_FIELDS)
+    ensure_docs(fs, entity_docs, set(entity_ids), ENTITY_READ_FIELDS)
     reg = Registry.from_yaml()
     targets = {e for e in entity_ids if e in entity_docs}
     removed = {e for e in targets if e not in reg.entities}

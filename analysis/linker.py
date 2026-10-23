@@ -14,6 +14,7 @@ by the country of the source (e.g. "Grüne" on derstandard.at -> Austrian Greens
 
 from __future__ import annotations
 
+import functools
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -184,6 +185,19 @@ class Match:
     via: str  # gazetteer | ner | wikidata
 
 
+def _load_yaml(path: Path):
+    """Parsed YAML, cached per file version (the lists are read several times per run)."""
+    st = path.stat()
+    return _load_yaml_cached(str(path), st.st_mtime_ns, st.st_size)
+
+
+@functools.lru_cache(maxsize=8)
+def _load_yaml_cached(path: str, _mtime: int, _size: int):
+    loader = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
+    with open(path, encoding="utf-8") as f:
+        return yaml.load(f, Loader=loader)
+
+
 def parse_alias(raw: str) -> tuple[str, str]:
     raw = str(raw)
     if raw.startswith("~"):
@@ -222,12 +236,12 @@ class Registry:
     @classmethod
     def from_yaml(cls, path: Path = SEED_FILE, generated: Path | None = GENERATED_FILE) -> Registry:
         """Curated seed list plus (optionally) the Wikidata-generated list; curated entries win."""
-        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+        data = _load_yaml(path)
         contexts = {k: list(v) for k, v in (data.get("contexts") or {}).items()}
         reg = cls()
         lists = [(data["entities"], "seed")]
         if generated is not None and generated.exists():
-            gen = yaml.safe_load(generated.read_text(encoding="utf-8")) or {}
+            gen = _load_yaml(generated) or {}
             lists.append((gen.get("entities") or [], "generated"))
         for entries, origin in lists:
             for raw in entries:

@@ -73,6 +73,7 @@ def process_entity_requests(fs: Firestore, client: WikidataClient | None = None,
     reqs = list(fs.query(COLLECTION, where=[("status", "EQUAL", "accepted")], limit=limit))
     if not reqs:
         return {"requests": 0}
+    # only when requests are pending (rare): a scan of the ids, to avoid id/QID clashes
     existing = {d.id: d.data for d in fs.query("entities", select=["wikidataId"])}
     by_qid = {d.get("wikidataId"): eid for eid, d in existing.items() if d.get("wikidataId")}
     taken = set(existing) | set(Registry.from_yaml().entities)
@@ -106,6 +107,9 @@ def process_entity_requests(fs: Firestore, client: WikidataClient | None = None,
                         {**ent.metadata(), **ZERO_STATS, "updatedAt": ts},
                     )
                 )
+                from .registry_store import registry_add_writes
+
+                writes += registry_add_writes([ent])  # so runs link it without scanning all entities
                 status, reason, eid = "done", "", ent.id
         done += status == "done"
         failed += status == "failed"

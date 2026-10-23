@@ -134,6 +134,8 @@ class FakeFirestore:
 def _op(a, op, b):
     if op == "EQUAL":
         return a == b
+    if op == "GREATER_THAN":
+        return a is not None and a > b
     if op == "GREATER_THAN_OR_EQUAL":
         return a is not None and a >= b
     raise NotImplementedError(op)
