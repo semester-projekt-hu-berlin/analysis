@@ -26,3 +26,13 @@ def test_neither_german_nor_english_with_few_sitelinks_is_rejected():
 def test_many_sitelinks_without_english_is_enough():
     etype, _ = validate(_org({f"wiki{i}": {} for i in range(MIN_SITELINKS)}))
     assert etype == "ORG"
+
+
+def test_api_type_is_used_for_subclass_only_organisations():
+    disco = {
+        "claims": {"P31": [{"mainsnak": {"datavalue": {"value": {"id": "Q1228895"}}}}]},
+        "sitelinks": {"dewiki": {}},
+    }
+    assert validate(disco) == (None, validate(disco)[1])
+    assert validate(disco, "ORG") == ("ORG", "")
+    assert validate(disco, "PER")[0] is None  # a person needs Q5, not a hint

@@ -32,8 +32,15 @@ MIN_SITELINKS = 10
 COLLECTION = "entity_requests"
 
 
-def validate(item: dict) -> tuple[str | None, str]:
-    """Return (entity type, "") for a valid public figure/organisation, else (None, reason)."""
+REQUEST_TYPES = {"ORG", "PARTY", "PRODUCT"}
+
+
+def validate(item: dict, api_type: str | None = None) -> tuple[str | None, str]:
+    """Return (entity type, "") for a valid public figure/organisation, else (None, reason).
+
+    ``api_type`` is the type the API derived when the proposal was made. The API also follows
+    subclass chains on Wikidata (a "Diskothek" is an organisation only via subclasses), so it is
+    used when the item's direct classes are not in our lists."""
     p31 = set(WikidataClient.claim_ids(item, "P31"))
     if DISAMBIGUATION in p31:
         return None, "disambiguation page"
@@ -45,7 +52,7 @@ def validate(item: dict) -> tuple[str | None, str]:
         if not (WikidataClient.claim_ids(item, "P106") or WikidataClient.claim_ids(item, "P39")):
             return None, "person without occupation or position"
         return "PER", ""
-    etype = entity_type(item)
+    etype = entity_type(item) or (api_type if api_type in REQUEST_TYPES else None)
     if etype:
         return etype, ""
     return None, "not a person, a known organisation class or an app/digital service"
@@ -96,7 +103,7 @@ def process_entity_requests(fs: Firestore, client: WikidataClient | None = None,
         elif qid not in items:
             reason = "Wikidata item not found"
         else:
-            etype, reason = validate(items[qid])
+            etype, reason = validate(items[qid], r.data.get("type"))
             if etype:
                 ent = entity_from_item(qid, items[qid], etype, taken)
                 taken.add(ent.id)
