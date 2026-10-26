@@ -3,7 +3,8 @@
 The API writes `entity_requests/{qid}` with `status: "accepted"`. Every analysis run (and
 `python -m analysis seed-requests`) re-validates each request against Wikidata:
 
-* the item exists and is not a disambiguation page, and has >= MIN_SITELINKS sitelinks,
+* the item exists and is not a disambiguation page, and has a German or an English Wikipedia
+  article or >= MIN_SITELINKS sitelinks,
 * persons: instance of human (Q5) with an occupation (P106) or a position held (P39),
 * organisations: instance of one of the organisation classes in `wikidata.ORG_CLASSES`,
 * apps & digital services (PRODUCT): instance of one of `wikidata.PRODUCT_CLASSES` (software,
@@ -36,9 +37,10 @@ def validate(item: dict) -> tuple[str | None, str]:
     p31 = set(WikidataClient.claim_ids(item, "P31"))
     if DISAMBIGUATION in p31:
         return None, "disambiguation page"
-    sitelinks = len(item.get("sitelinks", {}))
-    if sitelinks < MIN_SITELINKS:
-        return None, f"only {sitelinks} sitelinks (need {MIN_SITELINKS})"
+    links = item.get("sitelinks", {})
+    # Notable: a German or an English Wikipedia article, or MIN_SITELINKS sitelinks overall.
+    if len(links) < MIN_SITELINKS and not ("dewiki" in links or "enwiki" in links):
+        return None, f"only {len(links)} sitelinks (need dewiki, enwiki or {MIN_SITELINKS})"
     if HUMAN in p31:
         if not (WikidataClient.claim_ids(item, "P106") or WikidataClient.claim_ids(item, "P39")):
             return None, "person without occupation or position"
