@@ -499,6 +499,13 @@ To keep the project under about €3.70 a month, every command follows the share
 
 The workflows need the organisation secret `FIREBASE_SERVICE_ACCOUNT`.
 
+**Triggering.** GitHub's `schedule` started runs 4–6 h late (or not for hours), so `analyze.yml` is started by
+Vercel Cron in the API project (`vercel.json` in the `api` repo, `GET /internal/cron/dispatch/analyze`) via
+`workflow_dispatch` with the input `trigger=vercel-cron`. On the Hobby plan Vercel fires anywhere within the
+scheduled hour (05:00–05:59 / 17:00–17:59 UTC). The `schedule` stays as a fallback: the `gate` job
+(`actions: read`) skips a scheduled run when a successful or still queued/running analysis was created since one
+hour before its slot, and drops duplicate cron deliveries (another run within 3 h). Manual runs are never skipped.
+
 ## Events
 
 `data/events.yaml` (written by `seed`): 3 Nov 2026 US midterms; 30 Jan 2027 Bundesversammlung

@@ -2,7 +2,9 @@ name: Analyze comments
 
 on:
   schedule:
-    - cron: "30 5,17 * * *" # twice a day, ~1 h after the crawler (17 4,16 * * * UTC)
+    # twice a day, ~1 h after the crawler (17 4,16 * * * UTC). Fallback only: Vercel Cron (api repo)
+    # dispatches the same slots on time; see the gate job.
+    - cron: "30 5,17 * * *"
   workflow_dispatch:
     inputs:
       limit:
@@ -15,6 +17,9 @@ on:
         description: Rebuild all aggregates from mentions afterwards
         type: boolean
         default: false
+      trigger:
+        description: "Set to vercel-cron by the API's Vercel Cron (enables duplicate detection); leave empty for manual runs"
+        default: ""
 
 concurrency:
   group: analysis # never run two pipelines against Firestore at the same time
@@ -24,7 +29,78 @@ permissions:
   contents: read
 
 jobs:
+  # The GitHub `schedule` is only a fallback: on busy days it starts hours late, so Vercel Cron
+  # (api repo, vercel.json) dispatches this workflow with trigger=vercel-cron. This job skips a
+  # scheduled run if its slot was already handled, and drops duplicate cron deliveries.
+  gate:
+    if: github.event_name == 'schedule' || inputs.trigger == 'vercel-cron'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+    outputs:
+      skip: ${{ steps.check.outputs.skip }}
+    steps:
+      - name: Skip if this slot already ran
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          SCHEDULE: ${{ github.event.schedule }}
+          WORKFLOW: analyze.yml
+          JOB: analyze
+        run: |
+          api="repos/$GITHUB_REPOSITORY/actions"
+          fail_open() { echo "::warning::Duplicate check failed ($1), running anyway."; echo "skip=false" >> "$GITHUB_OUTPUT"; exit 0; }
+
+          created=$(gh api "$api/runs/$GITHUB_RUN_ID" --jq .created_at) || fail_open "run lookup"
+          now=$(date -u -d "$created" +%s) || fail_open "date"
+
+          # Look-back window. Schedule: from 1 h before the slot this run belongs to (GitHub may start it
+          # hours late; Vercel fires anywhere in the slot's hour). Cron dispatch: 3 h (duplicate deliveries).
+          since=$((now - 4 * 3600))
+          if [ "$EVENT" = schedule ]; then
+            read -r min hours _ <<< "$SCHEDULE"
+            if [[ "$min" =~ ^[0-9]+$ && "$hours" =~ ^[0-9]+(,[0-9]+)*$ ]]; then
+              slot=0
+              for d in "$(date -u -d "@$now" +%F)" "$(date -u -d "@$((now - 86400))" +%F)"; do
+                for h in ${hours//,/ }; do
+                  t=$(date -u -d "$d $((10#$h)):$((10#$min)):00" +%s)
+                  if [ "$t" -le "$now" ] && [ "$t" -gt "$slot" ]; then slot=$t; fi
+                done
+              done
+              [ "$slot" -gt 0 ] && since=$((slot - 3600))
+            fi
+          else
+            since=$((now - 3 * 3600))
+          fi
+          since_iso=$(date -u -d "@$since" +%FT%TZ)
+          echo "This run: $EVENT, created $created; looking for other runs created since $since_iso"
+
+          runs=$(gh api -X GET "$api/workflows/$WORKFLOW/runs" -f created=">=$since_iso" -F per_page=50 \
+            --jq ".workflow_runs[] | select(.id != $GITHUB_RUN_ID) | [.id, .status, (.conclusion // \"-\"), .event, .created_at] | @tsv") || fail_open "run list"
+
+          skip=false
+          while IFS=$'\t' read -r id status conclusion event at; do
+            [ -n "$id" ] || continue
+            echo "  run $id: $event, created $at, $status/$conclusion"
+            if [ "$status" != completed ]; then
+              skip=true; reason="run $id ($event, created $at) is $status"; break
+            fi
+            if [ "$conclusion" = success ]; then
+              # a run whose main job was skipped by this gate also ends as "success": check the job itself
+              job=$(gh api "$api/runs/$id/jobs" --jq "[.jobs[] | select(.name == \"$JOB\") | .conclusion] | first // \"-\"") || fail_open "job lookup"
+              if [ "$job" = success ]; then skip=true; reason="run $id ($event, created $at) succeeded"; break; fi
+            fi
+          done <<< "$runs"
+
+          if [ "$skip" = true ]; then echo "::notice::Skipping: $reason."; else echo "No successful or running run in the window, running."; fi
+          echo "skip=$skip" >> "$GITHUB_OUTPUT"
+
   analyze:
+    needs: gate
+    # runs unless the gate found a duplicate (also when the gate was not needed or failed)
+    if: ${{ !cancelled() && needs.gate.outputs.skip != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 150 # ~6k comments per half day; measured ~280 comments/min with 2 threads, so 9000 fit with margin
     env:
