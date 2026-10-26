@@ -49,6 +49,7 @@ def build_day_docs(mentions: list[dict]) -> dict[tuple[str, str], dict]:
         if doc is None:
             doc = by_key[key] = {
                 **empty_counts(),
+                "scoreSqSum": 0.0,
                 "day": m["day"],
                 "bySource": {},
                 "coMentions": {},
@@ -59,6 +60,7 @@ def build_day_docs(mentions: list[dict]) -> dict[tuple[str, str], dict]:
         doc["mentions"] += 1
         doc[lab] += 1
         doc["scoreSum"] += float(m["score"])
+        doc["scoreSqSum"] += float(m["score"]) ** 2
         src = doc["bySource"].setdefault(m.get("sourceId") or "unknown", empty_counts())
         src["mentions"] += 1
         src[lab] += 1
@@ -95,6 +97,7 @@ def build_day_docs(mentions: list[dict]) -> dict[tuple[str, str], dict]:
         arts = sorted(doc["topArticles"].items(), key=lambda kv: (-kv[1]["mentions"], kv[0]))[:TOP_ARTICLES]
         doc["topArticles"] = dict(arts)
         doc["scoreSum"] = r4(doc["scoreSum"])
+        doc["scoreSqSum"] = r4(doc["scoreSqSum"])
         doc["avgSentiment"] = r4(doc["scoreSum"] / doc["mentions"]) if doc["mentions"] else None
         for s in doc["bySource"].values():
             s["scoreSum"] = r4(s["scoreSum"])
@@ -110,7 +113,9 @@ def day_counts(doc: dict | None) -> dict:
 def same_day_doc(a: dict | None, b: dict | None) -> bool:
     if not a or not b:
         return a == b
-    keys = ("mentions", "pos", "neu", "neg", "scoreSum", "bySource", "coMentions", "topArticles")
+    # scoreSqSum: a doc written before the field existed differs from its recomputation, so any
+    # re-aggregation of that pair fills it in (old docs are never patched with invented zeros).
+    keys = ("mentions", "pos", "neu", "neg", "scoreSum", "scoreSqSum", "bySource", "coMentions", "topArticles")
     return all(_norm(a.get(k)) == _norm(b.get(k)) for k in keys)
 
 

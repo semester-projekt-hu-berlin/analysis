@@ -184,6 +184,26 @@ def test_incremental_aggregation_touches_only_affected_pairs(fs):
     assert inc == full
 
 
+def test_score_sq_sum_on_day_docs_and_legacy_backfill(fs):
+    pipeline.run(fs, limit=100, use_wikidata=False)
+    d = day_key(NOW - timedelta(hours=1))
+    path = f"entities/friedrich-merz/days/{d}"
+    scores = [fs.docs[f"mentions/{c}_friedrich-merz"]["score"] for c in ("c1", "c2")]
+    assert fs.docs[path]["scoreSqSum"] == pytest.approx(sum(x * x for x in scores), abs=1e-4)
+    # a day doc written before the field existed: a run without new mentions leaves it alone
+    del fs.docs[path]["scoreSqSum"]
+    before = snapshot(fs)
+    pipeline.run(fs, limit=100, use_wikidata=False)
+    assert "scoreSqSum" not in fs.docs[path]
+    # re-aggregating the pair fills it in; counts and entity totals stay the same
+    pipeline.reaggregate_since(fs, d)
+    after = snapshot(fs)
+    assert after[path]["scoreSqSum"] == pytest.approx(sum(x * x for x in scores), abs=1e-4)
+    assert {k: v for k, v in after[path].items() if k != "scoreSqSum"} == before[path]
+    for k in ("mentions", "pos", "neu", "neg", "scoreSum"):
+        assert after["entities/friedrich-merz"][k] == before["entities/friedrich-merz"][k]
+
+
 def test_trending_has_30_day_spark(fs, monkeypatch):
     monkeypatch.setattr(pipeline.agg, "TOP_MIN_MENTIONS", 1)
     pipeline.run(fs, limit=100, use_wikidata=False)

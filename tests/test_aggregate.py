@@ -37,6 +37,32 @@ def test_build_day_docs_counts_bysource_and_comentions():
     assert d["lastMentionAt"] == datetime(2026, 10, 20, 12, tzinfo=UTC)
 
 
+def test_build_day_docs_score_sq_sum():
+    ms = [
+        m("c1", "spd", "2026-10-20", "neg", -0.5),
+        m("c2", "spd", "2026-10-20", "pos", 0.9, src="welt"),
+        m("c3", "spd", "2026-10-20", "neu", 0.1),
+    ]
+    d = agg.build_day_docs(ms)[("spd", "2026-10-20")]
+    assert d["scoreSqSum"] == pytest.approx(0.25 + 0.81 + 0.01)
+    # order-independent and recomputed from scratch, so re-aggregation is idempotent
+    assert agg.build_day_docs(list(reversed(ms)))[("spd", "2026-10-20")]["scoreSqSum"] == d["scoreSqSum"]
+    # only on the day doc itself, not per source
+    assert "scoreSqSum" not in d["bySource"]["spiegel"]
+    # removing a mention (prune / relink) lowers it by exactly that mention's square
+    d2 = agg.build_day_docs(ms[1:])[("spd", "2026-10-20")]
+    assert d["scoreSqSum"] - d2["scoreSqSum"] == pytest.approx(0.25)
+
+
+def test_same_day_doc_detects_missing_score_sq_sum():
+    ms = [m("c1", "spd", "2026-10-20", "neg", -0.5), m("c2", "spd", "2026-10-20", "pos", 0.9)]
+    new = agg.build_day_docs(ms)[("spd", "2026-10-20")]
+    old = {k: v for k, v in new.items() if k != "scoreSqSum"}  # written before the field existed
+    assert agg.same_day_doc(new, dict(new))
+    assert not agg.same_day_doc(old, new)  # a re-aggregation fills it in
+    assert not agg.same_day_doc({**new, "scoreSqSum": 9.0}, new)
+
+
 def test_comentions_top20():
     ms = []
     for i in range(30):

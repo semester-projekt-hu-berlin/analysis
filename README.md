@@ -257,7 +257,7 @@ The default pipeline is entirely open-source and free. The HU LLM offer is not u
 * Mention ids are deterministic (`commentId_entityId`): re-analysing a comment overwrites its
   mentions; mentions of entities that no longer match are deleted.
 * For each affected (entity, day) pair, the day document is **recomputed** from the mentions of
-  that pair (counts, `scoreSum`, `bySource`, top-20 `coMentions` via `mentions.coEntityIds`),
+  that pair (counts, `scoreSum`, `scoreSqSum`, `bySource`, top-20 `coMentions` via `mentions.coEntityIds`),
   never incremented. Unchanged day docs are not written.
 * The pairs still to aggregate are stored in `meta/analysis.pendingPairs` *before* the mentions
   are written; a run that stops in between is completed by the next run. Each comment's
@@ -307,6 +307,7 @@ All optional, no existing field changed:
 | `entities` | `recentDays` | `{day: {mentions,pos,neu,neg,scoreSum}}` for the last 30 days, so rolling windows and the sparkline need no reads of the `days` subcollection |
 | `entities` | `imageKind` | `"logo" \| "portrait" \| null` |
 | `entities/{id}/days/{day}` | `lastMentionAt` | latest mention timestamp of the day, used for `entities.lastMentionAt` |
+| `entities/{id}/days/{day}` | `scoreSqSum` | sum of squared mention scores, so the API can give the sample SD of a day or week; missing on day docs written before it existed (filled in when the pair is re-aggregated) |
 | `mentions` | `coEntityIds` | other entities of the same comment, so one (entity, day) can be recomputed from its own mentions |
 | `meta/trending` items | `spark` | 30 daily `avgSentiment` values (oldest first, ending on the Berlin day of `updatedAt`, `null` without mentions) |
 | `meta/analysis` | `pendingPairs` | internal crash-recovery state |
