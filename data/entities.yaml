@@ -12,7 +12,17 @@
 #   "@Leverkusen" contextual: case-sensitive AND only accepted if a keyword of the
 #                 entity's `context` occurs in the comment or the article title
 #   "^Linke"      local: case-sensitive AND only on sources of the entity's own country
-#                 (generic words that mean a specific party only in one country)
+#                 (generic words that mean a specific party only in one country); "^~BR" / "^@X"
+#                 combine local with weak / contextual ("BR" on blick.ch is the Swiss Bundesrat)
+#   "%Bild"       cue-only: case-sensitive AND only accepted with a cue of the entity's `cue` set
+#                 (see `cues:` below: "laut Bild", "der Bild", "„Bild“", "Bild berichtet",
+#                 "Bild-Chef", "Spiegel, FAZ und Bild"); context keywords are not enough
+#                 ("ein Bild machen" in a comment about an "Artikel")
+# Contextual aliases of an entity with a `cue` set are also accepted with a cue alone. Contextual
+# names that start with an article ("Die Welt", "Die Zeit") need a cue at the start of a sentence
+# ("Die Welt steuert auf 2,8 Grad zu" is the world). All-caps contextual, weak and cue aliases
+# (and case-sensitive ones of entities with a cue set) are not linked in all-caps text ("IN DIESER
+# IRREN ZEIT"). An NER lookup of a case-sensitive alias needs the exact spelling ("Zeit" is not "ZEIT").
 # The display name is always an alias as well. `country` breaks ties between
 # entities sharing an alias (e.g. "Grüne" on an Austrian vs. a German site).
 # `wikidata` was resolved with scripts/resolve_wikidata.py and checked by hand.
@@ -83,6 +93,78 @@ contexts:
     Interview, Schlagzeile, Leitartikel, Kommentar, Abo, Paywall, Presse, Medien, Sender, Sendung, Fernsehen,
     TV, Radio, Mediathek, Reporter, Reporterin, Nachrichten, Rundfunk, Rundfunkbeitrag, GEZ, Programm,
     öffentlich-rechtlich, öffentlich-rechtlichen, ÖRR, Moderator, Moderatorin, Talkshow, Magazin, Ausgabe]
+  # newspapers and magazines whose names are words (Welt, Zeit, Stern, Bild): narrower than `media`
+  # (no "Bericht", "Medien", "Programm", which political comments use all the time)
+  press: [Zeitung, Zeitungen, Tageszeitung, Wochenzeitung, Zeitschrift, Nachrichtenmagazin, Magazin, Artikel,
+    Journalist, Journalistin, Journalisten, Journalismus, Redaktion, Redakteur, Redakteurin, Chefredakteur,
+    Chefredakteurin, Chefredaktion, Leitartikel, Kolumne, Kolumnist, Kolumnistin, Schlagzeile, Schlagzeilen,
+    Titelseite, Titelbild, Paywall, Bezahlschranke, Abo, Presse, Pressefreiheit, Springer, Axel Springer,
+    Verlag, Feuilleton, Gastbeitrag, Leserbrief, Reporter, Reporterin, Interview, Presseclub]
+  # word-like brand names of generated companies (scripts/generate_entities.py, WORD_CONTEXT)
+  watches: [Uhren, Armbanduhr, Armbanduhren, Uhrenmarke, Uhrenhersteller, Chronograph, Chronographen, Fliegeruhr,
+    Fliegeruhren, Taucheruhr, Taucheruhren, Uhrwerk, Zifferblatt, Rolex, Omega, Breitling, Glashütte, Junghans,
+    Seiko, Tudor, Sinn-Uhr, Sinn-Uhren]
+  bikes: [Fahrrad, Fahrräder, Fahrrads, E-Bike, E-Bikes, Mountainbike, Mountainbikes, MTB, Rennrad, Rennräder,
+    Pedelec, Pedelecs, Bike, Bikes, Fahrradhändler, Fahrradmarke, Radsport, Gravelbike]
+  gastro: [Restaurant, Restaurants, Restaurantkette, Filiale, Filialen, Fischbrötchen, Backfisch, Fischrestaurant,
+    Imbiss, Fast Food, Fastfood, Systemgastronomie, Schnellrestaurant, Gastronomie, McDonald's, Burger King]
+  drugstore: [Drogerie, Drogerien, Drogeriemarkt, Drogeriemärkte, Drogeriekette, dm, Rossmann, Budni, Parfümerie,
+    Filiale, Filialen]
+  electronics: [MediaMarkt, Mediamarkt, Media Markt, MM, Elektronikmarkt, Elektromarkt, Elektronikkette,
+    Elektronikhändler, Ceconomy, Euronics, Expert, Filiale, Filialen, gekauft, kaufen]
+  transit: [Bus, Busse, U-Bahn, S-Bahn, Tram, Straßenbahn, Bahn, Zug, Züge, Gleis, Fahrgast, Fahrgäste, Fahrgästen,
+    Fahrgastverband, ÖPNV, Öffis, Nahverkehr, Ticket, Tickets, Deutschlandticket, Haltestelle, Busfahrer, Fahrplan,
+    Linie, Takt, Pendelverkehr, Verkehrsbetriebe]
+  publishing: [Verlag, Verlage, Verlags, Bildband, Bildbände, Kunstbuch, Kunstbücher, Buchhandlung, Verleger]
+  paytv: [Pay-TV, Bezahlsender, Bezahlfernsehen, Abo, Sender, Fernsehen, TV, Bundesliga, Champions League,
+    Übertragung, Übertragungsrechte, überträgt, übertragen, Liveübertragung, Konferenz, Serie, Serien, Sendung,
+    Wow, Canal+, DAZN, MagentaTV, Formel 1, Premier League, Sky Sport]
+  ard_channels: [ARD, Spartensender, Spartenkanal, Fernsehsender, Sender, Sendetag, Fernsehen, Mediathek,
+    ausgestrahlt, Ausstrahlung, Tagesschau24, ARD Alpha, Kika, 3sat, Einsfestival]
+  feminism: [Alice Schwarzer, Schwarzer, Feminismus, feministisch, feministische, feministischen, feministisches,
+    Feministin, Feministinnen, Frauenbewegung, Frauenzeitschrift, Zeitschrift, Magazin, Chefredakteurin, Abo,
+    Leserinnen]
+
+# Cue sets (`cue: press_f`): local evidence that a contextual (@) or cue-only (%) alias is the entity.
+#   before: the word right before ("laut Bild", "der ZEIT", "Quelle: WELT"); after: the word right after
+#   ("Bild berichtet", "Spiegel-Online"); colon: "WELT: ..." headlines; quoted: „Spiegel“; compound:
+#   "ZEIT-Redakteurin", "Bild-Chef"; neighbors: another medium in a list ("Spiegel, FAZ und Bild",
+#   "ARD/ZDF/Spiegel"), case-sensitive.
+cues:
+  press_f:   # feminine titles: "der/die Bild", "der WELT", "die ZEIT"
+    before: [der, die, laut, lt., bei, Quelle, Quellen, schreibt, schrieb, berichtet, berichtete, meldet, titelt,
+      zitiert]
+    after: &press_after [berichtet, berichtete, berichten, meldet, meldete, schreibt, schrieb, titelt, titelte, zitiert,
+      zitierte, enthüllt, enthüllte, kommentiert, kommentierte, behauptet, behauptete, Artikel, Bericht, Interview,
+      Online, online, TV, Podcast, Kolumne, Redaktion, Redakteur, Redakteurin, Reporter, Reporterin, Journalist,
+      Journalistin, Journalisten, Chefredakteur, Chefredakteurin, Schlagzeile, Leser, Abo]
+    colon: true
+    quoted: true
+    compound: &press_compound [artikel, bericht, interview, redakt, chefredakt, journalist, kolumn, reporter, umfrage,
+      recherche, leser, abo, online, podcast, sendung, hauptstadt, autor, kommentar, schlagzeile, titel, chef, tv,
+      zeitung, schreiber, konsument, forum, magazin, heft, ausgabe]
+    neighbors: &press_neighbors [ARD, ZDF, ORF, SRF, RTL, ntv, n-tv, NTV, Spiegel, SPIEGEL, FAZ, SZ, Süddeutsche,
+      taz, TAZ, Welt, WELT, Zeit, ZEIT, Bild, BILD, Stern, STERN, Focus, FOCUS, NIUS, Nius, Tagesspiegel,
+      Handelsblatt, FR, NZZ, Tichy, Cicero, Compact, Emma, EMMA, t-online, T-Online, Springer, Tagesschau,
+      tagesschau, ÖRR, BBC, CNN, Reuters, dpa, Correctiv, Apollo, Overton, Krone, Kurier, Blick]
+  press_m:   # masculine titles: "der Spiegel" is also the mirror ("im Spiegel betrachten"), so no article
+    before: &press_m_before [laut, lt., Quelle, Quellen, schreibt, schrieb, berichtet, berichtete, meldet, titelt,
+      zitiert, beim, vom]
+    after: *press_after
+    colon: true
+    quoted: true
+    compound: *press_compound
+    neighbors: *press_neighbors
+  feminine_org:  # "die BVG" (the transit company) vs. "das BVG" (the court)
+    before: [die, der, Liebe]
+  press_mag:  # magazines whose name is a word but rarely follows "im" otherwise: "im Stern", "im Cicero"
+    before: [laut, lt., Quelle, Quellen, schreibt, schrieb, berichtet, berichtete, meldet, titelt, zitiert, beim, vom,
+      im, ins]
+    after: *press_after
+    colon: true
+    quoted: true
+    compound: *press_compound
+    neighbors: *press_neighbors
 
 entities:
 # ------------------------------------------------------------------ German parties
@@ -347,7 +429,7 @@ entities:
 - {id: fdp-schweiz, wikidata: Q202638, name: FDP.Die Liberalen, type: PARTY, country: CH, description: Freisinnig-Demokratische Partei der Schweiz,
    aliases: [FDP.Die Liberalen, FDP, Freisinnige, Freisinn]}
 - {id: die-mitte, wikidata: Q100934025, name: Die Mitte, type: PARTY, country: CH, description: Schweizer Partei Die Mitte,
-   aliases: [Die Mitte, Mitte-Partei], context: politics}
+   aliases: ["^Die Mitte", "^die Mitte", "^Mitte-Partei"], context: politics}
 - {id: gruene-schweiz, wikidata: Q659739, name: Grüne Schweiz, type: PARTY, country: CH, description: Grüne Partei der Schweiz,
    aliases: [Grüne Schweiz, "=Grünen", "=Grüne", Die Grünen]}
 - {id: glp, wikidata: Q545900, name: Grünliberale, type: PARTY, country: CH, description: Grünliberale Partei der Schweiz,
@@ -543,8 +625,11 @@ entities:
 - {id: uefa, wikidata: Q35572, name: UEFA, type: ORG, description: Europäischer Fußballverband, aliases: [UEFA, Uefa]}
 - {id: fifa, wikidata: Q253414, name: FIFA, type: ORG, description: Weltfußballverband, aliases: [FIFA, Fifa]}
 # ------------------------------------------------------------------ Media frequently discussed in comments
-- {id: der-spiegel, wikidata: Q131478, name: DER SPIEGEL, type: ORG, country: DE, description: Nachrichtenmagazin, aliases: [Spiegel Online, SPON, "~Spiegel"], context: politics}
-- {id: bild, wikidata: Q156203, name: Bild, type: ORG, country: DE, description: Boulevardzeitung, aliases: [Bild-Zeitung, Bildzeitung, "~Bild"], context: politics}
+- {id: der-spiegel, wikidata: Q131478, name: DER SPIEGEL, type: ORG, country: DE, description: Nachrichtenmagazin,
+   aliases: [Spiegel Online, spiegel.de, "=DER SPIEGEL", "=Der Spiegel", "=Der SPIEGEL", "=der SPIEGEL", "=SPIEGEL",
+     "=SPON", "@der Spiegel", "%Spiegel"], context: press, cue: press_m}
+- {id: bild, wikidata: Q156203, name: Bild, type: ORG, country: DE, description: Boulevardzeitung,
+   aliases: [Bild-Zeitung, Bildzeitung, Bild Zeitung, bild.de, Bild TV, Bild am Sonntag, "=BamS", "=BILD", "%Bild"], context: press, cue: press_f}
 # ------------------------------------------------------------------ DAX companies
 - {id: adidas, wikidata: Q3895, name: Adidas, type: ORG, country: DE, description: Sportartikelhersteller, aliases: [Adidas]}
 - {id: airbus, wikidata: Q67, name: Airbus, type: ORG, description: Luft- und Raumfahrtkonzern, aliases: [Airbus]}
