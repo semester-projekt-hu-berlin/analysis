@@ -116,6 +116,36 @@ That also removed three wrong seed links among the gold pairs, which is why prec
 from 96.8 % to 97.5 %. Round 3 (the final state in production) is in the rollout notes of
 the analysis README.
 
+### Names that are words (larger list, 28 Oct 2026)
+
+Production hand checks of the 4,807 entities of the larger list (50 random new mentions each):
+
+| round | correct | errors | fix |
+|---|---|---|---|
+| 1: after the 14-day relink (210 entities, 2,893 mentions) | 44 / 50 (88 %) | "Sinn" (macht Sinn), "Die Welt" (the world), "Nordsee" (the sea), "BR" on blick.ch (Bundesrat), "One" in "Apple One", "Focus" in "The Focus" | cue sets and cue-only aliases, local-weak "^~BR", word contexts for brand names, sentence-start rule for "Die Welt", all-caps rule, NER lookup keeps the spelling; `prune` deleted 602 mentions |
+| 2: after that prune (211 entities, 2,689 mentions), new seed | 48 / 50 (96 %) | "Cherry-picking", "BVG" = Bundesverwaltungsgericht | lower-case compounds, "BVG" contextual with "die BVG" cue; 10 more deleted |
+
+Before the prune, a local re-link of all 1,736 Firestore mentions of 64 word-like names (texts
+are only cached locally) showed the size of the problem; the new rules keep 1,135 of them and
+drop 601 (Sinn 64/64, One 40/42, Nordsee 22/22, Bild 133/209, Die Mitte 88/102 (every one
+outside a Swiss source), BR 58/91, Spiegel 35/87, Die Welt 27/47, Die Zeit 11/166, Sky 32/39). A review of the
+kept and dropped mentions per entity found few wrong drops (a few lower-case or quoted "Zeit",
+"Emma war eines der wenigen Medien", "Der Stern hat nachgefragt"); the brand names in clear
+use (Lidl, Rewe, Audi, Edeka, Kaufland, MediaMarkt, ADAC, Opel, WDR, NDR, dpa, t-online) lose
+nothing.
+
+`scripts/eval_linking.py` on the 480 gold pairs (seed + generated):
+
+| state | gold pairs found | of them correct | precision on gold pairs | correct pairs lost |
+|---|---|---|---|---|
+| before (27 Oct) | 433 / 480 | 422 | 97.5 % | 34 |
+| **after** | 428 / 480 | 422 | **98.6 %** | 34 |
+
+The five links that disappeared were all wrong (four "die Mitte" on taz.de and tagesschau.de,
+one "Bild" for a picture); no correct pair was lost. Outside the gold pairs the new registry
+drops "Söder, schau in den Spiegel!" and "ein düsteres Bild" and adds "Quelle: Die Zeit vom
+15.10.26". Tests: `tests/test_word_names.py`.
+
 ## Limitations
 
 * The best free CPU method reaches only **≈ 0.48 macro-F1** on stance toward the entity. Single labels are often wrong. The aggregates over many mentions (daily

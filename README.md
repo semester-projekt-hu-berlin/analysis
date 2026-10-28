@@ -27,6 +27,7 @@ The data contract is [`infrastructure/SCHEMA.md`](https://github.com/semester-pr
         plain alias  ─ always             "Merz", "Sozis", "AfD-Wähler"
         weak alias   ─ needs NER span     "Reiche" (PER) vs. "die Reiche Elite"
         context alias─ needs keywords     "Leverkusen" + Spiel/Tor/Bundesliga… (comment or article title)
+        cue-only     ─ needs a cue        "Bild": "laut Bild", "der Bild", "„Bild“", "Spiegel, FAZ und Bild"
         tie-breaks                        other name words in the text ("Eintracht … Braunschweig"),
                                           context-confirmed reading beats plain ("RWE" + Spiel → Rot-Weiss Essen),
                                           source country ("Grüne"/"FCB" on derstandard.at / blick.ch)
@@ -179,7 +180,7 @@ The default pipeline is entirely open-source and free. The HU LLM offer is not u
   frequent German word (wordfreq zipf ≥ 4.0, e.g. "Wiese"), or a name that is frequent in
   English text (zipf ≥ 2.5: Thiel, Kant, Moser, Maas are mostly other people). This gives 774
   surname aliases for the 1,141 politicians. Company names:
-  * Single-word names that are common words (Post, Bahn, Bild) are weak.
+  * Single-word names that are common words (Post, Bahn) are weak.
   * Names that are ordinary words in comments ("3000 Netto", "beim Globus") are contextual and
     need a business keyword.
   * Ordinary words like "Rational" are case-sensitive.
@@ -198,8 +199,23 @@ The default pipeline is entirely open-source and free. The HU LLM offer is not u
     ("Hama" never matches "Hamas").
   * An NER span of the other type vetoes a generated alias ("Lanz" tagged as a person is not
     the Heinrich Lanz AG).
-  * Names that are everyday phrases ("Die Welt", "Die Zeit") need media context; "WELT",
-    "ZEIT" and "Zeit Online" link directly.
+  * Newspapers named with words get the `press` context and a cue set (`MEDIA_CUE`, see
+    *Alias modes*): "Die Welt" / "Die Zeit" link mid-sentence ("stand in Die Welt"), with press
+    words or with a cue; at the start of a sentence only with a cue ("Die Welt berichtet"), since
+    "Die Welt steuert auf 2,8 Grad zu" is the world. "WELT", "ZEIT", "STERN" are contextual too
+    and never link in all-caps text ("IN DIESER IRREN ZEIT"); "welt.de", "WELT TV", "WELT News",
+    "Zeit Online" link directly.
+  * Brand names that are words, first names or surnames are contextual with a context set of
+    their own (`WORD_CONTEXT`): Sinn (watches; not "macht Sinn"), Nordsee (restaurants; not the
+    sea), Focus (bikes; not the magazine or "The Focus"), Müller (drugstores), Taschen
+    (publishing), Sky (pay TV; "Premiere" dropped), Saturn (electronics), Emma (feminism + press
+    cues), One (ARD channels; only "ONE" and "ARD One", never "Apple One"). A short form that is
+    a person's surname or first name is dropped ("Lanz" is not the Heinrich Lanz AG), unless the
+    company is very well known ("Bosch", weak). "BR" and "SZ" are local to German sources
+    ("BR" on blick.ch is the Bundesrat, "Tuggen SZ" the canton).
+  * A one-word generated name right after "The" or another entity's name is part of that name
+    ("Apple One", "The Focus"); an NER person or place tag vetoes one-word organisation names in
+    every mode ("Fulda", "Salzgitter" as cities); "pt-BR" is not BR.
   * The alias regex is built as a trie, so tens of thousands of aliases stay fast.
 
   Collision tests: `tests/test_collisions.py`. Precision check: `scripts/eval_linking.py`.
@@ -213,7 +229,16 @@ The default pipeline is entirely open-source and free. The HU LLM offer is not u
   keyword is present: `~Reiche`, `~Union`, `~Bas`), `@` contextual (needs a keyword from a
   context set – football, US politics, business, politics, apps, AI, messenger, games … – in the comment or the article
   title: `@Leverkusen`, `@Bayern`, `@Demokraten`), `^` local (only on sources of the
-  entity's own country: `^Linke` is *Die Linke* on taz.de but just "the left" on blick.ch). Longest match wins ("Siemens Energy" vs
+  entity's own country: `^Linke` is *Die Linke* on taz.de but just "the left" on blick.ch;
+  `^~BR` / `^@X` combine local with weak / contextual), `%` cue-only (`%Bild`, `%Spiegel`: only
+  with a cue of the entity's cue set). Cue sets (`cues:` in the YAML, `cue: press_f`) are local
+  evidence that a word is the newspaper: a word before ("laut Bild", "der ZEIT", "Quelle:
+  WELT"), a word after ("Bild berichtet", "Spiegel Interview"), quotes ("„Spiegel“"), a compound
+  ("ZEIT-Redakteurin", "Bild-Chef") or another medium in a list ("Spiegel, FAZ und Bild",
+  "ARD/ZDF/Spiegel"). Contextual aliases of an entity with a cue set link with a cue or a context
+  word, cue-only ones never with a context word alone ("ein klares Bild" next to "Artikel"). The
+  NER lookup never uses contextual or cue-only aliases, and weak or NER-only ones only in their
+  spelling ("Zeit" is not "ZEIT", "die reiche Elite" not "Reiche"). Longest match wins ("Siemens Energy" vs
   "Siemens", "CDU/CSU" vs "CDU"); German inflection suffixes are accepted ("Trumps", "Merz'",
   "Grünen").
 * **Ambiguity**: the same alias may belong to several entities; the source country (from
@@ -374,6 +399,45 @@ that the totals of all 91 touched entities match their mention docs, so no full
 `reaggregate` was run (it would have used most of the day's remaining read budget). The
 whole rollout used 4,526 writes and 96,655 reads of the analysis share on 23 Oct.
 
+## Rollout of the larger list (23–28 Oct 2026)
+
+The second generator run (public persons, media, tech, TV shows) added **4,807 entities**
+(6,343 generated in total, 6,934 with the curated list).
+
+1. `seed` wrote the new entities and queued a 14-day `relink`, which the regular runs continued
+   within the budget. Three of those runs (27 Oct) were cancelled by the 150-minute job timeout,
+   which led to the time budget below. The relink finished on 27 Oct 22:02 UTC: **110,643
+   comments scanned**, 39,761 candidates re-run, **5,785 new mentions**. The last part used
+   17,245 reads and 1,700 writes.
+2. `prune` of 112 entities whose aliases had changed (28 Oct, morning): 6 mentions deleted,
+   3 entities removed (`deutsche-pfandbriefbank`, `michael-arndt`, `renk`), 2,025 reads and
+   49 writes.
+3. Hand check 1 (50 random mentions of the new entities; 210 of them had 2,893 mentions):
+   **44 / 50 (88 %)**. Errors: "Sinn" (macht Sinn), "Die Welt" (the world), "Nordsee" (the sea),
+   "BR" on blick.ch (the Swiss Bundesrat), "One" in "Apple One", "Focus" in "The Focus" (linked to
+   the bike brand). A scan of all 1,736 mentions of 64 word-like names (Firestore texts, local
+   only) showed the same problem in bulk: Sinn 64 of 64 wrong, One 40/42, Nordsee 22/22, Taschen
+   9/9, BR 58 of 91 (mostly the Bundesrat), the curated `bild` (≈ 130 of 209 "ein Bild"),
+   `der-spiegel` (mirror) and `die-mitte` (88 of 102 outside Swiss sources). The rules in
+   *Alias modes* and *Generated list* above (cue sets, `%` cue-only, local-weak, word contexts,
+   all-caps and sentence-start rules, NER lookup spelling) fix them in the generator and the
+   linker.
+4. `prune` of the 55 entities whose aliases changed plus 4 companies named after places
+   (Fulda, Salzgitter, Deutz, Eppendorf): 1,424 mentions re-checked, **602 deleted** (bild 133,
+   die-mitte 88, sinn 64, bayerischer-rundfunk 58, one 40, der-spiegel 35, sky-deutschland 32,
+   die-welt 27, nordsee 22, focus 18, die-zeit 11, heinrich-lanz-ag 11 …), no entity removed,
+   206 entities and 442 day docs re-aggregated; **35,630 reads, 2,243 writes**.
+5. Hand check 2 (new seed, 211 new entities with 2,689 mentions): **48 / 50 (96 %)**. The two
+   errors ("Cherry-picking", "BVG" for the Bundesverwaltungsgericht) were fixed (lower-case
+   compounds, BVG contextual with a feminine cue: "die BVG" vs. "das BVG") and pruned: 10 more
+   mentions deleted, 2,241 reads, 31 writes.
+
+Reads: a prune costs about 2,000 reads of fixed overhead (active entity docs, rolling windows)
+plus about 3 reads per re-checked mention and the re-aggregation of the affected days; a hand
+check about 3,000 reads. The regular run of 28 Oct 05:33 UTC analysed 3,869 comments with
+19,673 reads and 7,887 writes (with 150 Wikidata lookups and the aggregation); the entity count
+does not enter it (see below).
+
 ## Apps & Dienste (type `PRODUCT`)
 
 207 curated entities in [`data/entities.yaml`](data/entities.yaml), each with a hand-checked
@@ -490,11 +554,31 @@ To keep the project under about €3.70 a month, every command follows the share
 
   `run` continues the jobs in the order seed → prune → relink → rescore → reaggregate.
 
+## Time budget per run
+
+GitHub cancels the analysis job after `timeout-minutes: 150`. On 27 Oct three runs (05:33,
+10:46, 17:58 UTC) were cancelled while they continued the 14-day relink; the cursor and
+`pendingPairs` kept the progress, but each lost its last page and its budget record. Now every
+run has a soft deadline ([`analysis/timebudget.py`](analysis/timebudget.py)):
+
+* `ANALYSIS_TIME_BUDGET_MIN` (default 135) counts from `ANALYSIS_JOB_START`, which the first
+  step of `analyze.yml` sets, so the setup steps (pip, model cache) count too; without it the
+  clock starts with the process. `0` disables the limit.
+* The main loop checks it before each batch, `relink` and `rescore` before each page or batch
+  (keeping the duration of the last step in reserve), `reaggregate [--since]` before each group,
+  `continue_jobs` before each job (`"waiting for time"`) and `prune` before it starts.
+* When it is reached the run logs `time budget reached (… of 135 min used …)`, saves the job
+  cursor, aggregates what it processed (no `pendingPairs` are left), records its reads and
+  writes in `meta/budget` and exits 0 with `stopped: "time budget reached after N comments"`
+  and `timeBudget` in its summary. The next run continues.
+
+Tests: `tests/test_timebudget.py`.
+
 ## Schedule (GitHub Actions)
 
 | workflow | trigger | what |
 |---|---|---|
-| `analyze.yml` | twice a day at 05:30 and 17:30 UTC (`30 5,17 * * *`), about an hour after the crawler (`17 4,16 * * *`), + manual | `python -m analysis run` over the half-day backlog, newest first (about 6k comments; `--limit 9000`, timeout 150 min, aggregation every 2000 comments); CPU-only torch, pip cache, Hugging Face + Flair model cache, Wikidata lookup cache; `concurrency: analysis` prevents overlapping runs |
+| `analyze.yml` | twice a day at 05:30 and 17:30 UTC (`30 5,17 * * *`), about an hour after the crawler (`17 4,16 * * *`), + manual | `python -m analysis run` over the half-day backlog, newest first (about 6k comments; `--limit 9000`, timeout 150 min with a soft time budget of 135 min, aggregation every 2000 comments); CPU-only torch, pip cache, Hugging Face + Flair model cache, Wikidata lookup cache; `concurrency: analysis` prevents overlapping runs |
 | `seed.yml` | push to `data/*.yaml` + manual | `python -m analysis seed` |
 | `ci.yml` | push / PR | ruff + pytest (fake models, no torch needed) |
 
