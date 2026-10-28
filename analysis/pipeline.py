@@ -12,6 +12,7 @@ from urllib.parse import unquote
 import yaml
 
 from . import aggregate as agg
+from . import timebudget
 from .analyze import Stats, analyze_comments
 from .budget import Budget
 from .firestore import Doc, Firestore, Write
@@ -369,6 +370,7 @@ def run(
     finally:
         budget.record()
     out["budget"] = budget.summary()
+    out["timeBudget"] = timebudget.get().summary()
     log.info("run summary: %s", out)
     return out
 
@@ -424,9 +426,18 @@ def _run(fs, budget, limit, batch, ner_backend, sentiment_key, use_wikidata, max
     known_entities = set(registry.entities)
     stopped = None
     w_start, r_start = fs.writes, fs.reads
+    tb = timebudget.get()
+    t_batch, batch_s = time.time(), 0.0
 
     for i in range(0, len(comments), batch):
         chunk = comments[i : i + batch]
+        if i:
+            batch_s, t_batch = time.time() - t_batch, time.time()
+        # time: the next batch must end before the CI job timeout (see analysis/timebudget.py)
+        if tb.reached("the analysis run", reserve=1.2 * batch_s):
+            stopped = f"time budget reached after {i} comments"
+            log.warning("%s; the remaining %d wait for the next run", stopped, len(comments) - i)
+            break
         # budget: estimate the batch from the run's own rates so far; finish the run gracefully
         per_w = max(EST_WRITES_PER_COMMENT, (fs.writes - w_start) / i) if i else EST_WRITES_PER_COMMENT
         per_r = max(1.0, (fs.reads - r_start) / i) if i else EST_READS_PER_COMMENT
@@ -790,6 +801,9 @@ def continue_jobs(fs: Firestore, budget: Budget, ner_backend: str = "bert", sent
         if not budget.allows(writes=200, reads=1000):
             out[name] = "waiting for budget"
             continue
+        if timebudget.get().reached(f"job {name}"):
+            out[name] = "waiting for time"
+            continue
         log.info("continuing unfinished job %s", name)
         if name == "seed":
             res = seed(fs, with_images=True, budget=budget)
@@ -863,12 +877,20 @@ def _rescore(fs, budget, sentiment_key, ner_version, batch, model_kw) -> dict:
     changed_pairs = _pairs_in(job)
     n_changed, n_mentions = job["changed"], job["mentions"]
     done, stopped = True, None
+    tb = timebudget.get()
+    t_step, step_s = time.time(), 0.0
     for i in range(0, len(cids), batch):
         chunk = cids[i : i + batch]
         n_m = sum(len(by_comment[c]) for c in chunk)
         if not budget.allows(writes=n_m + len(chunk) + 2, reads=len(chunk)):
             done, stopped = False, f"daily Firestore budget reached after {i} of {len(cids)} comments"
             log.warning("rescore: %s", stopped)
+            break
+        if i:
+            step_s, t_step = time.time() - t_step, time.time()
+        if tb.reached("rescore", reserve=1.2 * step_s):
+            done, stopped = False, f"time budget reached after {i} of {len(cids)} comments"
+            log.warning("rescore: %s; continuing on the next run", stopped)
             break
         docs = fs.batch_get([f"comments/{c}" for c in chunk], mask=["text", "sourceId", "analysisVersion"])
         items: list[tuple[str, str]] = []
@@ -1070,7 +1092,15 @@ def _relink(fs, budget, days, entity_ids, ner_backend, sentiment_key, batch, pag
     pairs = _pairs_in(job)
     done, stopped = False, None
     w0, r0, seen0 = fs.writes, fs.reads, 0
+    tb = timebudget.get()
+    t_page, page_s = time.time(), 0.0
     while True:
+        if seen0:
+            page_s, t_page = time.time() - t_page, time.time()
+        if tb.reached("relink", reserve=1.2 * page_s):
+            stopped = f"time budget reached after {job['scanned']} comments"
+            log.warning("relink: %s; continuing on the next run", stopped)
+            break
         # estimate a page from this invocation's own rates (first page: 1 read per comment + 10 %)
         per_w = (fs.writes - w0) / seen0 if seen0 else 0.1
         per_r = (fs.reads - r0) / seen0 if seen0 else 1.2
@@ -1186,6 +1216,10 @@ def _reaggregate_since(fs, budget, since) -> dict:
             done, stopped = False, f"daily Firestore budget reached after {i} of {len(todo)} pairs"
             log.warning("reaggregate --since: %s", stopped)
             break
+        if timebudget.get().reached("reaggregate --since"):
+            done, stopped = False, f"time budget reached after {i} of {len(todo)} pairs"
+            log.warning("reaggregate --since: %s", stopped)
+            break
         info = aggregate_pairs(fs, {tuple(k.split("|", 1)) for k in chunk}, entity_docs, refresh=False)  # type: ignore[misc]
         changed += info["changedDays"]
         job["cursor"] = chunk[-1]
@@ -1264,6 +1298,10 @@ def _reaggregate(fs, budget) -> dict:
             done, stopped = False, f"daily Firestore budget reached before entity {eid}"
             log.warning("reaggregate: %s", stopped)
             break
+        if timebudget.get().reached("reaggregate"):
+            done, stopped = False, f"time budget reached before entity {eid}"
+            log.warning("reaggregate: %s", stopped)
+            break
         pack.extend(g)
         n_writes += len(g)
         last = eid
@@ -1328,6 +1366,9 @@ def prune(
 def _prune(fs, budget, entity_ids, add_ids, ner_backend, sentiment_key) -> dict:
     from .ner import load_ner
     from .sentiment import load_sentiment
+
+    if timebudget.get().reached("prune"):
+        return {"stopped": "time budget reached before the prune"}
 
     entity_docs, _active = load_active_docs(fs, ENTITY_READ_FIELDS)
     ensure_docs(fs, entity_docs, set(entity_ids) | set(add_ids), ENTITY_READ_FIELDS)

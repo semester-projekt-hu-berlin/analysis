@@ -105,12 +105,18 @@ jobs:
     timeout-minutes: 150 # ~6k comments per half day; measured ~280 comments/min with 2 threads, so 9000 fit with margin
     env:
       FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      # soft deadline (analysis/timebudget.py): from the job start, 15 min before timeout-minutes, the run
+      # saves its cursors, aggregates what it processed, records the budget and exits cleanly
+      ANALYSIS_TIME_BUDGET_MIN: "135"
       HF_HOME: ${{ github.workspace }}/.hf-cache
       FLAIR_CACHE_ROOT: ${{ github.workspace }}/.flair-cache
       ANALYSIS_CACHE_DIR: ${{ github.workspace }}/.cache
       TOKENIZERS_PARALLELISM: "false"
       PYTHONUNBUFFERED: "1"
     steps:
+      - name: Record the job start (time budget)
+        run: echo "ANALYSIS_JOB_START=$(date +%s)" >> "$GITHUB_ENV"
+
       - uses: actions/checkout@v4
 
       - name: Check secret

@@ -54,8 +54,11 @@ def main(argv: list[str] | None = None) -> int:
     for noisy in ("urllib3", "google", "flair", "transformers"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
+    from . import timebudget
     from .firestore import Firestore
     from .pipeline import prune, reaggregate, reaggregate_since, relink, rescore, run, seed
+
+    timebudget.get()  # the clock starts now (or at ANALYSIS_JOB_START, set by the CI job)
 
     fs = Firestore()
     if args.cmd == "run":
