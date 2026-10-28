@@ -425,9 +425,8 @@ entities:
   country: DE
   description: US-amerikanischer Softwarehersteller
   aliases:
-  - =Oracle
-  - ~ORCL
   - Oracle
+  - ~ORCL
   context: business
 - id: johannes-rau
   wikidata: Q2551
@@ -1773,9 +1772,9 @@ entities:
   description: deutsche überregionale Tageszeitung
   aliases:
   - =Süddeutsche Zeitung
-  - ~SZ
+  - ^~SZ
   - Süddeutsche
-  context: media
+  context: press
 - id: wout-weghorst
   wikidata: Q2210473
   name: Wout Weghorst
@@ -1859,10 +1858,9 @@ entities:
   aliases:
   - =Frankfurter Allgemeine Zeitung
   - =F. A. Z.
-  - ~FAZ
+  - FAZ
   - =Frankfurter Allgemeine
   - =Frankfurter Allgemeine. Zeitung für Deutschland
-  - FAZ
   - F.A.Z.
   context: media
 - id: torsten-frings
@@ -2215,10 +2213,15 @@ entities:
   aliases:
   - '@Die Welt'
   - Welt/N24
-  - =WELT
+  - '@WELT'
   - Welt Online
   - welt.de
-  context: media
+  - WELT TV
+  - Welt TV
+  - WELT News
+  - Welt am Sonntag
+  context: press
+  cue: press_f
 - id: wolfgang-overath
   wikidata: Q44688
   name: Wolfgang Overath
@@ -3674,9 +3677,8 @@ entities:
   - =Neue Zürcher Zeitung
   - nzz.ch
   - =Zürcher Zeitung
-  - ~NZZ
-  - Zürizytig
   - NZZ
+  - Zürizytig
   context: media
 - id: marvin-plattenhardt
   wikidata: Q72214
@@ -3755,11 +3757,13 @@ entities:
   aliases:
   - '@Die Zeit'
   - '@DIE ZEIT'
-  - =ZEIT
+  - '@ZEIT'
   - Zeit Online
   - ZEIT Online
+  - ZEIT ONLINE
   - zeit.de
-  context: media
+  context: press
+  cue: press_f
 - id: julian-weigl
   wikidata: Q15844698
   name: Julian Weigl
@@ -4055,9 +4059,10 @@ entities:
   - '@Stern'
   - '@Stern Magazin'
   - '@Stern online'
-  - =STERN
+  - '@STERN'
   - stern.de
-  context: media
+  context: press
+  cue: press_mag
 - id: karl-heinz-riedle
   wikidata: Q159951
   name: Karl-Heinz Riedle
@@ -6434,7 +6439,7 @@ entities:
   country: DE
   description: Elektrogerätemarke der US-amerikanischen Procter & Gamble Company
   aliases:
-  - ~Braun
+  - '@Braun'
   - =Braun GmbH
   context: business
 - id: christina-obergfoell
@@ -6482,7 +6487,6 @@ entities:
   aliases:
   - =Carl Walther GmbH
   - =Carl Walther
-  - =Walther
   - Carl Walther GmbH Sportwaffen
   - Walther、Carl Walther GmbH Sportwaffen
   context: business
@@ -6571,9 +6575,8 @@ entities:
   country: DE
   description: Berliner Tages- und Abonnementzeitung
   aliases:
-  - =Tagesspiegel
-  - =Der Tagesspiegel
   - Tagesspiegel
+  - =Der Tagesspiegel
   context: media
 - id: sara-daebritz
   wikidata: Q1030271
@@ -7313,7 +7316,6 @@ entities:
   description: Landesrundfunkanstalt für Hamburg, Mecklenburg-Vorpommern, Niedersachsen und Schleswig-Holstein
   aliases:
   - Norddeutscher Rundfunk
-  - ~NDR
   - NDR
   context: media
 - id: westdeutscher-rundfunk
@@ -7324,9 +7326,8 @@ entities:
   description: Landesrundfunkanstalt für das Land Nordrhein-Westfalen
   aliases:
   - =Westdeutscher Rundfunk
-  - ~WDR
-  - =Westdeutscher Rundfunk Köln
   - WDR
+  - =Westdeutscher Rundfunk Köln
   context: media
 - id: felix-passlack
   wikidata: Q20995048
@@ -7686,7 +7687,7 @@ entities:
   country: DE
   description: internationaler Landmaschinenkonzern aus Harsewinkel, Nordrhein-Westfalen, Deutschland
   aliases:
-  - =Claas
+  - '@Claas'
   - Agrocom
   context: business
 - id: marcus-hahnemann
@@ -8529,7 +8530,7 @@ entities:
   - =Bayerischer Rundfunk
   - =Bayerischer Rundfunk BR
   - ~BR-online
-  - ~BR
+  - ^~BR
   context: media
 - id: martina-barta
   wikidata: Q28779459
@@ -8571,7 +8572,7 @@ entities:
   country: DE
   description: deutscher Lebensmittelhersteller
   aliases:
-  - =Knorr
+  - '@Knorr'
   - Knorri
   - Knorrli
   context: business
@@ -11921,8 +11922,8 @@ entities:
   country: DE
   description: Verlag aus Köln
   aliases:
-  - ~Taschen
-  context: business
+  - '@Taschen'
+  context: publishing
 - id: till-broenner
   wikidata: Q386267
   name: Till Brönner
@@ -14070,9 +14071,8 @@ entities:
   aliases:
   - =Rundfunk Berlin-Brandenburg
   - =rbb-Rundfunk Berlin-Brandenburg
-  - =rbb
-  - RBB
   - rbb
+  - RBB
   context: media
 - id: hazel-brugger
   wikidata: Q21583218
@@ -18774,7 +18774,7 @@ entities:
   country: DE
   description: deutsches Unternehmen im Musikinstrumentenbau
   aliases:
-  - Höfner
+  - '@Höfner'
   context: business
 - id: anja-karliczek
   wikidata: Q15783504
@@ -21090,9 +21090,8 @@ entities:
   aliases:
   - =RTL Zwei
   - =RTL 2
-  - =RTL II
-  - RTL2
   - RTL II
+  - RTL2
   context: media
 - id: reiner-knizia
   wikidata: Q61838
@@ -21476,7 +21475,7 @@ entities:
   description: deutsches Software-Unternehmen, Hersteller von CD- und DVD-Brenner-Software
   aliases:
   - =Nero AG
-  - =Nero
+  - '@Nero'
   - Ahead Software AG
   context: business
 - id: sinalco
@@ -22076,7 +22075,7 @@ entities:
   country: DE
   description: deutscher Automobilzulieferer mit Sitz in Lippstadt (MDAX)
   aliases:
-  - =Hella
+  - '@Hella'
   - =Hella Distribution
   - =Hella Distribution GmbH
   - HELLA GmbH & Co. KGaA
@@ -22499,7 +22498,7 @@ entities:
   country: DE
   description: deutscher Spielzeughersteller
   aliases:
-  - =Schleich
+  - '@Schleich'
   context: business
 - id: stefan-schwarzmann
   wikidata: Q70575
@@ -23578,7 +23577,6 @@ entities:
   description: Hersteller von Schalungs- und Gerüstsystemen
   aliases:
   - ~PERI
-  - =Peri
   - Peri gmbh
   context: business
 - id: yoo-teo
@@ -23738,9 +23736,9 @@ entities:
   country: DE
   description: deutsche Restaurantkette
   aliases:
-  - =Nordsee
+  - '@Nordsee'
   - Nordsee Fischspezialitäten GmbH
-  context: business
+  context: gastro
 - id: isabelle-faust
   wikidata: Q75188
   name: Isabelle Faust
@@ -24061,7 +24059,7 @@ entities:
   country: DE
   description: deutscher Hersteller von Peripheriegeräten
   aliases:
-  - =Cherry
+  - '@Cherry'
   context: business
 - id: karl-heinz-brunner
   wikidata: Q14946405
@@ -24283,9 +24281,8 @@ entities:
   country: DE
   description: deutscher Nachrichtensender
   aliases:
-  - ~n-tv
-  - ntv
   - n-tv
+  - ntv
   context: media
 - id: dero-goi
   wikidata: Q2760949
@@ -25909,15 +25906,13 @@ entities:
   country: DE
   description: privater deutscher Fernsehsender der ProSiebenSat.1-Gruppe
   aliases:
-  - =Kabel Eins
+  - Kabel Eins
   - Der Kabelkanal
-  - =Kabel 1
+  - Kabel 1
   - =kabel eins
   - =Kabel eins HD
   - =Kabel eins Schweiz
   - Kabel1
-  - Kabel Eins
-  - Kabel 1
   context: media
 - id: bilfinger-se
   wikidata: Q284672
@@ -27703,9 +27698,9 @@ entities:
   description: Fahrradhersteller aus Koblenz
   aliases:
   - Canyon Bicycles
-  - =Canyon
+  - '@Canyon'
   - Canyon Bicycles GmbH
-  context: business
+  context: bikes
 - id: stiftungsuniversitaet-hildesheim
   wikidata: Q319333
   name: Stiftungsuniversität Hildesheim
@@ -29846,7 +29841,6 @@ entities:
   description: Hersteller von elektrischen Haushaltsgeräten
   aliases:
   - =Severin Elektrogeräte
-  - =Severin
   - =SEVERIN Elektrogeräte
   - =Severin Elektrogeräte GmbH
   - =SEVERIN Elektrogeräte GmbH
@@ -30389,8 +30383,7 @@ entities:
   description: deutscher Pay-TV-Anbieter
   aliases:
   - =Sky Deutschland
-  - ~Premiere
-  - ~Sky
+  - '@Sky'
   - =Sky Österreich
   - =Premiere Austria
   - =Premiere AG
@@ -30400,7 +30393,8 @@ entities:
   - =Sky Deutschland AG
   - =Sky Sport 1
   - =Sky Sport 2
-  context: media
+  - =Sky Sport HD 1
+  context: paytv
 - id: daniela-schadt
   wikidata: Q65520
   name: Daniela Schadt
@@ -32385,9 +32379,9 @@ entities:
   country: DE
   description: Elektronik-Fachmarktkette
   aliases:
-  - =Saturn
+  - '@Saturn'
   - =Saturn-Hansa
-  context: business
+  context: electronics
 - id: jens-ludwig
   wikidata: Q2566813
   name: Jens Ludwig
@@ -32587,10 +32581,10 @@ entities:
   country: DE
   description: Hersteller von Fahrrädern in Deutschland
   aliases:
-  - =Cube
+  - '@Cube'
   - =Cube Bikes (firma)
   - Pending System
-  context: business
+  context: bikes
 - id: technische-universitaet-clausthal
   wikidata: Q447354
   name: Technische Universität Clausthal
@@ -36085,7 +36079,7 @@ entities:
   aliases:
   - Grob Aircraft
   - ~Grob-Werke
-  - ~Grob
+  - '@Grob'
   - Grob Aircraft AG
   context: business
 - id: gunnar-bahr
@@ -36251,8 +36245,8 @@ entities:
   description: deutsches Nachrichtenportal
   aliases:
   - ~T-Online
-  - =t-online.de
   - t-online.de
+  - t-online
   context: media
 - id: mero
   wikidata: Q59198177
@@ -38652,7 +38646,7 @@ entities:
   country: DE
   description: Markenhersteller, Versand- und Einzelhandelsunternehmen für Berufsbekleidung und Arbeitsschutz
   aliases:
-  - ~Strauss
+  - '@Strauss'
   - =engelbert strauss
   context: business
 - id: michael-gerber
@@ -39699,9 +39693,9 @@ entities:
   country: DE
   description: Uhrenmarke
   aliases:
-  - ~Sinn
+  - '@Sinn'
   - Sinn Spezialuhren GmbH
-  context: business
+  context: watches
 - id: sachs-bikes
   wikidata: Q317263
   name: Sachs Bikes
@@ -40241,7 +40235,7 @@ entities:
   country: DE
   description: Spielzeughersteller
   aliases:
-  - Sieper
+  - '@Sieper'
   - Sieper GmbH
   - Sieper Lüdenscheid
   - Sieper Lüdenscheid GmbH & Co. KG
@@ -40411,7 +40405,6 @@ entities:
   description: deutsches Softwareunternehmen (MDAX/SDAX/TecDAX)
   aliases:
   - TeamViewer SE
-  - =TeamViewer
   - TeamViewer
   context: business
 - id: andrea-ammon
@@ -41201,8 +41194,10 @@ entities:
   country: DE
   description: deutschsprachige feministische Publikumszeitschrift
   aliases:
-  - ~Emma
-  context: business
+  - '@Emma'
+  - '@EMMA'
+  context: feminism
+  cue: press_f
 - id: leonie-tepe
   wikidata: Q78463
   name: Leonie Tepe
@@ -42241,9 +42236,9 @@ entities:
   country: DE
   description: deutsche Fahrradmarke
   aliases:
-  - ~Focus
+  - '@Focus'
   - =Focus Bikes
-  context: business
+  context: bikes
 - id: katharina-schulze
   wikidata: Q14949131
   name: Katharina Schulze
@@ -42403,7 +42398,7 @@ entities:
   country: DE
   description: Margarinemarke der Upfiel Holdings
   aliases:
-  - =Rama
+  - '@Rama'
   context: business
 - id: reinhard-grindel
   wikidata: Q2140709
@@ -42593,7 +42588,7 @@ entities:
   country: DE
   description: deutscher Hersteller von Produkten aus dem Bereich der Telekommunikation und Netzwerktechnik
   aliases:
-  - ~Fritz!
+  - '@Fritz!'
   - Audio Visuelles Marketing
   context: business
 - id: die-laenderbahn
@@ -42788,7 +42783,7 @@ entities:
   country: DE
   description: deutscher, in der Schweiz gegründeter Hersteller von Computerkühlungskomponenten
   aliases:
-  - =Arctic
+  - '@Arctic'
   - Arctic Cooling
   context: business
 - id: burmester-audiosysteme
@@ -42894,7 +42889,7 @@ entities:
   country: DE
   description: deutscher Hersteller von Porzellan, Glas und Keramik und anderen Haushaltswaren
   aliases:
-  - =Rosenthal
+  - '@Rosenthal'
   - =Rosenthal AG
   - =Rosenthal GmbH
   - =Rosenthal Porzellan
@@ -43472,7 +43467,6 @@ entities:
   aliases:
   - =Heinrich Lanz AG
   - =Heinrich Lanz
-  - =Lanz
   context: business
 - id: schoema-lokomotiven-gmbh
   wikidata: Q884368
@@ -44694,12 +44688,13 @@ entities:
   country: DE
   description: deutscher Fernsehsender
   aliases:
-  - ~One
   - =ARD festival
   - =Eins Festival
   - Eins festíval
   - Einsfestival
-  context: business
+  - ARD One
+  - '@ONE'
+  context: ard_channels
 - id: whu-otto-beisheim-school-of-management
   wikidata: Q316595
   name: WHU – Otto Beisheim School of Management
@@ -44766,7 +44761,7 @@ entities:
   description: Unternehmensgruppe des Maschinenbaus für Verpackungen und Zigaretten
   aliases:
   - Körber AG
-  - =Körber
+  - '@Körber'
   context: business
 - id: ableton
   wikidata: Q322379
@@ -45001,7 +44996,7 @@ entities:
   description: Logistikdienstleister
   aliases:
   - =Schenker AG
-  - =Schenker
+  - '@Schenker'
   - Schenker Logistics
   - =Spedition Schenker
   context: business
@@ -46502,12 +46497,12 @@ entities:
   country: DE
   description: deutsche Drogeriemarktkette
   aliases:
-  - ~Müller
+  - '@Müller'
   - Drogeriemarkt Müller
   - DroMaMü
   - =Müller Handels GmbH & Co. KG
   - =Müller Ltd. & Co. KG
-  context: business
+  context: drugstore
 - id: marcel-mettelsiefen
   wikidata: Q20015772
   name: Marcel Mettelsiefen
@@ -48279,7 +48274,7 @@ entities:
   - =Heise-News-Ticker
   - =Heise-Newsticker
   - =Heise-online
-  - =Heise-Online
+  - heise
   context: media
 - id: helga-zepp-larouche
   wikidata: Q1602342
@@ -49281,10 +49276,10 @@ entities:
   country: DE
   description: deutsches politisches Magazin
   aliases:
-  - =Cicero
-  - =Cicero Magazin
   - '@Cicero'
-  context: media
+  - =Cicero Magazin
+  context: press
+  cue: press_mag
 - id: katharina-kuhlmann
   wikidata: Q78206
   name: Katharina Kuhlmann
@@ -51068,10 +51063,10 @@ entities:
   country: DE
   description: deutsche rechtsextreme Monatszeitschrift
   aliases:
-  - =Compact
-  - =Compact – Magazin für Souveränität
   - '@Compact'
-  context: media
+  - =Compact – Magazin für Souveränität
+  context: press
+  cue: press_mag
 - id: julia-verlinden
   wikidata: Q15805255
   name: Julia Verlinden

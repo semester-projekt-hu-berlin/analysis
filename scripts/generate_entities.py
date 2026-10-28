@@ -20,8 +20,13 @@ Alias policy (linking quality):
   * person surnames: NER-only ("!": needs an NER PER span, context keywords are not enough) and
     only if unique among all entities,
     not a very common surname and not a frequent German word;
-  * one-word company names that are frequent German words (Post, Bahn, Bild, ...): weak (needs
+  * one-word company names that are frequent German words (Post, Bahn, ...): weak (needs
     NER ORG or business context); acronyms case-sensitive;
+  * brand names that are ordinary words, first names or surnames in comments (Sinn, Nordsee, Focus,
+    One, Taschen, Emma, Müller, Lanz ...): contextual, with a context set of their own (WORD_CONTEXT);
+    a person's name that is only a short form of a company name is dropped;
+  * newspapers named with words (WELT, ZEIT, Stern, Cicero): contextual with the `press` context and
+    a cue set (MEDIA_CUE: "laut WELT", "der ZEIT", "Stern-Artikel");
   * no alias that already belongs to a curated entity in data/entities.yaml (curated wins).
 
     python scripts/generate_entities.py [--refresh]
@@ -286,7 +291,7 @@ MEDIA_TECH: dict[str, tuple[str, list[str]]] = {
     # broadcasters
     "Q203453": ("media", ["WDR"]),
     "Q201275": ("media", ["NDR"]),
-    "Q278637": ("media", ["~BR"]),
+    "Q278637": ("media", ["^~BR"]),  # local: "BR" on blick.ch is the Swiss Bundesrat
     "Q700133": ("media", ["SWR"]),
     "Q158948": ("media", ["MDR"]),
     "Q19899": ("media", ["RBB", "rbb"]),
@@ -307,27 +312,27 @@ MEDIA_TECH: dict[str, tuple[str, list[str]]] = {
     "Q265612": ("media", ["Kabel Eins", "Kabel 1"]),
     "Q136012": ("media", []),  # ZDFneo
     "Q594177": ("media", ["RTL2", "RTL II"]),
-    "Q652282": ("media", ["Sky"]),
+    "Q652282": ("media", ["@Sky"]),  # context: WORD_CONTEXT
     "Q30133334": ("media", []),  # DAZN
     # newspapers, magazines, agencies, online media
-    "Q158870": ("media", ["~SZ", "Süddeutsche"]),
+    "Q158870": ("press", ["^~SZ", "Süddeutsche"]),  # local: "Tuggen SZ" (Kanton Schwyz)
     "Q10184": ("media", ["FAZ", "F.A.Z."]),
-    "Q157142": ("media", ["=ZEIT", "Zeit Online", "ZEIT Online", "zeit.de"]),
-    "Q29872": ("media", ["=WELT", "Welt Online", "welt.de"]),
+    "Q157142": ("press", ["@ZEIT", "Zeit Online", "ZEIT Online", "ZEIT ONLINE", "zeit.de"]),
+    "Q29872": ("press", ["@WELT", "Welt Online", "welt.de", "WELT TV", "Welt TV", "WELT News", "Welt am Sonntag"]),
     "Q819697": ("media", []),  # Handelsblatt
-    "Q158322": ("media", ["=STERN", "stern.de"]),
+    "Q158322": ("press", ["@STERN", "stern.de"]),
     "Q10189": ("media", ["Tagesspiegel"]),
     "Q326068": ("media", []),  # Frankfurter Rundschau
     "Q10185": ("media", []),  # Berliner Zeitung
     "Q658945": ("media", ["NZZ"]),
     "Q157948": ("media", []),  # Junge Freiheit
-    "Q15803741": ("media", ["@Compact"]),
-    "Q781987": ("media", ["@Cicero"]),
+    "Q15803741": ("press", ["@Compact"]),
+    "Q781987": ("press", ["@Cicero"]),
     "Q27902651": ("media", []),  # Tichys Einblick
     "Q312653": ("media", ["=dpa", "=DPA"]),
     "Q20181258": ("media", []),  # Correctiv
     "Q1601295": ("media", ["heise"]),
-    "Q590940": ("media", ["t-online.de"]),
+    "Q590940": ("media", ["t-online.de", "t-online"]),
 }
 
 # TV shows: ORG entities "TV-Sendung (<broadcaster>)". Shows named after their presenter only link
@@ -365,6 +370,40 @@ SHOWS: dict[str, tuple[str, str, list[str]]] = {
 
 # names that are everyday phrases ("Die Welt ist schlecht", "Die Zeit drängt"): media context only
 CONTEXT_ONLY_NAMES = {"Q29872", "Q157142", "Q1959672", "Q158322"}
+# cue sets (data/entities.yaml `cues:`) of newspapers whose names are words: "laut WELT", "der ZEIT",
+# "Stern-Artikel", "„Cicero“" link without a context keyword (feminine titles also after der/die)
+MEDIA_CUE = {
+    "Q29872": "press_f",  # Die Welt
+    "Q157142": "press_f",  # Die Zeit
+    "Q158322": "press_mag",  # Stern ("der Stern" is also the star)
+    "Q781987": "press_mag",  # Cicero (also the Roman)
+    "Q15803741": "press_mag",  # Compact ("BMW Compact", "Compact Flash")
+    "Q784201": "press_f",  # Emma
+}
+
+# Brand names that are ordinary words or names in comments ("macht Sinn", "an der Nordsee", "Apple
+# One", "die Taschen füllen", "Tante Emma", "Bright Sky"): the bare name is contextual and needs a
+# keyword of its own context set (data/entities.yaml), the generic business words are not enough
+# ("ergeben wirtschaftlich nur begrenzt Sinn" on a finance forum).
+WORD_CONTEXT = {
+    "Q315556": "watches",  # Sinn (Uhren)
+    "Q74866": "gastro",  # Nordsee (Restaurantkette)
+    "Q1435060": "bikes",  # Focus (Fahrräder), not the magazine
+    "Q442816": "bikes",  # Cube
+    "Q318730": "bikes",  # Canyon
+    "Q1958759": "drugstore",  # Müller (Drogeriemarkt)
+    "Q367205": "publishing",  # Taschen (Verlag)
+    "Q652282": "paytv",  # Sky Deutschland
+    "Q316322": "ard_channels",  # One (ARD-Sender)
+    "Q784201": "feminism",  # Emma (Zeitschrift)
+    "Q2543504": "electronics",  # Saturn (Elektronikmarkt), not the planet or the rocket
+}
+# hand-made alias changes: aliases to drop (marker-stripped text) and to add
+ALIAS_EDITS: dict[str, dict[str, list[str]]] = {
+    "Q316322": {"drop": ["One"], "add": ["ARD One", "@ONE"]},  # "One" alone is almost never the channel
+    "Q652282": {"drop": ["Premiere"]},  # the old name of Sky; today a theatre or film premiere
+    "Q784201": {"add": ["@EMMA"]},  # the magazine's own spelling
+}
 
 ATHLETE_MIN_SITELINKS = 20  # sports bots give athletes many sitelinks
 PUBLIC_MIN_SITELINKS = 10
@@ -502,7 +541,50 @@ AMBIGUOUS_WORDS = {
     "aida",
     "smart",
     "norma",
+    # words, first names and surnames that are also brand names (see also WORD_CONTEXT)
+    "sinn",
+    "nordsee",
+    "focus",
+    "one",
+    "sky",
+    "taschen",
+    "emma",
+    "braun",
+    "müller",
+    "strauss",
+    "grob",
+    "fritz!",
+    "cherry",
+    "canyon",
+    "cube",
+    "arctic",
+    "nero",
+    "schleich",
+    "rama",
+    "compact",
+    "cicero",
+    "stern",
+    "saturn",
+    "monitor",
+    "panorama",
+    # newspapers and magazines named with words: not entities yet, contextual if they ever come in
+    "welt",
+    "zeit",
+    "bild",
+    "spiegel",
+    "kicker",
+    "express",
+    "freitag",
+    "capital",
+    "titanic",
+    "vorwärts",
+    "bunte",
+    "brigitte",
+    "gala",
+    "konkret",
 }
+# a short form that is also a person's name is kept (weak) only for very well-known companies ("Bosch")
+PERSON_NAME_BRAND_SITELINKS = 40
 # ... and some that are almost never the company ("mehr Netto vom Brutto")
 DROP_WORDS = {"netto"}
 
@@ -805,12 +887,13 @@ def main() -> None:
             aliases = ["@" + a if (a[:1] not in ("~", "!", "@", "=") and " " in a) or a == name else a for a in aliases]
         # alias policy
         final: list[str] = []
+        core_name = LEGAL.sub("", name).strip()
         for a in dict.fromkeys(aliases):
-            raw = a[1:] if a[:1] in ("~", "!", "@") else a
+            raw = parse_alias(a)[0]
             key = normalize_surface(raw)
             if key in seed_aliases or len(key) < 2:
                 continue
-            if a[:1] in ("~", "!", "@"):
+            if a[:1] in ("~", "!", "@", "%", "^"):
                 final.append(a)
             elif is_person and " " not in raw.strip():
                 # one-word names (artists: "Nena", "Sido", "Cro"): case-sensitive; NER-only if a word
@@ -835,10 +918,21 @@ def main() -> None:
                     stats["dropped company aliases"] += 1
                 elif raw.casefold() in DROP_WORDS and raw != name:
                     stats["dropped company aliases"] += 1
-                elif raw.casefold() in AMBIGUOUS_WORDS:
-                    # "3000 Netto", "beim Globus": only with a business keyword nearby
+                elif raw.casefold() in AMBIGUOUS_WORDS or (qid in WORD_CONTEXT and raw == core_name):
+                    # "3000 Netto", "beim Globus", "macht Sinn": only with a keyword of the context nearby
                     final.append("@" + raw)
                     stats["contextual company aliases"] += 1
+                elif not raw.isupper() and (key in surname_count or key in first_names):
+                    # a person's surname or first name ("Lanz" is Markus Lanz, not the Heinrich Lanz AG;
+                    # "Severin", "Walther"): contextual if it is the company's name, else dropped
+                    if raw == core_name:
+                        final.append("@" + raw)
+                        stats["contextual company aliases (person names)"] += 1
+                    elif qid in index_of or d.get("sl", 0) >= PERSON_NAME_BRAND_SITELINKS:
+                        final.append("~" + raw)  # "Bosch": the brand of a very well-known company
+                        stats["weak company aliases"] += 1
+                    else:
+                        stats["dropped company aliases (person names)"] += 1
                 elif raw.isupper() or zf >= 4.0:
                     # acronyms (EWG, KIT) and common words (Post, Bahn): need NER ORG or context
                     final.append("~" + raw)
@@ -852,9 +946,22 @@ def main() -> None:
                 final.append("=" + raw)  # "Das Erste", "Deutsche Marine": case-sensitive
             else:
                 final.append(raw)
-        for a in MEDIA_TECH.get(qid, ("", []))[1]:  # hand-written aliases (WDR, FAZ, ntv, ...)
-            if normalize_surface(parse_alias(a)[0]) not in seed_aliases and a not in final:
+        edits = ALIAS_EDITS.get(qid, {})
+        hand = [*MEDIA_TECH.get(qid, ("", []))[1], *edits.get("add", [])]  # hand-written (WDR, FAZ, ntv, ...)
+        hand = [a for a in hand if normalize_surface(parse_alias(a)[0]) not in seed_aliases]
+        # a hand-written mode replaces the generated one in place ("@Cicero", not "=Cicero"; "@WELT")
+        final = [x for x in final if parse_alias(x)[0] not in edits.get("drop", [])]
+        for a in dict.fromkeys(hand):
+            same = [i for i, x in enumerate(final) if parse_alias(x)[0] == parse_alias(a)[0]]
+            if same:
+                final[same[0]] = a
+                final = [x for i, x in enumerate(final) if i not in same[1:]]
+            else:
                 final.append(a)
+        # the 12-alias cap never cuts off a hand-written alias
+        while len(final) > 12 and any(x not in hand for x in final[1:]):
+            drop = max(i for i, x in enumerate(final) if i > 0 and x not in hand)
+            final.pop(drop)
         if not final:
             continue
         eid = slugify(name)
@@ -870,13 +977,17 @@ def main() -> None:
             "description": desc[:120],
             "aliases": final[:12],
         }
-        if qid in MEDIA_TECH:
+        if qid in WORD_CONTEXT:
+            entry["context"] = WORD_CONTEXT[qid]
+        elif qid in MEDIA_TECH:
             entry["context"] = MEDIA_TECH[qid][0]
         elif is_person:
             if qid in politicians:
                 entry["context"] = "politics"
         else:
             entry["context"] = "education" if qid in universities else "business"
+        if qid in MEDIA_CUE:
+            entry["cue"] = MEDIA_CUE[qid]
         entries.append(entry)
         stats[
             ("politician" if qid in politicians else "public person")

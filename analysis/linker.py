@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import functools
 import re
+import unicodedata
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -150,6 +151,7 @@ class Entity:
     imageUrl: str | None = None
     imageKind: str | None = None  # "logo" | "portrait" | None
     source: str = "seed"  # seed | wikidata
+    cue: dict | None = None  # cue set: local evidence for contextual (@) and cue-only (%) aliases
 
     @property
     def search_tokens(self) -> list[str]:
@@ -174,7 +176,7 @@ class Entity:
 class Alias:
     text: str
     entity_id: str
-    mode: str  # plain | cs | weak | ner | ctx | local
+    mode: str  # plain | cs | weak | ner | ctx | cue | local, or local-weak / local-ctx / local-cue
 
 
 @dataclass
@@ -219,19 +221,28 @@ def _trie_pattern(words: set[str]) -> str:
     return build(trie)
 
 
+_MARKERS = {"~": "weak", "!": "ner", "@": "ctx", "=": "cs", "%": "cue"}
+
+
 def parse_alias(raw: str) -> tuple[str, str]:
+    """'~Reiche' -> ('Reiche', 'weak'); '^~BR' -> ('BR', 'local-weak'); see the header of entities.yaml."""
     raw = str(raw)
-    if raw.startswith("~"):
-        return raw[1:], "weak"
-    if raw.startswith("!"):
-        return raw[1:], "ner"
-    if raw.startswith("@"):
-        return raw[1:], "ctx"
-    if raw.startswith("="):
-        return raw[1:], "cs"
     if raw.startswith("^"):
+        if raw[1:2] in ("~", "@", "%"):
+            text, mode = parse_alias(raw[1:])
+            return text, f"local-{mode}"
         return raw[1:], "local"
+    mode = _MARKERS.get(raw[:1])
+    if mode:
+        return raw[1:], mode
     return raw, "plain"
+
+
+def _cs_key(s: str) -> str:
+    """Like normalize_surface, but keeps the case (case-sensitive aliases in the NER lookup)."""
+    s = unicodedata.normalize("NFC", s)
+    s = s.replace("’", "'").replace("‘", "'").replace("–", "-").replace("‑", "-")
+    return re.sub(r"\s+", " ", s).strip(" \t\n\"'„“”»«()[]{}:;,.!?")
 
 
 def _word_set(text: str) -> set[str]:
@@ -247,6 +258,8 @@ class Registry:
         self.aliases: list[Alias] = []
         self.alias_index: dict[str, list[str]] = {}  # normalized surface -> entity ids
         self.alias_modes: dict[tuple[str, str], set[str]] = {}  # (normalized surface, entity id) -> modes
+        # (normalized surface, entity id) -> (exact text, mode) of each alias (NER lookup case rules)
+        self.alias_entries: dict[tuple[str, str], list[tuple[str, str]]] = {}
         self._compiled = False
         self._name_word_cache: dict[str, set[str]] = {}
         alias_specs = alias_specs or {}
@@ -259,6 +272,7 @@ class Registry:
         """Curated seed list plus (optionally) the Wikidata-generated list; curated entries win."""
         data = _load_yaml(path)
         contexts = {k: list(v) for k, v in (data.get("contexts") or {}).items()}
+        cues = {k: dict(v) for k, v in (data.get("cues") or {}).items()}
         reg = cls()
         lists = [(data["entities"], "seed")]
         if generated is not None and generated.exists():
@@ -272,6 +286,8 @@ class Registry:
                 ctx = raw.get("context")
                 ctx_words = contexts.get(ctx, []) if isinstance(ctx, str) else list(ctx or [])
                 display = list(dict.fromkeys([raw["name"], *[t for t, _ in specs]]))
+                cue = raw.get("cue")
+                cue = cues.get(cue) if isinstance(cue, str) else cue
                 e = Entity(
                     id=raw["id"],
                     name=raw["name"],
@@ -282,6 +298,7 @@ class Registry:
                     aliases=display,
                     context=ctx_words,
                     source=origin,
+                    cue=_compile_cue(cue) if cue else None,
                 )
                 reg.add(e, specs)
         return reg
@@ -311,6 +328,7 @@ class Registry:
             if e.id not in self.alias_index[normalize_surface(text)]:
                 self.alias_index[normalize_surface(text)].append(e.id)
             self.alias_modes.setdefault((normalize_surface(text), e.id), set()).add(mode)
+            self.alias_entries.setdefault((normalize_surface(text), e.id), []).append((_cs_key(text), mode))
         self._compiled = False
 
     def add_discovered(self, info: dict) -> Entity:
@@ -418,8 +436,12 @@ class Registry:
         for start, end, surface, als, suf in sorted(candidates, key=lambda c: (-(c[1] - c[0]), c[0])):
             if any(not (end <= m.start or start >= m.end) for m in out):
                 continue
-            eid = self._choose(als, start, end, suf, ner_spans, words, lowered, country, surface)
+            eid = self._choose(als, start, end, suf, ner_spans, words, lowered, country, surface, text)
             if eid and self._other_first_name(text, start, surface, eid):
+                continue
+            if eid and self._inside_other_name(
+                text, start, surface[: len(surface) - len(suf)] if suf else surface, eid
+            ):
                 continue
             if eid and self.entities[eid].type == "PRODUCT" and _in_url(text, start, end):
                 continue  # "de.wikipedia.org/wiki/...", "paulkrugman.substack.com": a link, not a mention
@@ -443,19 +465,45 @@ class Registry:
             return False
         return first in self._first_names and first not in e.name.split() and first not in " ".join(e.aliases)
 
-    @staticmethod
-    def _ner_contradicts(e: Entity, start: int, end: int, ner_spans) -> bool:
-        """An NER span covering exactly this surface says person where the entity is an
-        organisation or product, or the other way round."""
-        for s, t, tag, score in ner_spans:
-            if (
-                s <= start
-                and end <= t
-                and score >= 0.9
-                and tag in ("PER", "ORG")
-                and (tag == "PER") != (e.type == "PER")
-            ):
+    def _inside_other_name(self, text: str, start: int, core: str, eid: str) -> bool:
+        """A one-word generated name right after "The" or after another entity's name is part of a
+        longer name: "The Focus", "Apple One", "Ford Focus" are not the bike brand or the TV channel."""
+        e = self.entities[eid]
+        if (
+            e.source != "generated"
+            or e.type == "PER"
+            or " " in core.strip()
+            or not core[:1].isupper()
+            or core.isupper()
+        ):
+            return False
+        prev = re.search(r"([\w][\w.&+-]*) $", text[max(0, start - 40) : start])
+        if not prev:
+            return False
+        w = prev.group(1)
+        if w.casefold() == "the":
+            return True
+        if not w[:1].isupper() or w.isupper():  # "Apple One", "Ford Focus"; not "ARD ZDF Arte" or "ard zdf ndr"
+            return False
+        key = normalize_surface(w)
+        for oid in self.alias_index.get(key, []):
+            if oid == eid:
+                continue
+            if any(m == "plain" or t == _cs_key(w) for t, m in self.alias_entries.get((key, oid), [])):
                 return True
+        return False
+
+    @staticmethod
+    def _ner_contradicts(e: Entity, start: int, end: int, ner_spans, loc: bool = False) -> bool:
+        """An NER span covering exactly this surface says person where the entity is an
+        organisation or product, or the other way round (with `loc`: also a place where the
+        entity is an organisation: "Fulda", "Salzgitter", "Nordsee")."""
+        for s, t, tag, score in ner_spans:
+            if s <= start and end <= t and score >= 0.9:
+                if tag in ("PER", "ORG") and (tag == "PER") != (e.type == "PER"):
+                    return True
+                if loc and tag == "LOC" and e.type == "ORG":
+                    return True
         return False
 
     def _context_ok(self, e: Entity, words: set[str], lowered: str, own: set[str] = frozenset()) -> bool:
@@ -469,28 +517,53 @@ class Registry:
                 return True
         return False
 
-    def _choose(self, als, start, end, suf, ner_spans, words, lowered, country, surface: str = "") -> str | None:
+    def _choose(
+        self, als, start, end, suf, ner_spans, words, lowered, country, surface: str = "", text: str = ""
+    ) -> str | None:
         own = _word_set(surface)
+        core = surface[: len(surface) - len(suf)] if suf else surface
+        one_word = " " not in core.strip()
         ok: list[tuple[Entity, int]] = []  # (entity, evidence: 2 = context/NER confirmed, 1 = plain)
         for a in als:
             e = self.entities[a.entity_id]
+            mode = a.mode
+            if mode.startswith("local"):
+                # local aliases: only on sources of the entity's own country ("BR" on blick.ch is the
+                # Swiss Bundesrat); "local-weak" etc. need the evidence of the other mode as well
+                if country and e.country and country != e.country:
+                    continue
+                mode = mode[len("local-") :] if mode != "local" else "cs"
             if not self._suffix_ok(e, suf):
                 continue
-            if (
-                e.source == "generated"
-                and a.mode in ("plain", "cs")
-                and self._ner_contradicts(e, start, end, ner_spans)
+            if e.source == "generated" and e.type != "PER":
+                # "Lanz" tagged as a person is not the Heinrich Lanz AG, "Fulda" tagged as a place not
+                # the tyre maker (one-word names only: "Bank of America" may be tagged LOC); a cue
+                # overrules the tag ("„Emma“" is often tagged as a person)
+                if self._ner_contradicts(e, start, end, ner_spans, loc=one_word) and not (
+                    mode in ("ctx", "cue") and _cue_ok(e.cue, text, start, end, core, suf)
+                ):
+                    continue
+            elif (
+                e.source == "generated" and mode in ("plain", "cs") and self._ner_contradicts(e, start, end, ner_spans)
             ):
-                continue  # "Lanz" tagged as a person is not the Heinrich Lanz AG
+                continue
             if e.type == "PRODUCT" and self._ner_contradicts(e, start, end, ner_spans):
                 continue  # "Claude" / "Bolt" tagged as a person is not the chatbot / the ride app
+            if (mode in ("ctx", "cue", "weak") or (mode == "cs" and e.cue)) and _shouting(text, start, end, core):
+                continue  # "IN DIESER IRREN ZEIT", "DIE WELT GEHT UNTER": capitals, not the newspaper
+            if (
+                mode in ("ctx", "cue", "weak")
+                and core.isupper()
+                and re.search(r"\w-$", text[max(0, start - 2) : start])
+            ):
+                continue  # the end of a compound: "pt-BR" (a language code), not the broadcaster
             ev = 1
-            if a.mode == "weak":
+            if mode == "weak":
                 ner_ok = any(s < end and start < t and _ner_compatible(tag, e.type) for s, t, tag, _score in ner_spans)
                 if not (ner_ok or (e.context and self._context_ok(e, words, lowered, own))):
                     continue
                 ev = 2
-            elif a.mode == "ner":
+            elif mode == "ner":
                 # NER-only (generated surnames): a context keyword is not enough ("die grüne Wiese"),
                 # and only on sources of the person's own country (a "Radwan" on derstandard.at)
                 if country and e.country and country != e.country:
@@ -500,12 +573,23 @@ class Registry:
                 # a bare surname is weaker evidence than a contextual reading of the same span
                 # ("Lanz" + "Sendung" -> the show, not the presenter)
                 ev = 1.5
-            elif a.mode == "ctx":
-                if not self._context_ok(e, words, lowered, own):
+            elif mode == "ctx":
+                article = bool(_ARTICLE_NAME.match(core)) and bool(text)
+                if _cue_ok(e.cue, text, start, end, core, suf):
+                    pass
+                elif article and not _sentence_start(text, start):
+                    pass  # "stand in Die Welt": a capital "Die" inside a sentence is the title
+                elif article or not self._context_ok(e, words, lowered, own):
+                    # "Die Welt steuert auf 2,8 Grad zu": at the start of a sentence "Die Welt" is the
+                    # world, even next to "Zeitung"; there the newspaper needs a cue ("Die Welt berichtet")
                     continue
                 ev = 2
-            elif a.mode == "local" and country and e.country and country != e.country:
-                continue
+            elif mode == "cue":
+                # cue-only ("%Bild"): a context keyword is not enough ("ein Bild machen" next to
+                # "Artikel"), only local evidence counts ("laut Bild", "der Bild", "„Bild“")
+                if not _cue_ok(e.cue, text, start, end, core, suf):
+                    continue
+                ev = 2
             ok.append((e, ev))
         if not ok:
             return None
@@ -542,7 +626,9 @@ class Registry:
             key = normalize_surface(cand)
             ids = self.alias_index.get(key, [])
             ids = [
-                i for i in ids if _ner_compatible(ner_tag, self.entities[i].type) and self._lookup_ok(key, i, country)
+                i
+                for i in ids
+                if _ner_compatible(ner_tag, self.entities[i].type) and self._lookup_ok(key, i, country, cand)
             ]
             if ids:
                 if len(ids) > 1 and country:
@@ -559,14 +645,38 @@ class Registry:
             return False
         return any(eid in self.alias_index.get(normalize_surface(v), []) for v in surface_variants(surface))
 
-    def _lookup_ok(self, key: str, eid: str, country: str | None) -> bool:
-        """An NER span may use an alias only where the gazetteer could: contextual aliases need
-        their context (handled by the gazetteer), NER-only and local ones the right country."""
+    def _lookup_ok(self, key: str, eid: str, country: str | None, surface: str | None = None) -> bool:
+        """An NER span may use an alias only where the gazetteer could: contextual and cue-only
+        aliases need their context or cue (handled by the gazetteer), NER-only and local ones the
+        right country, and weak and NER-only ones their spelling ("die reiche Elite" is not "Reiche")."""
         modes = self.alias_modes.get((key, eid), {"plain"})
-        if modes <= {"ctx"}:
+        if modes <= {"ctx", "cue", "local-ctx", "local-cue"}:
             return False
         e = self.entities[eid]
-        return not (modes <= {"ner", "local"} and country and e.country and country != e.country)
+        if (
+            modes <= {"ner", "local", "local-weak", "local-ctx", "local-cue"}
+            and country
+            and e.country
+            and country != e.country
+        ):
+            return False
+        if surface is None:
+            return True
+        cand = _cs_key(surface)
+        for text, mode in self.alias_entries.get((key, eid), [("", "plain")]):
+            if mode in ("ctx", "cue", "local-ctx", "local-cue"):
+                continue
+            if mode == "plain" or cand == text:
+                return True
+            if mode in ("cs", "local"):
+                # case-sensitive brand names vary in case ("LIDL", "arte", "Mediamarkt", "Vp"), but a
+                # word is not a name written in capitals ("Spiegel" is not "SPIEGEL", "Zeit" not "ZEIT")
+                short = len(text) <= 3  # "Vp" for "VP"
+                if cand.isupper() or ((short or not text.isupper()) and cand.casefold() == text.casefold()):
+                    return True
+            elif mode in ("weak", "ner", "local-weak") and cand.isupper() and len(cand) >= 3:
+                return True  # "REICHE"; not "die reiche Elite"
+        return False
 
 
 _URLISH = re.compile(r"^@|://|\bwww\.|\w\.(?:com|org|net|de|at|ch|eu|io|app|tv|fm|social|co|uk)\b", re.IGNORECASE)
@@ -581,6 +691,79 @@ def _in_url(text: str, start: int, end: int) -> bool:
     a = max(text.rfind(c, 0, start) for c in (" ", "\n", "\t", "(", '"'))
     b = min((i for i in (text.find(c, end) for c in (" ", "\n", "\t", ")", '"')) if i >= 0), default=len(text))
     return _URLISH.search(text[a + 1 : b]) is not None
+
+
+_ARTICLE_NAME = re.compile(r"^(?:Die|Der|Das) [A-ZÄÖÜ][\w-]*$")  # "Die Welt", "Die Zeit" (not "DIE ZEIT")
+_QUOTES_OPEN = "„“\"'‚»«‹›"
+_QUOTES_CLOSE = "“”\"'‘«»›‹"
+# what may stand between two media in a list: quotes, a separator, an article ("Spiegel und den Focus")
+_CUE_SEP = re.compile(
+    r"^[\s„“”\"'»«]*(?:(?:,|/|&|\+|und|oder|sowie)[\s„“”\"'»«]*(?:(?:der|die|das|den|dem)\s+)?)?[„“\"'»«]?$",
+    re.IGNORECASE,
+)
+_TOKEN = re.compile(r"[\w][\w.+-]*")
+
+
+def _compile_cue(cfg: dict) -> dict:
+    """A cue set from entities.yaml (`cues:`): local evidence that a contextual (`@`) or cue-only
+    (`%`) alias means the entity, independent of the context keywords."""
+    return {
+        "before": {w.casefold() for w in cfg.get("before") or []},
+        "after": {w.casefold() for w in cfg.get("after") or []},
+        "compound": tuple(w.casefold() for w in cfg.get("compound") or []),
+        "neighbors": set(cfg.get("neighbors") or []),  # case-sensitive: "Welt" the paper, "welt" no
+        "quoted": bool(cfg.get("quoted")),
+        "colon": bool(cfg.get("colon")),
+    }
+
+
+def _cue_ok(cue: dict | None, text: str, start: int, end: int, core: str, suf: str | None) -> bool:
+    """`core` at text[start:end] has a cue of the entity's cue set: a word before ("laut Bild",
+    "der ZEIT") or after it ("Bild berichtet", "WELT:"), quotes ("„Spiegel“"), a compound
+    ("ZEIT-Redakteurin") or another medium next to it ("Spiegel, FAZ und Bild")."""
+    if not cue or not text:
+        return False
+    before = text[max(0, start - 60) : start]
+    after = text[end : end + 60]
+    prev = re.search(r"([\w.]+)[\s:]*$", before)
+    if prev and prev.group(1).casefold() in cue["before"]:
+        return True
+    if cue["colon"] and core.isupper() and re.match(r"\s?:", after):  # "WELT: ..."; not "Bild: dpa"
+        return True
+    nxt = re.match(r"[\s,.]*([\w]+)", after)
+    if nxt and nxt.group(1).casefold() in cue["after"]:
+        return True
+    if cue["quoted"] and before[-1:] in _QUOTES_OPEN and after[:1] in _QUOTES_CLOSE:
+        return True
+    comp = re.match(r"-(\w+)", after)
+    if comp and cue["compound"] and comp.group(1).casefold().startswith(cue["compound"]):
+        return True
+    if cue["neighbors"]:
+        # another medium right before or after it ("Spiegel, SZ", "ARD/ZDF/Spiegel/Bild", "Focus und Welt")
+        toks = list(_TOKEN.finditer(before))[-3:]
+        for t in reversed(toks):
+            if t.group(0).rstrip(".") in cue["neighbors"] and _CUE_SEP.match(before[t.end() :]):
+                return True
+        for t in list(_TOKEN.finditer(after))[:3]:
+            if t.group(0).rstrip(".") in cue["neighbors"] and _CUE_SEP.match(after[: t.start()]):
+                return True
+    return False
+
+
+def _sentence_start(text: str, start: int) -> bool:
+    """`start` begins a sentence: only spaces, quotes or dashes since the last . ! ? : or line break."""
+    before = text[max(0, start - 200) : start].rstrip(" \t„“\"'»«-–(")
+    return not before or before[-1] in ".!?:;…\n"
+
+
+def _shouting(text: str, start: int, end: int, core: str) -> bool:
+    """An all-caps word in all-caps text ("IN DIESER IRREN ZEIT", "DIE WELT GEHT UNTER"): at least
+    two of the three words before and after are capitals too (3+ letters)."""
+    if not text or not core.isupper() or len(core) < 3:
+        return False
+    before = re.findall(r"[^\W\d_]+", text[max(0, start - 60) : start])[-3:]
+    after = re.findall(r"[^\W\d_]+", text[end : end + 60])[:3]
+    return sum(1 for w in before + after if len(w) >= 3 and w.isupper()) >= 2
 
 
 def _ner_compatible(tag: str, etype: str) -> bool:
