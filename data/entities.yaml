@@ -112,6 +112,9 @@ contexts:
     Filiale, Filialen]
   electronics: [MediaMarkt, Mediamarkt, Media Markt, MM, Elektronikmarkt, Elektromarkt, Elektronikkette,
     Elektronikhändler, Ceconomy, Euronics, Expert, Filiale, Filialen, gekauft, kaufen]
+  transit: [Bus, Busse, U-Bahn, S-Bahn, Tram, Straßenbahn, Bahn, Zug, Züge, Gleis, Fahrgast, Fahrgäste, Fahrgästen,
+    Fahrgastverband, ÖPNV, Öffis, Nahverkehr, Ticket, Tickets, Deutschlandticket, Haltestelle, Busfahrer, Fahrplan,
+    Linie, Takt, Pendelverkehr, Verkehrsbetriebe]
   publishing: [Verlag, Verlage, Verlags, Bildband, Bildbände, Kunstbuch, Kunstbücher, Buchhandlung, Verleger]
   paytv: [Pay-TV, Bezahlsender, Bezahlfernsehen, Abo, Sender, Fernsehen, TV, Bundesliga, Champions League,
     Übertragung, Übertragungsrechte, überträgt, übertragen, Liveübertragung, Konferenz, Serie, Serien, Sendung,
@@ -152,6 +155,8 @@ cues:
     quoted: true
     compound: *press_compound
     neighbors: *press_neighbors
+  feminine_org:  # "die BVG" (the transit company) vs. "das BVG" (the court)
+    before: [die, der, Liebe]
   press_mag:  # magazines whose name is a word but rarely follows "im" otherwise: "im Stern", "im Cicero"
     before: [laut, lt., Quelle, Quellen, schreibt, schrieb, berichtet, berichtete, meldet, titelt, zitiert, beim, vom,
       im, ins]

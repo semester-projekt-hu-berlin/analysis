@@ -16516,7 +16516,9 @@ entities:
   description: Betreiberin des Öffentlichen Personennahverkehrs in Berlin
   aliases:
   - =Berliner Verkehrsbetriebe
-  context: business
+  - '@BVG'
+  context: transit
+  cue: feminine_org
 - id: anja-selbach
   wikidata: Q10108
   name: Anja Selbach

@@ -202,3 +202,25 @@ def test_bosch_keeps_its_short_name():
 )
 def test_alias_markers(raw, expected):
     assert parse_alias(raw) == expected
+
+
+def test_second_hand_check_errors():
+    # hand check after the prune (seed 23): 48/50; the two errors
+    t = "Wahrscheinlich geht es um Cherry-picking für 5 Standorte, Konzern und Gewinn."
+    assert "cherry" not in ids(t, span(t, "Cherry"))
+
+    class Stub:  # the Wikidata fallback knows "BVG" = Berliner Verkehrsbetriebe (Q99633)
+        lookups = 0
+
+        def lookup(self, surface, tag):
+            return {"qid": "Q99633", "name": "Berliner Verkehrsbetriebe", "type": "ORG"} if surface == "BVG" else None
+
+    t = "Wer richtig liegt, erfahren wir aber nur vom BVG."
+    i = t.index("BVG")
+    ms = link_comment(t, split_sentences(t), [[(i, i + 3, "ORG", 0.99)]], reg(), wikidata=Stub())
+    assert ms == []
+    assert ids("Das BVG entscheidet, was verfassungskonform ist.") == []
+    assert ids("Wegen eines Schadens musste die BVG die Wagen abziehen.") == ["berliner-verkehrsbetriebe"]
+    assert ids("Gutes Miteinander in Bus & Bahn: ich nominiere dich zum BVG Öffie-Ultra!") == [
+        "berliner-verkehrsbetriebe"
+    ]

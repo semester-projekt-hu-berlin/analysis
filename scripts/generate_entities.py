@@ -379,6 +379,7 @@ MEDIA_CUE = {
     "Q781987": "press_mag",  # Cicero (also the Roman)
     "Q15803741": "press_mag",  # Compact ("BMW Compact", "Compact Flash")
     "Q784201": "press_f",  # Emma
+    "Q99633": "feminine_org",  # "die BVG" is the transit company, "das BVG" a court
 }
 
 # Brand names that are ordinary words or names in comments ("macht Sinn", "an der Nordsee", "Apple
@@ -397,12 +398,16 @@ WORD_CONTEXT = {
     "Q316322": "ard_channels",  # One (ARD-Sender)
     "Q784201": "feminism",  # Emma (Zeitschrift)
     "Q2543504": "electronics",  # Saturn (Elektronikmarkt), not the planet or the rocket
+    "Q99633": "transit",  # BVG (Berliner Verkehrsbetriebe), not the Bundesverwaltungsgericht
 }
 # hand-made alias changes: aliases to drop (marker-stripped text) and to add
 ALIAS_EDITS: dict[str, dict[str, list[str]]] = {
     "Q316322": {"drop": ["One"], "add": ["ARD One", "@ONE"]},  # "One" alone is almost never the channel
     "Q652282": {"drop": ["Premiere"]},  # the old name of Sky; today a theatre or film premiere
     "Q784201": {"add": ["@EMMA"]},  # the magazine's own spelling
+    # "BVG" is also the Bundesverwaltungsgericht; as a contextual alias the Wikidata fallback no
+    # longer links it without transit words either
+    "Q99633": {"add": ["@BVG"]},
 }
 
 ATHLETE_MIN_SITELINKS = 20  # sports bots give athletes many sitelinks

@@ -557,6 +557,8 @@ class Registry:
                 and re.search(r"\w-$", text[max(0, start - 2) : start])
             ):
                 continue  # the end of a compound: "pt-BR" (a language code), not the broadcaster
+            if mode in ("ctx", "weak") and e.source == "generated" and re.match(r"-[a-zäöü]", text[end : end + 2]):
+                continue  # "Cherry-picking": a word with a lower-case compound, not the brand
             ev = 1
             if mode == "weak":
                 ner_ok = any(s < end and start < t and _ner_compatible(tag, e.type) for s, t, tag, _score in ner_spans)
