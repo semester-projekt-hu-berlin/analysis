@@ -559,6 +559,14 @@ class Registry:
                 continue  # the end of a compound: "pt-BR" (a language code), not the broadcaster
             if mode in ("ctx", "weak") and e.source == "generated" and re.match(r"-[a-zäöü]", text[end : end + 2]):
                 continue  # "Cherry-picking": a word with a lower-case compound, not the brand
+            if (
+                e.type == "PER"
+                and e.source == "generated"
+                and one_word
+                and mode in ("weak", "ner", "ctx", "cs")
+                and self._in_longer_person_span(e, start, end, ner_spans, text)
+            ):
+                continue  # "Elton John", "Luciano Pavarotti", "Thomas Raab": the NER span is someone else
             ev = 1
             if mode == "weak":
                 ner_ok = any(s < end and start < t and _ner_compatible(tag, e.type) for s, t, tag, _score in ner_spans)
@@ -611,6 +619,26 @@ class Registry:
             same = [x for x in ok if country and x[0].country == country]
             ok = same or [x for x in ok if x[0].country == "DE"] or ok
         return ok[0][0].id
+
+    def _in_longer_person_span(self, e: Entity, start: int, end: int, ner_spans, text: str) -> bool:
+        """A one-word name inside a longer NER person span whose other words are not names of this
+        entity ("Elton John" is not the presenter Elton, "Frank Raab" not Stefan Raab); titles
+        ("Herr Bohlen") and the entity's own first name ("Dieter Bohlens") are fine."""
+        if not text:
+            return False
+        own: set[str] | None = None
+        for s, t, tag, _score in ner_spans:
+            if tag != "PER" or not (s < end and start < t) or (start <= s and t <= end):
+                continue
+            if own is None:
+                own = {w.casefold() for n in [e.name, *e.aliases] for w in re.findall(r"[\w]+", n)}
+            # a hyphenated pair is two people ("Regierung Wegner-Giffey"), not a longer name
+            before = re.sub(r"[\w'’]+-$", "", text[s:start])
+            after = re.sub(r"^-[\w'’-]*", "", text[end:t])
+            for w in re.findall(r"[\w][\w'’-]*", before + " " + after):
+                if w[:1].isupper() and w.casefold() not in own and w.casefold() not in TITLES:
+                    return True
+        return False
 
     def _name_words(self, e: Entity) -> set[str]:
         cached = self._name_word_cache.get(e.id)

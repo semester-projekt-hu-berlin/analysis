@@ -10,6 +10,8 @@ Politicians (PER), alive:
   * current federal and state party leaders (P488 of German parties and their branches),
   * former chancellors, federal ministers and heads of state governments,
   * any German politician with >= 15 sitelinks (born after 1920, alive or died after 2000).
+People in the press (PER): a hand-checked QID list (PRESS_PERSONS: investors and "Die Höhle der
+  Löwen", TV and music stars, YouTube/Twitch creators) with a context set and aliases of their own.
 Companies (ORG): current DAX / MDAX / SDAX / TecDAX members, German companies with > 10,000
   employees, and German companies, retailers, banks, insurers, airlines, media with >= 25 sitelinks.
 Universities (ORG): German universities (P31/P279* Q3918); universities of applied sciences only
@@ -333,6 +335,7 @@ MEDIA_TECH: dict[str, tuple[str, list[str]]] = {
     "Q20181258": ("media", []),  # Correctiv
     "Q1601295": ("media", ["heise"]),
     "Q590940": ("media", ["t-online.de", "t-online"]),
+    "Q3381361": ("media", ["@Phoenix", "@phoenix"]),  # the ARD/ZDF channel, not the city or the bird
 }
 
 # TV shows: ORG entities "TV-Sendung (<broadcaster>)". Shows named after their presenter only link
@@ -408,7 +411,114 @@ ALIAS_EDITS: dict[str, dict[str, list[str]]] = {
     # "BVG" is also the Bundesverwaltungsgericht; as a contextual alias the Wikidata fallback no
     # longer links it without transit words either
     "Q99633": {"add": ["@BVG"]},
+    "Q43803": {"drop": ["Lichter"]},  # Horst Lichter: "die Lichter gehen aus"
+    # one-word artist names that are words, brands or first names elsewhere: full names only
+    "Q91573": {"drop": ["Hauschka"]},  # "Dr. Hauschka" (cosmetics)
+    "Q61257": {"drop": ["Fancy"]},
+    "Q76445": {"drop": ["Nicki"]},  # Nicki Minaj, a nickname
+    "Q75897": {"drop": ["Nana"]},  # Nana Mouskouri, grandma
+    "Q1225595": {"drop": ["Dillon"]},
+    "Q28866070": {"drop": ["Reif"]},  # Pamela Reif; "Reif" is also Marcel Reif and a word
+    "Q98640": {"drop": ["Vertical catwalk"]},  # Jochen Schweizer: a stunt, not a name
+    "Q22937468": {"add": ["MontanaBlack"]},  # Wikidata has it only as a pseudonym (P742)
+    # surnames that the new press persons made ambiguous, kept for the far better-known namesake
+    "Q679750": {"add": ["=Würth"]},  # the company, not Reinhold Würth
+    "Q101087": {"add": ["!Kleber"]},  # Claus Kleber (ZDF), not the basketball player Maxi Kleber
 }
+
+# --------------------------------------------------------------------------- people in the press
+# Investors ("Die Höhle der Löwen", past and present lions), managers, TV and music stars and
+# YouTube/Twitch creators who are in the German press a lot and whose popularity swings. Many of
+# them have too few sitelinks (or no citizenship statement) for the public-person thresholds, and
+# DHDL's cast is not on Wikidata, so this is a hand-checked QID list (P31 human, alive, label and
+# description checked). Value: (context set in data/entities.yaml, hand-written aliases).
+# Hand-written aliases replace a generated alias of the same text in place:
+#   "~Maschmeyer"  distinctive surname: NER person tag OR a context word (instead of NER-only "!")
+#   "@Maschi"      nickname / word / first name: needs a context word ("Unge", "Luciano", "Elton")
+#   "!Pocher"      NER-only surname kept although the surname is shared (Amira Pocher)
+# Never: first names alone, "Bibi", "Capital", "Apache", "Müller", "Becker", "Fischer", "Schweiger".
+PRESS_PERSONS: dict[str, tuple[str, list[str]]] = {
+    # investors, "Die Höhle der Löwen" (VOX)
+    "Q15465039": ("investors", ["~Thelen"]),  # Frank Thelen
+    "Q1045616": ("investors", ["~Maschmeyer", "@Maschi"]),  # Carsten Maschmeyer
+    "Q1685653": ("investors", []),  # Judith Williams ("Williams" is far too common)
+    "Q85662": ("investors", []),  # Dagmar Wöhrl
+    "Q1417864": ("investors", []),  # Georg Kofler
+    "Q23062132": ("investors", ["~Dümmel"]),  # Ralf Dümmel
+    "Q66424819": ("investors", ["~Glagau"]),  # Nils Glagau
+    "Q124385918": ("investors", []),  # Tillman Schulz ("Schulz" is common)
+    "Q117856227": ("investors", ["~Ensthaler"]),  # Janna Ensthaler
+    "Q74728999": ("investors", ["~Onaran"]),  # Tijen Onaran
+    "Q62088415": ("investors", []),  # Lea-Sophie Cramer
+    "Q77675": ("investors", []),  # Vural Öger
+    "Q98640": ("investors", []),  # Jochen Schweizer ("Schweizer" is a word)
+    "Q75820": ("investors", []),  # Nico Rosberg (already a public person)
+    "Q16868098": ("investors", []),  # Oliver Samwer
+    "Q125693192": ("investors", ["~Westermeyer"]),  # Philipp Westermeyer (OMR)
+    # owners and managers in the news (most CEOs come from the DAX/MDAX query)
+    "Q78465": ("business", []),  # Reinhold Würth ("Würth" is the company)
+    "Q15834173": ("business", []),  # Martin Brudermüller (Mercedes-Benz, ex BASF)
+    "Q15428348": ("transit", []),  # Richard Lutz (Deutsche Bahn 2017–2025)
+    "Q58603743": ("transit", ["~Palla", "Bahnchefin Palla", "Bahn-Chefin Palla"]),  # Evelyn Palla (Deutsche Bahn)
+    # TV, show business, music
+    "Q76906": ("entertainment", ["@Poptitan", "@Pop-Titan"]),  # Dieter Bohlen
+    "Q203806": ("entertainment", ["@Gottschalk"]),  # Thomas Gottschalk (Kay Gottschalk, AfD, shares the surname)
+    "Q6969": ("entertainment", []),  # Stefan Raab ("!Raab" stays NER-only: the river, Julius Raab)
+    "Q60036": ("entertainment", []),  # Heidi Klum
+    "Q62398": ("entertainment", []),  # Günther Jauch
+    "Q1361675": ("entertainment", ["~Böhmermann"]),  # Jan Böhmermann
+    "Q1702610": ("entertainment", ["~Winterscheidt"]),  # Joko Winterscheidt
+    "Q77807": ("entertainment", ["~Schöneberger"]),  # Barbara Schöneberger
+    "Q98412": ("entertainment", ["@Elton"]),  # Elton (Alexander Duszat); never in "Elton John"
+    "Q271923": ("entertainment", []),  # Sylvie Meis
+    "Q22979": ("entertainment", ["~Katzenberger"]),  # Daniela Katzenberger (not "die Katze")
+    "Q15056214": ("entertainment", ["~Mockridge"]),  # Luke Mockridge
+    "Q21820014": ("entertainment", []),  # Atze Schröder
+    "Q96551": ("entertainment", ["@Kerner"]),  # Johannes B. Kerner
+    "Q216328": ("entertainment", ["@Rosin"]),  # Frank Rosin
+    "Q43758": ("entertainment", ["@Rach"]),  # Christian Rach
+    "Q2338629": ("entertainment", ["~Henssler"]),  # Steffen Henssler
+    "Q51448": ("entertainment", ["~Glööckler"]),  # Harald Glööckler
+    "Q70912": ("entertainment", ["!Pocher"]),  # Oliver Pocher
+    "Q94554039": ("entertainment", ["Amira Aly"]),  # Amira Pocher (Aly again since 2024)
+    "Q15457316": ("entertainment", []),  # Robert Geiss ("Die Geissens")
+    "Q15456947": ("entertainment", []),  # Carmen Geiss
+    "Q311961": ("entertainment", ["~Bushido"]),  # Bushido (also the samurai code)
+    "Q58785": ("entertainment", ["Kollegah"]),  # Kollegah (not "der Boss")
+    "Q24008612": ("entertainment", []),  # Capital Bra (never "Capital" alone: the magazine)
+    "Q66725900": ("entertainment", []),  # Apache 207 (never "Apache": helicopter, web server)
+    "Q45023244": ("entertainment", ["@Luciano"]),  # Luciano (rapper); not "Luciano Pavarotti"
+    "Q44305762": ("entertainment", []),  # Katja Krasavice
+    # YouTube, Twitch, Instagram
+    "Q51750015": ("creators", []),  # Rezo
+    "Q22937468": ("creators", ["Montana Black", "Marcel Eris"]),  # MontanaBlack
+    "Q18222351": ("creators", ["Knossi"]),  # Knossi (Jens Knossalla)
+    "Q123118096": ("creators", []),  # Papaplatte
+    "Q1383186": ("creators", ["Gronkh"]),  # Gronkh
+    "Q23817186": ("creators", []),  # Julien Bam
+    "Q18410747": ("creators", ["Bianca Claßen", "BibisBeautyPalace", "Bibis Beauty Palace"]),  # never "Bibi"
+    "Q28866070": ("creators", []),  # Pamela Reif
+    "Q43398874": ("creators", ["~Kliemann"]),  # Fynn Kliemann
+    "Q18758213": ("creators", ["@Unge"]),  # Unge (Simon Wiefels)
+    "Q19958947": ("creators", []),  # Dagi Bee
+}
+# descriptions where Wikidata's is too vague for the dashboard
+PRESS_DESCRIPTIONS = {
+    "Q15465039": "deutscher Unternehmer und Investor (ehem. „Die Höhle der Löwen“)",
+    "Q1045616": "deutscher Unternehmer und Investor („Die Höhle der Löwen“)",
+    "Q1417864": "Südtiroler Medienunternehmer und Investor („Die Höhle der Löwen“)",
+    "Q23062132": "deutscher Unternehmer und Investor („Die Höhle der Löwen“)",
+    "Q66424819": "deutscher Unternehmer und Investor („Die Höhle der Löwen“)",
+    "Q124385918": "deutscher Unternehmer und Investor („Die Höhle der Löwen“)",
+    "Q117856227": "deutsche Unternehmerin und Investorin („Die Höhle der Löwen“)",
+    "Q62088415": "deutsche Unternehmerin und Investorin (ehem. „Die Höhle der Löwen“)",
+    "Q125693192": "deutscher Unternehmer (OMR) und Podcaster",
+    "Q16868098": "deutscher Internetunternehmer (Rocket Internet)",
+    "Q15834173": "deutscher Manager, Aufsichtsratschef von Mercedes-Benz, ehem. BASF-Chef",
+}
+# person aliases from Wikidata that are nicknames made of words ("Die Katze", "der Boss", "Die Axt",
+# "Der Gentleman", "The Monster", "Herr Sorge"): plain aliases would link every cat and every boss
+NICKNAME = re.compile(r"^(der|die|das|den|dem|des|the|el|la|le|il|herr|frau)\s", re.IGNORECASE)
 
 ATHLETE_MIN_SITELINKS = 20  # sports bots give athletes many sitelinks
 PUBLIC_MIN_SITELINKS = 10
@@ -627,6 +737,24 @@ def details(qids: list[str], refresh: bool) -> dict[str, dict]:
     return out
 
 
+def mul_labels(det: dict[str, dict], refresh: bool) -> None:
+    """Items without a German or English label: many persons only have a "mul" (default for all
+    languages) label since 2024 (Barbara Schöneberger, Norbert Lammert, Alexander Zverev)."""
+    missing = sorted(qid for qid, d in det.items() if not d.get("labelDe") and not d.get("labelEn"))
+    if not missing:
+        return
+    key = hashlib.sha1(" ".join(missing).encode()).hexdigest()[:12]
+    rows = sparql(
+        f"labels_mul_{key}",
+        "SELECT ?i ?l WHERE { VALUES ?i { "
+        + " ".join(f"wd:{x}" for x in missing)
+        + ' } ?i rdfs:label ?l FILTER(LANG(?l) = "mul") }',
+        refresh,
+    )
+    for r in rows:
+        det[q(r["i"])]["labelDe"] = r["l"]
+
+
 def load_seed() -> tuple[dict[str, dict], set[str], set[str]]:
     data = yaml.safe_load(SEED.read_text(encoding="utf-8"))
     by_qid = {e["wikidata"]: e for e in data["entities"] if e.get("wikidata")}
@@ -732,6 +860,8 @@ def main() -> None:
     for r in res["public_offices"]:
         pgroups["BVerfG, Kirchen, Bundesbank, RKI"].add(q(r["p"]))
         roles[q(r["p"])].insert(0, r.get("l", ""))
+    press_new = set(PRESS_PERSONS) - set().union(*pgroups.values()) - politicians
+    pgroups["Presse: Investoren, TV, Creator (Liste)"] = set(PRESS_PERSONS)
     public = set().union(*pgroups.values()) - politicians
     persons = politicians | public
 
@@ -764,7 +894,11 @@ def main() -> None:
         *(v for k, v in cgroups.items() if k != "Unternehmen > 10.000 Beschäftigte")
     )
     allq = sorted(persons | companies | universities)
-    det = details(allq, args.refresh)
+    # the hand-picked press persons are fetched on their own, so the cached detail chunks of the
+    # query-based lists stay valid
+    det = details(sorted(set(allq) - press_new), args.refresh)
+    det.update(details(sorted(press_new), args.refresh))
+    mul_labels(det, args.refresh)
     # party labels
     party_q = sorted({p for d in det.values() for p in d["parties"]})
     party_rows = sparql(
@@ -788,7 +922,7 @@ def main() -> None:
     first_names = set()
     for qid in persons:
         lab = det.get(qid, {}).get("labelDe") or det.get(qid, {}).get("labelEn") or ""
-        if lab:
+        if len(lab.split()) >= 2:  # a one-word name ("Sido", "Bushido") is not a first name
             surname_count[normalize_surface(lab.split()[-1])] += 1
             first_names.add(normalize_surface(lab.split()[0]))
     for qid in sorted(allq, key=lambda x: -det.get(x, {}).get("sl", 0)):
@@ -837,7 +971,7 @@ def main() -> None:
         ]
         if is_person:
             for a in extra:
-                if len(a.split()) >= 2 and "(" not in a:
+                if len(a.split()) >= 2 and "(" not in a and not NICKNAME.match(a):
                     aliases.append(a)
             toks = name.split()
             sur = toks[-1]
@@ -874,7 +1008,7 @@ def main() -> None:
             elif qid in politicians:
                 desc = d.get("desc") or "Politiker"
             else:
-                desc = d.get("desc") or "Person des öffentlichen Lebens"
+                desc = PRESS_DESCRIPTIONS.get(qid) or d.get("desc") or "Person des öffentlichen Lebens"
         else:
             core = LEGAL.sub("", name).strip()
             if core and core != name:
@@ -952,7 +1086,11 @@ def main() -> None:
             else:
                 final.append(raw)
         edits = ALIAS_EDITS.get(qid, {})
-        hand = [*MEDIA_TECH.get(qid, ("", []))[1], *edits.get("add", [])]  # hand-written (WDR, FAZ, ntv, ...)
+        hand = [  # hand-written (WDR, FAZ, ntv, ..., "~Maschmeyer")
+            *MEDIA_TECH.get(qid, ("", []))[1],
+            *PRESS_PERSONS.get(qid, ("", []))[1],
+            *edits.get("add", []),
+        ]
         hand = [a for a in hand if normalize_surface(parse_alias(a)[0]) not in seed_aliases]
         # a hand-written mode replaces the generated one in place ("@Cicero", not "=Cicero"; "@WELT")
         final = [x for x in final if parse_alias(x)[0] not in edits.get("drop", [])]
@@ -989,6 +1127,8 @@ def main() -> None:
         elif is_person:
             if qid in politicians:
                 entry["context"] = "politics"
+            elif qid in PRESS_PERSONS:
+                entry["context"] = PRESS_PERSONS[qid][0]
         else:
             entry["context"] = "education" if qid in universities else "business"
         if qid in MEDIA_CUE:

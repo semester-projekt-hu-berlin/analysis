@@ -88,6 +88,10 @@ def test_run_stops_cleanly_when_the_time_is_up(fs, monkeypatch, clock, caplog):
 
 def test_relink_saves_its_cursor_when_the_time_is_up(fs, monkeypatch, clock):
     _relink_setup(fs, monkeypatch)
+    # only the Lidl comments: the fixture's other comments (1 hour old) sort first on the same day
+    # after ~11:00 Berlin time, and a page without candidates uses no time
+    for path in [p for p in fs.docs if p.startswith("comments/c")]:
+        del fs.docs[path]
     timebudget.set_current(TimeBudget(minutes=1, start=clock.t, clock=clock))
     slow_analysis(monkeypatch, clock, 100)  # the first page uses up the minute
     out = pipeline.relink(fs, days=14, entity_ids={"lidl"}, page=4, budget=big(fs))
