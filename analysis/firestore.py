@@ -12,6 +12,7 @@ import logging
 import os
 import random
 import time
+from collections import Counter
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -139,6 +140,54 @@ class Write:
         return w
 
 
+def op_kind(path: str) -> str:
+    """Collection pattern of a document path, for the per-kind operation counters:
+    "comments/abc" -> "comments", "entities/spd/days/2026-11-09" -> "entities/days",
+    "meta/registry_2" -> "meta/registry" (meta docs are few, so each keeps its own counter)."""
+    parts = path.split("/")
+    if parts[0] == "meta" and len(parts) == 2:
+        return "meta/" + parts[1].split("_", 1)[0]
+    return "/".join(parts[0::2])
+
+
+class OpStats:
+    """Read and write counters, in total (`reads`, `writes`) and per collection pattern
+    (`reads_by`, `writes_by`), so a run can report where its Firestore operations went."""
+
+    reads: int
+    writes: int
+    reads_by: Counter
+    writes_by: Counter
+
+    def _init_ops(self) -> None:
+        self.reads = 0
+        self.writes = 0
+        self.reads_by = Counter()
+        self.writes_by = Counter()
+
+    def _count_reads(self, kind: str, n: int) -> None:
+        self.reads += n
+        self.reads_by[kind] += n
+
+    def _count_writes(self, writes: list[Write]) -> None:
+        self.writes += len(writes)
+        for w in writes:
+            self.writes_by[op_kind(w.path)] += 1
+
+    def ops_summary(self, since: tuple[Counter, Counter] | None = None) -> dict:
+        """{"reads": {kind: n}, "writes": {kind: n}}, largest first; `since`: an earlier `ops_mark()`."""
+        r0, w0 = since or (Counter(), Counter())
+
+        def diff(cur: Counter, old: Counter) -> dict:
+            d = {k: v - old.get(k, 0) for k, v in cur.items() if v - old.get(k, 0)}
+            return dict(sorted(d.items(), key=lambda kv: (-kv[1], kv[0])))
+
+        return {"reads": diff(self.reads_by, r0), "writes": diff(self.writes_by, w0)}
+
+    def ops_mark(self) -> tuple[Counter, Counter]:
+        return Counter(self.reads_by), Counter(self.writes_by)
+
+
 def chunked(items: list, n: int) -> Iterator[list]:
     for i in range(0, len(items), n):
         yield items[i : i + n]
@@ -172,7 +221,7 @@ def load_credentials():
     return service_account.Credentials.from_service_account_info(info, scopes=SCOPES)
 
 
-class Firestore:
+class Firestore(OpStats):
     def __init__(self, project: str = PROJECT_ID, database: str = DATABASE, session=None):
         self.project = project
         self.database = database
@@ -183,8 +232,7 @@ class Firestore:
 
             session = AuthorizedSession(load_credentials())
         self.session = session
-        self.reads = 0
-        self.writes = 0
+        self._init_ops()
 
     # ---- low level
     def _post(self, url: str, body: dict, retries: int = 10) -> Any:
@@ -235,6 +283,12 @@ class Firestore:
             ]
             order_fields.append("__name__")
         fetched = 0
+        frm = q["from"][0]
+        kind = frm["collectionId"]
+        if parent:
+            kind = f"{op_kind(parent)}/{kind}"
+        elif frm.get("allDescendants"):
+            kind = f"*/{kind}"
         while True:
             want = page if user_limit is None else min(page, user_limit - fetched)
             if want <= 0:
@@ -242,7 +296,7 @@ class Firestore:
             q["limit"] = want
             res = self._post(url, {"structuredQuery": q})
             docs = [r["document"] for r in res if "document" in r]
-            self.reads += max(1, len(docs))
+            self._count_reads(kind, max(1, len(docs)))
             for raw in docs:
                 yield self._doc(raw)
             fetched += len(docs)
@@ -306,7 +360,8 @@ class Firestore:
             if mask is not None:
                 body["mask"] = {"fieldPaths": [quote_field_path(m) for m in mask]}
             res = self._post(f"{self.base}:batchGet", body)
-            self.reads += len(chunk)
+            for p in chunk:
+                self._count_reads(op_kind(p), 1)
             for r in res:
                 if "found" in r:
                     d = self._doc(r["found"])
@@ -330,11 +385,13 @@ class Firestore:
             q["where"] = {"compositeFilter": {"op": "AND", "filters": filters}}
         body = {"structuredAggregationQuery": {"structuredQuery": q, "aggregations": [{"alias": "n", "count": {}}]}}
         res = self._post(f"{self.base}:runAggregationQuery", body)
-        self.reads += 1
+        n = 0
         for r in res:
             if "result" in r:
-                return int(r["result"]["aggregateFields"]["n"]["integerValue"])
-        return 0
+                n = int(r["result"]["aggregateFields"]["n"]["integerValue"])
+        # an aggregation query is billed 1 read per batch of up to 1000 index entries it scans
+        self._count_reads(f"count:{collection}", max(1, -(-n // 1000)))
+        return n
 
     # ---- writes
     def commit(self, writes: list[Write], size: int = 100) -> None:
@@ -393,4 +450,4 @@ class Firestore:
         if len(writes) > MAX_WRITES_PER_COMMIT:
             raise ValueError("too many writes for one atomic commit")
         self._post(f"{self.base}:commit", {"writes": [w.to_json(self.root) for w in writes]}, retries=retries)
-        self.writes += len(writes)
+        self._count_writes(writes)

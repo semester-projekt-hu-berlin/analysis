@@ -69,16 +69,19 @@ class BertNer:
     def predict(self, sentences: list[str]) -> list[list[Span]]:
         if not sentences:
             return []
-        res = self.pipe(sentences, batch_size=self.batch_size)
-        out = []
-        for r in res:
+        # Each distinct sentence once, shortest first: a batch is padded to its longest sentence,
+        # so batches of similar length waste no compute on padding (the spans are the same).
+        unique = sorted(dict.fromkeys(sentences), key=len)
+        res = self.pipe(unique, batch_size=self.batch_size)
+        by_sentence: dict[str, list[Span]] = {}
+        for s, r in zip(unique, res, strict=True):
             spans = []
             for x in r:
                 tag = x["entity_group"].split("-")[-1].upper()
                 tag = {"PERSON": "PER", "LOCATION": "LOC", "OTH": "MISC"}.get(tag, tag)
                 spans.append((int(x["start"]), int(x["end"]), tag, float(x["score"])))
-            out.append(spans)
-        return out
+            by_sentence[s] = spans
+        return [list(by_sentence[s]) for s in sentences]
 
 
 def load_ner(name: str):

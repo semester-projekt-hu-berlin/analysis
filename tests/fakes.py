@@ -5,14 +5,13 @@ from __future__ import annotations
 import copy
 from collections.abc import Iterator
 
-from analysis.firestore import Doc, Write
+from analysis.firestore import Doc, OpStats, Write, op_kind
 
 
-class FakeFirestore:
+class FakeFirestore(OpStats):
     def __init__(self, docs: dict[str, dict] | None = None):
         self.docs: dict[str, dict] = copy.deepcopy(docs or {})
-        self.reads = 0
-        self.writes = 0
+        self._init_ops()
         self.commits: list[list[Write]] = []
         self.versions: dict[str, int] = {}  # path -> write counter, served as updateTime
 
@@ -49,21 +48,26 @@ class FakeFirestore:
             rows = [r for r in rows if (*(r[1].get(f) for f in fields), r[0].rsplit("/", 1)[1]) > key]
         if limit is not None:
             rows = rows[:limit]
+        kind = f"{op_kind(parent)}/{collection}" if parent else collection
+        if not rows:
+            self._count_reads(kind, 1)  # a query without results is billed one read
         for path, data in rows:
-            self.reads += 1
+            self._count_reads(kind, 1)
             out = copy.deepcopy(data) if select is None else {k: copy.deepcopy(data[k]) for k in select if k in data}
             yield Doc(id=path.rsplit("/", 1)[1], path=path, data=out)
 
     def run_query(self, query: dict, parent: str = "") -> Iterator[Doc]:
         frm = query["from"][0]
+        kind = frm["collectionId"]
+        kind = f"{op_kind(parent)}/{kind}" if parent else (f"*/{kind}" if frm.get("allDescendants") else kind)
         for path, data in self._collection(frm["collectionId"], parent, frm.get("allDescendants", False)):
-            self.reads += 1
+            self._count_reads(kind, 1)
             yield Doc(id=path.rsplit("/", 1)[1], path=path, data=copy.deepcopy(data))
 
     def batch_get(self, paths, mask=None):
         out = {}
-        for p in paths:
-            self.reads += 1
+        for p in dict.fromkeys(paths):
+            self._count_reads(op_kind(p), 1)
             d = self.docs.get(p)
             out[p] = (
                 None
@@ -78,9 +82,11 @@ class FakeFirestore:
         return self.batch_get([path]).get(path)
 
     def count(self, collection, where=None):
-        r = self.reads
-        n = sum(1 for _ in self.query(collection, where))
-        self.reads = r + 1 + n // 1000  # aggregation queries bill 1 read per 1000 index entries
+        n = sum(
+            1 for _, data in self._collection(collection) if all(_op(data.get(f), op, v) for f, op, v in where or [])
+        )
+        # aggregation queries bill 1 read per batch of up to 1000 index entries
+        self._count_reads(f"count:{collection}", max(1, -(-n // 1000)))
         return n
 
     def commit(self, writes):
@@ -104,8 +110,8 @@ class FakeFirestore:
             elif w.exists is False and w.path in self.docs:
                 raise RuntimeError(f"Firestore 409: ALREADY_EXISTS {w.path}")
         self.commits.append(list(writes))
+        self._count_writes(writes)
         for w in writes:
-            self.writes += 1
             self.versions[w.path] = self.versions.get(w.path, 0) + 1
             if w.data is None:
                 self.docs.pop(w.path, None)

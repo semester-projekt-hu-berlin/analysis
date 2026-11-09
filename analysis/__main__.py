@@ -25,7 +25,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     r.add_argument("--no-wikidata", action="store_true", help="disable the Wikidata fallback linker")
     r.add_argument("--max-wikidata-lookups", type=int, default=150)
-    r.add_argument("--agg-every", type=int, default=2000, help="aggregate after this many comments (and at the end)")
+    r.add_argument(
+        "--agg-every",
+        type=int,
+        default=int(os.environ.get("ANALYSIS_AGG_EVERY") or 0),
+        help="also aggregate after this many comments (0: only at the end of the run, the cheapest)",
+    )
 
     ra = sub.add_parser("reaggregate", help="rebuild day docs, entity counters and trending from mentions")
     ra.add_argument("--since", help="only recompute (entity, day) pairs from this day (YYYY-MM-DD) on; default: all")
