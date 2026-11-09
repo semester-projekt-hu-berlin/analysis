@@ -585,9 +585,9 @@ Tests: `tests/test_timebudget.py`.
 The workflows need the organisation secret `FIREBASE_SERVICE_ACCOUNT`.
 
 **Triggering.** GitHub's `schedule` started runs 4–6 h late (or not for hours), so `analyze.yml` is started by
-Vercel Cron in the API project (`vercel.json` in the `api` repo, `GET /internal/cron/dispatch/analyze`) via
-`workflow_dispatch` with the input `trigger=vercel-cron`. On the Hobby plan Vercel fires anywhere within the
-scheduled hour (05:00–05:59 / 17:00–17:59 UTC). The `schedule` stays as a fallback: the `gate` job
+Cloud Scheduler (job `meinungspuls-analyze` in the GCP project `meinungspuls-hu`, 05:30 / 17:30 UTC), which calls the
+API (`GET /internal/cron/dispatch/analyze`, see `deploy/setup-gcp.sh` in the `api` repo); the API sends a
+`workflow_dispatch` with the input `trigger=vercel-cron` (the value is historical, from when the cron ran on Vercel). The `schedule` stays as a fallback: the `gate` job
 (`actions: read`) skips a scheduled run when a successful or still queued/running analysis was created since one
 hour before its slot, and drops duplicate cron deliveries (another run within 3 h). Manual runs are never skipped.
 

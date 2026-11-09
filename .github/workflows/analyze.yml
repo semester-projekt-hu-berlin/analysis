@@ -2,8 +2,8 @@ name: Analyze comments
 
 on:
   schedule:
-    # twice a day, ~1 h after the crawler (17 4,16 * * * UTC). Fallback only: Vercel Cron (api repo)
-    # dispatches the same slots on time; see the gate job.
+    # twice a day, ~1 h after the crawler (17 4,16 * * * UTC). Fallback only: Cloud Scheduler (via the
+    # api repo) dispatches the same slots on time; see the gate job.
     - cron: "30 5,17 * * *"
   workflow_dispatch:
     inputs:
@@ -18,7 +18,7 @@ on:
         type: boolean
         default: false
       trigger:
-        description: "Set to vercel-cron by the API's Vercel Cron (enables duplicate detection); leave empty for manual runs"
+        description: "Set to vercel-cron by the API's cron dispatch (Cloud Scheduler; enables duplicate detection); leave empty for manual runs"
         default: ""
 
 concurrency:
@@ -29,8 +29,8 @@ permissions:
   contents: read
 
 jobs:
-  # The GitHub `schedule` is only a fallback: on busy days it starts hours late, so Vercel Cron
-  # (api repo, vercel.json) dispatches this workflow with trigger=vercel-cron. This job skips a
+  # The GitHub `schedule` is only a fallback: on busy days it starts hours late, so Cloud Scheduler
+  # (via the api repo's cron endpoint) dispatches this workflow with trigger=vercel-cron. This job skips a
   # scheduled run if its slot was already handled, and drops duplicate cron deliveries.
   gate:
     if: github.event_name == 'schedule' || inputs.trigger == 'vercel-cron'
@@ -57,7 +57,7 @@ jobs:
           now=$(date -u -d "$created" +%s) || fail_open "date"
 
           # Look-back window. Schedule: from 1 h before the slot this run belongs to (GitHub may start it
-          # hours late; Vercel fires anywhere in the slot's hour). Cron dispatch: 3 h (duplicate deliveries).
+          # hours late). Cron dispatch: 3 h (duplicate deliveries).
           since=$((now - 4 * 3600))
           if [ "$EVENT" = schedule ]; then
             read -r min hours _ <<< "$SCHEDULE"
