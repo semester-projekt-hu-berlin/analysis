@@ -3,6 +3,8 @@
 import copy
 from datetime import timedelta
 
+import pytest
+
 from analysis import pipeline
 from analysis.firestore import op_kind
 from analysis.textutil import day_key
@@ -131,12 +133,10 @@ def test_interrupted_run_is_still_recovered_by_a_run_without_comments(fs, monkey
     def boom(*a, **kw):
         raise RuntimeError("killed")
 
-    monkeypatch.setattr(pipeline, "aggregate_pairs", boom)
-    try:
-        pipeline.run(fs, limit=100, use_wikidata=False)
-    except RuntimeError:
-        pass
-    monkeypatch.undo()
+    with monkeypatch.context() as m:
+        m.setattr(pipeline, "aggregate_pairs", boom)
+        with pytest.raises(RuntimeError):
+            pipeline.run(fs, limit=100, use_wikidata=False)
     assert fs.docs["meta/analysis"]["pendingPairs"]
     out = pipeline.run(fs, limit=100, use_wikidata=False)
     assert out["recoveredPairs"] > 0 and fs.docs["entities/friedrich-merz"]["mentions"] == 2
