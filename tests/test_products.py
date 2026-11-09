@@ -243,6 +243,18 @@ def test_seed_queues_relink_of_new_entities_and_prune_of_moved_aliases(fs, monke
     assert "followups" not in out
 
 
+def test_seed_queues_prune_of_dropped_aliases(fs, monkeypatch):
+    # "Die Katze" was a plain alias of Daniela Katzenberger and is dropped without a new owner:
+    # the mentions it produced must be re-checked
+    monkeypatch.setattr(pipeline, "_fill_images", lambda reg: None)
+    doc = fs.docs["entities/daniela-katzenberger"]
+    doc["aliases"] = [*doc["aliases"], "Die Katze"]
+    out = pipeline.seed(fs, with_images=False)
+    assert fs.docs["meta/analysis"]["jobs"]["prune"]["ids"] == ["daniela-katzenberger"]
+    assert fs.docs["meta/analysis"]["jobs"]["prune"]["add"] == []
+    assert "relink" not in out["followups"]
+
+
 def test_queue_relink_merges_or_waits(fs):
     pipeline.queue_job(fs, "relink", {"cutoff": "2026-10-10", "entityIds": ["a", "b"]})
     pipeline.queue_job(fs, "relink", {"cutoff": "2026-10-09", "entityIds": ["c"]})

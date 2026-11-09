@@ -153,9 +153,9 @@ def seed(fs: Firestore, with_images: bool = True, budget: Budget | None = None, 
     Follow-up jobs (`queue_followups`), continued by the regular `run` within the budget:
     * a `relink` of the entities this seed created (last SEED_RELINK_DAYS days), merged into an
       already queued relink;
-    * a `prune` of existing entities that lost an alias to another entity ("Facebook" moved
-      from Meta Platforms to the Facebook platform): their mentions are re-checked, and the
-      new owners of the alias may take them over."""
+    * a `prune` of existing entities that lost an alias ("Facebook" moved from Meta Platforms to
+      the Facebook platform; "Die Katze" dropped from Daniela Katzenberger): their mentions are
+      re-checked, and the new owners of the alias, if any, may take them over."""
     reg = Registry.from_yaml()
     meta_fields = list(next(iter(reg.entities.values())).metadata().keys())
     existing = {d.id: d.data for d in fs.query("entities", select=meta_fields)}
@@ -223,7 +223,8 @@ def seed(fs: Firestore, with_images: bool = True, budget: Budget | None = None, 
 
 
 def moved_aliases(reg: Registry, existing: dict[str, dict]) -> dict[str, set[str]]:
-    """Existing entities that lost an alias which another entity now owns -> those new owners."""
+    """Existing entities that lost an alias -> the entities that now own it (empty if none does:
+    a dropped alias such as "Die Katze" or "der Boss" leaves mentions that must be re-checked)."""
     out: dict[str, set[str]] = {}
     for eid, cur in existing.items():
         e = reg.entities.get(eid)
@@ -235,8 +236,7 @@ def moved_aliases(reg: Registry, existing: dict[str, dict]) -> dict[str, set[str
             if key in now_aliases:
                 continue
             owners = {o for o in reg.alias_index.get(key, []) if o != eid}
-            if owners:
-                out.setdefault(eid, set()).update(owners)
+            out.setdefault(eid, set()).update(owners)
     return out
 
 

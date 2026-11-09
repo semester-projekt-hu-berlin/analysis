@@ -124,6 +124,22 @@ contexts:
   feminism: [Alice Schwarzer, Schwarzer, Feminismus, feministisch, feministische, feministischen, feministisches,
     Feministin, Feministinnen, Frauenbewegung, Frauenzeitschrift, Zeitschrift, Magazin, Chefredakteurin, Abo,
     Leserinnen]
+  # people in the press (scripts/generate_entities.py, PRESS_PERSONS): investors and "Die Höhle der
+  # Löwen", TV and music, YouTube/Twitch creators; their surnames and nicknames ("Maschi",
+  # "Poptitan", "Unge") are weak or contextual and need one of these words
+  investors: [Löwe, Löwen, Löwin, Höhle der Löwen, DHDL, Investor, Investorin, Investoren, investiert, investieren,
+    Investment, Investments, Deal, Deals, Startup, Startups, Start-up, Start-ups, Gründer, Gründerin, Gründern,
+    Beteiligung, Beteiligungen, Unternehmer, Unternehmerin, VOX, Vox, Milliardär, Millionär, Risikokapital,
+    Venture Capital, Fonds, Finanzvertrieb, AWD]
+  entertainment: [Show, Shows, Sendung, Sendungen, Fernsehen, TV, RTL, RTLZWEI, ProSieben, Pro7, Sat.1, Sat1, VOX,
+    Moderator, Moderatorin, moderiert, Jury, Juror, Jurorin, DSDS, Supertalent, Germany's next Topmodel, GNTM,
+    Wetten dass, TV total, Schlag den Raab, Quote, Quoten, Zuschauer, Konzert, Konzerte, Tour, Album, Song, Songs,
+    Single, Charts, Sänger, Sängerin, Rapper, Rapperin, Rap, Musik, Film, Filme, Kino, Schauspieler,
+    Schauspielerin, Comedian, Comedy, Komiker, Bühne, Promi, Promis, Dschungelcamp, Let's Dance, Entertainer,
+    Fernsehkoch, Restaurant, Kochshow, Bares für Rares]
+  creators: [YouTube, YouTuber, YouTuberin, Youtuber, Twitch, Stream, Streams, Streamer, Streamerin, Livestream,
+    gestreamt, Influencer, Influencerin, Influencern, Instagram, TikTok, Video, Videos, Kanal, Follower,
+    Abonnenten, Content, Creator, Clip, Clips, Podcast, Merch]
 
 # Cue sets (`cue: press_f`): local evidence that a contextual (@) or cue-only (%) alias is the entity.
 #   before: the word right before ("laut Bild", "der ZEIT", "Quelle: WELT"); after: the word right after

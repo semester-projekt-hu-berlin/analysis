@@ -23,7 +23,7 @@ The data contract is [`infrastructure/SCHEMA.md`](https://github.com/semester-pr
         ▼
  Entity linking
    1. gazetteer over data/entities.yaml (591 curated entities incl. 207 apps & services, ~1560
-        aliases) and data/entities_generated.yaml (6,343 entities)
+        aliases) and data/entities_generated.yaml (6,452 entities)
         plain alias  ─ always             "Merz", "Sozis", "AfD-Wähler"
         weak alias   ─ needs NER span     "Reiche" (PER) vs. "die Reiche Elite"
         context alias─ needs keywords     "Leverkusen" + Spiel/Tor/Bundesliga… (comment or article title)
@@ -115,9 +115,9 @@ The default pipeline is entirely open-source and free. The HU LLM offer is not u
 * **Generated list** [`data/entities_generated.yaml`](data/entities_generated.yaml), built by
   `scripts/generate_entities.py` from a few large Wikidata SPARQL queries (descriptive
   User-Agent, backoff on 429, results cached in `data/wikidata_cache/`; `--refresh` re-queries)
-  and loaded after the seed list (curated QIDs and aliases always win). It has 6,343 entities
-  (6,934 with the curated list); groups overlap:
-  * **1,423 politicians**:
+  and loaded after the seed list (curated QIDs and aliases always win). It has 6,452 entities
+  (7,043 with the curated list); groups overlap:
+  * **1,451 politicians**:
 
     | group | count |
     |---|---|
@@ -132,7 +132,7 @@ The default pipeline is entirely open-source and free. The HU LLM offer is not u
 
     Descriptions come from the role, e.g. "Bundestagsabgeordnete (SPD)" or
     "Landtagsabgeordneter (CDU)"; the party comes from P102.
-  * **3,772 public persons** (German citizens, alive):
+  * **3,844 public persons** (German citizens, alive; the press list also has a few others):
 
     | group | count |
     |---|---|
@@ -142,15 +142,16 @@ The default pipeline is entirely open-source and free. The HU LLM offer is not u
     | everyone else with ≥ 10 sitelinks (actors, musicians, entrepreneurs, scientists, YouTubers…) | 1,760 |
     | DAX/MDAX CEOs | 67 |
     | BVerfG judges, EKD and DBK heads, Bundesbank and RKI presidents | 6 |
+    | people in the press, hand-checked QIDs (`PRESS_PERSONS`, see below) | 59 |
 
     The description comes from Wikidata ("deutscher Fernsehmoderator"), or from the role
     ("Vorstandsvorsitz SAP").
-  * **781 companies**: DAX/MDAX/SDAX/TecDAX members, German companies with > 10,000 employees
+  * **790 companies**: DAX/MDAX/SDAX/TecDAX members, German companies with > 10,000 employees
     (P1128), companies and brands with ≥ 8 sitelinks, and a brand list (Aldi, Kaufland, Penny,
     Rossmann, MediaMarkt, Bertelsmann, Otto, Flixbus…). Public bodies and non-profits
     (ministries, Bundeswehr, police, churches, clinics…) are filtered out by description. Legal
     forms are stripped for short names ("Rational AG" → "Rational").
-  * **67 tech and media entities**, from a hand-checked QID list (`MEDIA_TECH`):
+  * **68 tech and media entities**, from a hand-checked QID list (`MEDIA_TECH`):
     * Tech: Alphabet, X Corp., Twitter Inc., ByteDance, Samsung, Huawei, Delivery Hero, Celonis,
       United Internet/1&1, TeamViewer, Helsing, Aleph Alpha, Anthropic, Mistral…
     * Broadcasters: WDR, NDR, BR, SWR, MDR, RBB, HR, SR, Radio Bremen, DW, Deutschlandfunk,
@@ -169,6 +170,36 @@ The default pipeline is entirely open-source and free. The HU LLM offer is not u
       Gäste, Moderator, Mediathek…) or as "bei Lanz". Otherwise "Markus Lanz" is the person.
     * Show names that are ordinary words ("Tatort", "Monitor", "Panorama", "hart aber fair")
       also need TV context.
+  * **People in the press** (`PRESS_PERSONS`, 59 hand-checked QIDs, each P31 human and alive):
+    people whose popularity swings with the news but who miss the sitelink thresholds (or lack
+    a citizenship statement); the cast of "Die Höhle der Löwen" is not on Wikidata at all. Each
+    gets a context set of its own in `data/entities.yaml`:
+    * `investors` (Löwen, DHDL, Investor, Deal, Startup, Gründer, Beteiligung, VOX…): Frank
+      Thelen, Carsten Maschmeyer, Judith Williams, Dagmar Wöhrl, Georg Kofler, Ralf Dümmel, Nils
+      Glagau, Tillman Schulz, Janna Ensthaler, Tijen Onaran, Lea-Sophie Cramer, Vural Öger, Jochen
+      Schweizer, Nico Rosberg, Oliver Samwer, Philipp Westermeyer; with `business`/`transit`:
+      Reinhold Würth, Martin Brudermüller, Richard Lutz, Evelyn Palla;
+    * `entertainment` (Show, RTL, ProSieben, Jury, DSDS, Wetten dass, Konzert, Album, Film,
+      Rapper…): Dieter Bohlen, Thomas Gottschalk, Stefan Raab, Heidi Klum, Günther Jauch, Jan
+      Böhmermann, Joko Winterscheidt, Barbara Schöneberger, Elton, Sylvie Meis, Daniela
+      Katzenberger, Luke Mockridge, Atze Schröder, Johannes B. Kerner, Frank Rosin, Christian
+      Rach, Steffen Henssler, Harald Glööckler, Oliver Pocher, Amira Aly, Robert and Carmen Geiss,
+      Bushido, Kollegah, Capital Bra, Apache 207, Luciano, Katja Krasavice;
+    * `creators` (YouTube, Twitch, Stream, Influencer, Instagram, TikTok, Video, Kanal…): Rezo,
+      MontanaBlack, Knossi, Papaplatte, Gronkh, Julien Bam, Bianca „Bibi“ Claßen, Pamela Reif,
+      Fynn Kliemann, Unge, Dagi Bee.
+
+    Hand-written aliases replace generated ones: distinctive surnames are weak instead of
+    NER-only ("~Maschmeyer", "~Böhmermann", "~Dümmel": an NER person tag or a context word, also
+    on Austrian and Swiss sources); nicknames, words and first names are contextual ("@Maschi",
+    "@Poptitan", "@Gottschalk" (Kay Gottschalk, AfD, shares the surname), "@Elton", "@Luciano",
+    "@Unge", "@Kerner", "@Rosin"). Never alone: first names ("Joko", "Bibi", "Atze"), "Capital"
+    (the magazine), "Apache", common surnames (Müller, Becker, Fischer, Schweiger, Schulz,
+    Williams), "Lichter" (Horst Lichter), "Reif" (also Marcel Reif). Claus Kleber keeps "!Kleber"
+    and the company Würth "=Würth" against the new namesakes; Oliver Pocher keeps "!Pocher".
+  * Labels: many persons have only a `mul` label on Wikidata since 2024 (no `de`/`en` one); they
+    are filled in from it (Barbara Schöneberger, Elton, Norbert Lammert, Kurt Beck, Bernd Lucke,
+    Alexander Zverev, Iris Berben, Juli Zeh, Armin Papperger, phoenix, Boehringer Ingelheim…).
   * **296 universities** (P31/P279* Q3918 in Germany, with abbreviations); universities of
     applied sciences only with ≥ 10 sitelinks.
 
@@ -194,7 +225,14 @@ The default pipeline is entirely open-source and free. The HU LLM offer is not u
   spans resolved by exact alias lookup follow the same contextual, local and NER-only rules.
   More rules for the larger list:
   * One-word artist names link only when they are not first names or words ("Nena", "Sido";
-    not "Sandra", "Haftbefehl").
+    not "Sandra", "Haftbefehl"). Until Nov 2026 every one-word name counted as a first name of
+    itself, so none of them linked; a few that are first names or brands elsewhere stay off
+    ("Nicki", "Nana", "Fancy", "Dillon", "Hauschka").
+  * Wikidata nicknames made of words ("Die Katze", "der Boss", "Die Axt", "Der Gentleman", "Herr
+    Sorge") are dropped: as plain aliases they linked every cat and every boss.
+  * A one-word name of a generated person inside a longer NER person span is someone else
+    ("Elton John", "Luciano Pavarotti", "Frank Raab"); hyphenated pairs ("Wegner-Giffey") and
+    titles ("Herr Bohlen") are fine.
   * Generated organisation names take no inflection endings, and no bare genitive "s"
     ("Hama" never matches "Hamas").
   * An NER span of the other type vetoes a generated alias ("Lanz" tagged as a person is not
@@ -437,6 +475,30 @@ plus about 3 reads per re-checked mention and the re-aggregation of the affected
 check about 3,000 reads. The regular run of 28 Oct 05:33 UTC analysed 3,869 comments with
 19,673 reads and 7,887 writes (with 150 Wikidata lookups and the aggregation); the entity count
 does not enter it (see below).
+
+## Rollout of the people in the press (9 Nov 2026)
+
+The generator run with `PRESS_PERSONS`, the `mul` labels and the alias fixes above added **110
+generated entities** (47 of the 59 people in the press; 63 others: persons, companies and the
+channel phoenix that only had a `mul` label, and one-word artist names such as Campino that had
+no usable alias) and changed the aliases of 61 existing ones (6,452 generated, 7,043 with the
+curated list; `volker-beck` is now the Green politician, Q57322, instead of a namesake). The
+push to `data/entities.yaml` starts `seed.yml`, which writes the new entity docs and the changed
+aliases (about 175 writes) and
+queues two jobs that the regular runs continue within the daily budget:
+
+1. a 14-day `relink` of the created entities: it scans every analysed comment of the last 14
+   days once (about 1.3 reads per comment, i.e. roughly 140,000 reads for ~110,000 comments,
+   spread over one or two days of the 120,000-read analysis share) and re-runs NER only on the
+   few thousand comments that contain one of the new aliases; writes are the new mentions plus
+   their day docs (expected in the hundreds);
+2. a `prune` of the 23 entities that lost an alias ("Die Katze", "der Boss", "Die Axt",
+   "!Lichter", "!Zverev", "!Kofler", "!Lucke" …): about 2,000 reads of fixed overhead plus about
+   3 reads per re-checked mention. `seed` now queues this for every lost alias, not only for
+   aliases that moved to another entity.
+
+New aliases of existing entities ("@Gottschalk", "@Poptitan", "Kollegah", "!Sido") apply to new
+comments only; they are not relinked.
 
 ## Apps & Dienste (type `PRODUCT`)
 

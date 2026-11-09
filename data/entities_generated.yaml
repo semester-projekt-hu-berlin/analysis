@@ -361,6 +361,7 @@ entities:
   - Heidi Kaulitz
   - Heidi Samuel
   - '!Klum'
+  context: entertainment
 - id: christoph-waltz
   wikidata: Q76819
   name: Christoph Waltz
@@ -595,6 +596,7 @@ entities:
   aliases:
   - Nico Rosberg
   - Nico Erik Rosberg
+  context: investors
 - id: johannes-georg-bednorz
   wikidata: Q76687
   name: Johannes Georg Bednorz
@@ -1079,6 +1081,16 @@ entities:
   - Lucas Vázquez
   - Lucas Vázquez Iglesias
   - '!Vázquez'
+- id: stefan-hell
+  wikidata: Q91410
+  name: Stefan Hell
+  type: PER
+  country: DE
+  description: deutscher Biophysiker und Nobelpreisträger
+  aliases:
+  - Stefan Hell
+  - Stefan W. Hell
+  - Stefan Walter Hell
 - id: vodafone
   wikidata: Q122141
   name: Vodafone
@@ -1121,6 +1133,7 @@ entities:
   country: DE
   description: brasilianisch-deutscher Fußballspieler und Funktionär
   aliases:
+  - =Cacau
   - Claudemir Jerônimo Barreto
 - id: michael-olise
   wikidata: Q62050484
@@ -1672,6 +1685,9 @@ entities:
   - Dieter Günter Bohlen
   - Ryan Simmons
   - '!Bohlen'
+  - '@Poptitan'
+  - '@Pop-Titan'
+  context: entertainment
 - id: kevin-trapp
   wikidata: Q118207
   name: Kevin Trapp
@@ -1872,6 +1888,22 @@ entities:
   aliases:
   - Torsten Frings
   - '!Frings'
+- id: klaus-hasselmann
+  wikidata: Q109370
+  name: Klaus Hasselmann
+  type: PER
+  country: DE
+  description: deutscher Klimaforscher, Meteorologe und Ozeanologe
+  aliases:
+  - Klaus Hasselmann
+- id: alexander-zverev
+  wikidata: Q13990552
+  name: Alexander Zverev
+  type: PER
+  country: DE
+  description: Deutscher Tennisspieler
+  aliases:
+  - Alexander Zverev
 - id: oliver-bierhoff
   wikidata: Q152844
   name: Oliver Bierhoff
@@ -2111,6 +2143,7 @@ entities:
   country: DE
   description: deutsche Popsängerin
   aliases:
+  - '!Nena'
   - Gabriele Kerner
   - Nena Kerner
 - id: mehmet-scholl
@@ -2293,6 +2326,7 @@ entities:
   country: DE
   description: spanischer Fußballspieler
   aliases:
+  - =Joselu
   - Joselu Mato
 - id: sebastian-kehl
   wikidata: Q141354
@@ -2331,7 +2365,6 @@ entities:
   description: deutscher Fußballspieler und -trainer
   aliases:
   - Bernd Schuster
-  - der Blonde Engel
 - id: marcel-sabitzer
   wikidata: Q472300
   name: Marcel Sabitzer
@@ -2463,6 +2496,7 @@ entities:
   country: DE
   description: deutscher DJ und Musikproduzent
   aliases:
+  - '!Zedd'
   - Anton Saslawski
 - id: nicole
   wikidata: Q236061
@@ -2608,6 +2642,7 @@ entities:
   aliases:
   - Stefan Raab
   - '!Raab'
+  context: entertainment
 - id: magdalena-neuner
   wikidata: Q76455
   name: Magdalena Neuner
@@ -3164,7 +3199,6 @@ entities:
   description: südkoreanischer Fußballspieler (geboren 1996)
   aliases:
   - Kim Min-jae
-  - The Monster
   - Kim Minjae
   - Min-Jae Kim
   - Minjae Kim
@@ -3948,6 +3982,16 @@ entities:
   description: deutscher Fußballspieler
   aliases:
   - Felix Kalu Nmecha
+- id: jens-boehrnsen
+  wikidata: Q61604
+  name: Jens Böhrnsen
+  type: PER
+  country: DE
+  description: deutscher Politiker (SPD) und Bürgermeister der Stadt Bremen
+  aliases:
+  - Jens Böhrnsen
+  - '!Böhrnsen'
+  context: politics
 - id: andrea-nahles
   wikidata: Q62810
   name: Andrea Nahles
@@ -3984,6 +4028,7 @@ entities:
   country: DE
   description: deutscher DJ und Musikproduzent
   aliases:
+  - =ATB
   - André Tanneberger
 - id: jonas-hofmann
   wikidata: Q822781
@@ -4650,6 +4695,7 @@ entities:
   country: DE
   description: trinidadisch-deutscher Sänger
   aliases:
+  - =Haddaway
   - Alexander Nestor Haddaway
 - id: bertelsmann
   wikidata: Q156913
@@ -4827,6 +4873,16 @@ entities:
   description: deutscher Politiker (CDU), MdV, letzter Ministerpräsident der DDR, MdB
   aliases:
   - Lothar de Maizière
+  context: politics
+- id: norbert-lammert
+  wikidata: Q57474
+  name: Norbert Lammert
+  type: PER
+  country: DE
+  description: deutscher Politiker (CDU), Bundestagspräsident a.D.
+  aliases:
+  - Norbert Lammert
+  - '!Lammert'
   context: politics
 - id: thilo-sarrazin
   wikidata: Q57954
@@ -5715,6 +5771,15 @@ entities:
   - Christine Lambrecht
   - '!Lambrecht'
   context: politics
+- id: magnus-manske
+  wikidata: Q13520818
+  name: Magnus Manske
+  type: PER
+  country: DE
+  description: deutscher Biochemiker und MediaWiki-Entwickler
+  aliases:
+  - Magnus Manske
+  - '!Manske'
 - id: markus-merk
   wikidata: Q156339
   name: Markus Merk
@@ -6707,6 +6772,14 @@ entities:
   - André Greipel
   - Andre Greipel
   - '!Greipel'
+- id: c418
+  wikidata: Q1847436
+  name: C418
+  type: PER
+  country: DE
+  description: deutscher Komponist
+  aliases:
+  - =C418
 - id: melanie-leupolz
   wikidata: Q1918983
   name: Melanie Leupolz
@@ -7101,6 +7174,15 @@ entities:
   aliases:
   - Heike Makatsch
   - '!Makatsch'
+- id: kurt-beck
+  wikidata: Q65109
+  name: Kurt Beck
+  type: PER
+  country: DE
+  description: ehem. Ministerpräsident von Rheinland-Pfalz (SPD)
+  aliases:
+  - Kurt Beck
+  context: politics
 - id: martina-gedeck
   wikidata: Q65111
   name: Martina Gedeck
@@ -7725,6 +7807,16 @@ entities:
   description: deutscher Automobilrennfahrer
   aliases:
   - Markus Winkelhock
+- id: guenter-verheugen
+  wikidata: Q76525
+  name: Günter Verheugen
+  type: PER
+  country: DE
+  description: deutscher Politiker (SPD, bis 1982 FDP), MdB, EU-Kommissar
+  aliases:
+  - Günter Verheugen
+  - '!Verheugen'
+  context: politics
 - id: rainer-schuettler
   wikidata: Q76760
   name: Rainer Schüttler
@@ -8027,6 +8119,15 @@ entities:
   description: deutscher Basketballspieler
   aliases:
   - Franz Jacob Wagner
+- id: volker-beck
+  wikidata: Q57322
+  name: Volker Beck
+  type: PER
+  country: DE
+  description: deutscher Politiker (Bündnis 90/Die Grünen), MdB
+  aliases:
+  - Volker Beck
+  context: politics
 - id: michael-schenker
   wikidata: Q57642
   name: Michael Schenker
@@ -8518,6 +8619,7 @@ entities:
   country: DE
   description: brasilianisch-deutscher Fußballspieler
   aliases:
+  - =Émerson
   - Emerson Luiz Firmino
   - Émerson Luiz Firmino
 - id: bayerischer-rundfunk
@@ -8714,7 +8816,6 @@ entities:
   description: deutscher Schwimmer
   aliases:
   - Michael Groß
-  - Der Albatross
 - id: walter-roehrl
   wikidata: Q57740
   name: Walter Röhrl
@@ -8867,6 +8968,16 @@ entities:
   - Wolfgang Rolff
   - Wolfgang Dieter Rolff
   - '!Rolff'
+- id: boehringer-ingelheim
+  wikidata: Q699532
+  name: Boehringer Ingelheim
+  type: ORG
+  country: DE
+  description: Pharmaunternehmen in Ingelheim/Rhein
+  aliases:
+  - Boehringer Ingelheim
+  - Böhringer Ingelheim
+  context: business
 - id: suedwestrundfunk
   wikidata: Q700133
   name: Südwestrundfunk
@@ -9892,6 +10003,7 @@ entities:
   country: DE
   description: deutsche Soul-Sängerin
   aliases:
+  - =Ayọ
   - Joy Olasunmibo Ogunmakin
 - id: josefa-idem
   wikidata: Q248926
@@ -9927,10 +10039,12 @@ entities:
   country: DE
   description: deutscher Rapper
   aliases:
+  - ~Bushido
   - Sonny Black
   - Anis Ferchichi
   - Anis Mohamed Youssef Ferchichi
   - Anis Mohammed Yussuf Ferchichi
+  context: entertainment
 - id: hochschule-fuer-musik-und-theater-felix-mendelssohn-bartholdy-leipzig
   wikidata: Q312578
   name: Hochschule für Musik und Theater „Felix Mendelssohn Bartholdy“ Leipzig
@@ -10213,7 +10327,6 @@ entities:
   - Mischa Zverev
   - Michail Alexandrowitsch Swerew
   - Mikhail Alexandrovich Zverev
-  - '!Zverev'
 - id: astrid-kumbernuss
   wikidata: Q60671
   name: Astrid Kumbernuss
@@ -10523,7 +10636,6 @@ entities:
   aliases:
   - Cornelia Froboess
   - Conny Froboess
-  - Die kleine Cornelia
   - '!Froboess'
 - id: katrin-sass
   wikidata: Q71698
@@ -10543,6 +10655,16 @@ entities:
   aliases:
   - Claudia Ciesla
   - '!Ciesla'
+- id: juli-zeh
+  wikidata: Q76324
+  name: Juli Zeh
+  type: PER
+  country: DE
+  description: deutsche Schriftstellerin, Juristin, Verfassungsrichterin des Landes Brandenburg
+  aliases:
+  - Juli Zeh
+  - Julia Barbara Finck
+  - Manfred Gortz
 - id: lutz-heilmann
   wikidata: Q77201
   name: Lutz Heilmann
@@ -10709,6 +10831,14 @@ entities:
   aliases:
   - Maximilian Schachmann
   - '!Schachmann'
+- id: pascal-ackermann
+  wikidata: Q15839596
+  name: Pascal Ackermann
+  type: PER
+  country: DE
+  description: deutscher Radrennfahrer
+  aliases:
+  - Pascal Ackermann
 - id: mitteldeutscher-rundfunk
   wikidata: Q158948
   name: Mitteldeutscher Rundfunk
@@ -10730,6 +10860,8 @@ entities:
   aliases:
   - Thomas Gottschalk
   - Thomas Johannes Gottschalk
+  - '@Gottschalk'
+  context: entertainment
 - id: zlatan-alomerovic
   wikidata: Q207112
   name: Zlatan Alomerović
@@ -10943,14 +11075,6 @@ entities:
   description: deutscher Fußballspieler und -trainer
   aliases:
   - Steffen Freund
-- id: volker-beck
-  wikidata: Q506011
-  name: Volker Beck
-  type: PER
-  country: DE
-  description: deutscher Leichtathlet
-  aliases:
-  - Volker Beck
 - id: andre-hahn
   wikidata: Q519462
   name: André Hahn
@@ -11489,8 +11613,8 @@ entities:
   country: DE
   description: deutsche Pop-Rocksängerin
   aliases:
+  - =LaFee
   - Christina Klein
-  - La Fee
 - id: kraussmaffei
   wikidata: Q819150
   name: KraussMaffei
@@ -11748,6 +11872,7 @@ entities:
   country: DE
   description: deutscher Rapper, Musikproduzent, Songwriter und Schauspieler
   aliases:
+  - '!Sido'
   - Paul Hartmut Würdig
   - Paul Würdig
 - id: victor-moritz-wagner
@@ -12095,6 +12220,7 @@ entities:
   country: DE
   description: brasilianisch-deutscher Fußballspieler
   aliases:
+  - =Dedê
   - Leonardo de Deus Santos
   - Leonardo de Déus Santos
 - id: andreas-krieger
@@ -12256,7 +12382,6 @@ entities:
   description: deutscher Boxer
   aliases:
   - Henry Maske
-  - Der Gentleman
 - id: patrick-hausding
   wikidata: Q62968
   name: Patrick Hausding
@@ -12761,6 +12886,15 @@ entities:
   - Mergim Berisha
   - Mërgim Berisha
   - '!Berisha'
+- id: gunter-demnig
+  wikidata: Q195796
+  name: Gunter Demnig
+  type: PER
+  country: DE
+  description: deutscher Künstler
+  aliases:
+  - Gunter Demnig
+  - '!Demnig'
 - id: heinrich-haussler
   wikidata: Q202259
   name: Heinrich Haussler
@@ -12945,6 +13079,7 @@ entities:
   country: DE
   description: nigerianische Hip-Hop-/Soul-Sängerin
   aliases:
+  - =Nneka
   - Nneka Egbuna
 - id: arne-maier
   wikidata: Q29917387
@@ -13414,6 +13549,7 @@ entities:
   - Günther Jauch
   - Günther Johannes Jauch
   - '!Jauch'
+  context: entertainment
 - id: richard-freitag
   wikidata: Q62502
   name: Richard Freitag
@@ -13661,6 +13797,15 @@ entities:
   - Gesa Felicitas Krause
   - Gesa Krause
   - Gesa-Felicitas Krause
+- id: iris-berben
+  wikidata: Q71662
+  name: Iris Berben
+  type: PER
+  country: DE
+  description: deutsche Schauspielerin
+  aliases:
+  - Iris Berben
+  - '!Berben'
 - id: jessica-schwarz
   wikidata: Q71673
   name: Jessica Schwarz
@@ -14128,6 +14273,21 @@ entities:
   description: deutsche Bratschistin
   aliases:
   - Tabea Zimmermann
+- id: sylvie-meis
+  wikidata: Q271923
+  name: Sylvie Meis
+  type: PER
+  country: DE
+  description: niederländische Moderatorin, Schauspielerin und Fotomodel
+  aliases:
+  - Sylvie Meis
+  - Sylvie Francoise Meis
+  - Sylvie Françoise Meis
+  - Sylvie Francoise van der Vaart
+  - Sylvie Françoise van der Vaart
+  - Sylvie van der Vaart
+  - '!Meis'
+  context: entertainment
 - id: vincent-keymer
   wikidata: Q27526478
   name: Vincent Keymer
@@ -14979,6 +15139,15 @@ entities:
   - Handelsblatt.com
   - handelsblatt.com
   context: media
+- id: bernd-lucke
+  wikidata: Q823840
+  name: Bernd Lucke
+  type: PER
+  country: DE
+  description: deutscher Ökonom und Politiker (Wir Bürger, zuvor AfD), MdEP
+  aliases:
+  - Bernd Lucke
+  context: politics
 - id: angela-schanelec
   wikidata: Q84409
   name: Angela Schanelec
@@ -15802,6 +15971,16 @@ entities:
   description: deutscher Automobilrennfahrer
   aliases:
   - Michael Bartels
+- id: eberhard-diepgen
+  wikidata: Q60957
+  name: Eberhard Diepgen
+  type: PER
+  country: DE
+  description: ehem. Regierender Bürgermeister von Berlin (CDU)
+  aliases:
+  - Eberhard Diepgen
+  - '!Diepgen'
+  context: politics
 - id: stefan-hantel
   wikidata: Q60998
   name: Stefan Hantel
@@ -16708,6 +16887,14 @@ entities:
   aliases:
   - Johannes Voigtmann
   - '!Voigtmann'
+- id: maxi-kleber
+  wikidata: Q1476337
+  name: Maxi Kleber
+  type: PER
+  country: DE
+  description: deutscher Basketballspieler
+  aliases:
+  - Maxi Kleber
 - id: prinzessin-claire-von-luxemburg
   wikidata: Q14924308
   name: Prinzessin Claire von Luxemburg
@@ -17493,7 +17680,6 @@ entities:
   description: deutscher Fußballspieler
   aliases:
   - Uli Borowka
-  - Die Axt
   - Ulrich Borowka
   - Ulrich Ernst Borowka
   - '!Borowka'
@@ -17731,6 +17917,16 @@ entities:
   aliases:
   - Jürgen Hingsen
   - '!Hingsen'
+- id: dieter-althaus
+  wikidata: Q61409
+  name: Dieter Althaus
+  type: PER
+  country: DE
+  description: ehem. Ministerpräsident Thüringens (CDU)
+  aliases:
+  - Dieter Althaus
+  - '!Althaus'
+  context: politics
 - id: cornelia-oschkenat
   wikidata: Q61494
   name: Cornelia Oschkenat
@@ -18456,7 +18652,6 @@ entities:
   - Helge Schneider
   - Kommissar Schneider
   - Singende Herrentorte
-  - The Firefuckers
 - id: andrea-berg
   wikidata: Q76675
   name: Andrea Berg
@@ -18534,6 +18729,17 @@ entities:
   aliases:
   - Benjamin Hübner
   - '!Hübner'
+- id: roza-domascyna
+  wikidata: Q77767
+  name: Róža Domašcyna
+  type: PER
+  country: DE
+  description: sorbische Lyrikerin und Übersetzerin
+  aliases:
+  - Róža Domašcyna
+  - Rosa Domaschke
+  - Rosa Maria Domaschke
+  - '!Domašcyna'
 - id: universitaet-kassel
   wikidata: Q833822
   name: Universität Kassel
@@ -18617,7 +18823,6 @@ entities:
   description: deutscher Ruderer
   aliases:
   - Jörg Lucke
-  - '!Lucke'
 - id: carolin-simon
   wikidata: Q1044359
   name: Carolin Simon
@@ -19586,6 +19791,7 @@ entities:
   country: DE
   description: deutsch-kurdischer Rapper
   aliases:
+  - '!Azad'
   - Azad Azadpour
 - id: gerd-kische
   wikidata: Q566370
@@ -20261,6 +20467,16 @@ entities:
   - Heinrich Deichmann-Schuhe
   - Heinrich Deichmann-Schuhe GmbH
   context: business
+- id: norbert-bluem
+  wikidata: Q66632
+  name: Norbert Blüm
+  type: PER
+  country: DE
+  description: deutscher Politiker (CDU), ehemaliger Bundesminister für Arbeit und Sozialordnung
+  aliases:
+  - Norbert Blüm
+  - '!Blüm'
+  context: politics
 - id: maduka-okoye
   wikidata: Q66700393
   name: Maduka Okoye
@@ -20823,6 +21039,7 @@ entities:
   country: DE
   description: deutsche Sängerin und Rapperin
   aliases:
+  - =Namika
   - Hän Violett
   - Hanan Hamdi
 - id: klaus-dietrich-flade
@@ -21532,6 +21749,16 @@ entities:
   aliases:
   - Nicolette Krebitz
   - '!Krebitz'
+- id: elmar-brok
+  wikidata: Q71674
+  name: Elmar Brok
+  type: PER
+  country: DE
+  description: deutscher Politiker (CDU), ehemaliger MdEP (1980-2019)
+  aliases:
+  - Elmar Brok
+  - '!Brok'
+  context: politics
 - id: alexander-graf-lambsdorff
   wikidata: Q71763
   name: Alexander Graf Lambsdorff
@@ -22007,6 +22234,7 @@ entities:
   country: DE
   description: deutscher Musikproduzent
   aliases:
+  - =TheFatRat
   - Christian Büttner
   - Christian Friedrich Johannes Büttner
 - id: susan-neiman
@@ -22104,6 +22332,14 @@ entities:
   - Andreas Franz Scheuer
   - '!Scheuer'
   context: politics
+- id: campino
+  wikidata: Q506601
+  name: Campino
+  type: PER
+  country: DE
+  description: deutsch-britischer Sänger und Songwriter
+  aliases:
+  - '!Campino'
 - id: gerhart-baum
   wikidata: Q518517
   name: Gerhart Baum
@@ -22624,6 +22860,16 @@ entities:
   aliases:
   - Roland Schimmelpfennig
   - '!Schimmelpfennig'
+- id: barbara-schoeneberger
+  wikidata: Q77807
+  name: Barbara Schöneberger
+  type: PER
+  country: DE
+  description: deutsche Fernsehmoderatorin, Schauspielerin, Sängerin und Komikerin
+  aliases:
+  - Barbara Schöneberger
+  - ~Schöneberger
+  context: entertainment
 - id: martina-hill
   wikidata: Q77952
   name: Martina Hill
@@ -22995,6 +23241,16 @@ entities:
   - Ursula Maria Lehr
   - '!Lehr'
   context: politics
+- id: reinhard-buetikofer
+  wikidata: Q31236
+  name: Reinhard Bütikofer
+  type: PER
+  country: DE
+  description: deutscher Politiker (Bündnis 90/Die Grünen), MdEP
+  aliases:
+  - Reinhard Bütikofer
+  - '!Bütikofer'
+  context: politics
 - id: rossmann
   wikidata: Q316004
   name: Rossmann
@@ -23255,7 +23511,6 @@ entities:
   description: deutscher Konstrukteur von Fahrradkuriositäten
   aliases:
   - Didi Senft
-  - El Diablo
   - Dieter Senft
   - Didi the Devil
   - Dieter "Didi" Senft
@@ -23286,6 +23541,7 @@ entities:
   country: DE
   description: deutscher DJ, Musiker, Labelinhaber, Veranstalter und Autor
   aliases:
+  - =WestBam
   - Maximilian Lenz
   - Frank Xerox
   - Westfalia Bambaataa
@@ -23806,7 +24062,6 @@ entities:
   description: jüngste Tochter von Otto und Regina von Habsburg, Politikerin, Vertreterin der Paneuropabewegung
   aliases:
   - Erzherzogin Walburga von Österreich
-  - Der Erzherzogin Walburga von Österreich
   - Erzherzogin Walburga Maria Helene Elisabeth Franziska von Österreich
   - Walburga Maria Helene Elisabeth Franziska Habsburg Douglas
   context: politics
@@ -23913,7 +24168,6 @@ entities:
   aliases:
   - Micaela Schäfer
   - DJane LaMica
-  - La Mica
 - id: fabian-busch
   wikidata: Q104094
   name: Fabian Busch
@@ -24098,6 +24352,7 @@ entities:
   country: DE
   description: deutsche Schauspielerin
   aliases:
+  - =Nadiuska
   - Roswicha Bertasha Smid Honczar
 - id: renata-adler
   wikidata: Q1567518
@@ -24488,6 +24743,7 @@ entities:
   country: DE
   description: jugoslawischer Musiker
   aliases:
+  - =Vajta
   - Seid Memic-Vajta
 - id: dolkun-isa
   wikidata: Q5289168
@@ -24629,6 +24885,14 @@ entities:
   - Claas Relotius
   - Claas-Hendrik Relotius
   - '!Relotius'
+- id: madhukar
+  wikidata: Q60641
+  name: Madhukar
+  type: PER
+  country: DE
+  description: deutscher Advaita-Meister und Autor
+  aliases:
+  - =Madhukar
 - id: christian-klar
   wikidata: Q61133
   name: Christian Klar
@@ -24737,6 +25001,15 @@ entities:
   aliases:
   - Corinna May
   - Corinna Meyer
+- id: erik-spiekermann
+  wikidata: Q63157
+  name: Erik Spiekermann
+  type: PER
+  country: DE
+  description: deutscher typografischer Gestalter und Schriftentwerfer
+  aliases:
+  - Erik Spiekermann
+  - '!Spiekermann'
 - id: angela-sommer-bodenburg
   wikidata: Q63193
   name: Angela Sommer-Bodenburg
@@ -24792,7 +25065,6 @@ entities:
   description: deutscher Politiker (CDU), MdL, Ministerpräsident des Landes Sachsen-Anhalt
   aliases:
   - Wolfgang Böhmer
-  - '!Böhmer'
   context: politics
 - id: axel-a-weber
   wikidata: Q64689
@@ -25582,6 +25854,16 @@ entities:
   description: deutsche Schauspielerin und Sängerin
   aliases:
   - Anna Loos
+- id: klaus-buchner
+  wikidata: Q105761
+  name: Klaus Buchner
+  type: PER
+  country: DE
+  description: deutscher Physiker und Politiker (ÖDP), MdEP
+  aliases:
+  - Klaus Buchner
+  - '!Buchner'
+  context: politics
 - id: andreas-bourani
   wikidata: Q106071
   name: Andreas Bourani
@@ -25662,7 +25944,8 @@ entities:
   - Jan Böhmermann
   - Jürgen Michaels
   - Tommy Tellerlift
-  - '!Böhmermann'
+  - ~Böhmermann
+  context: entertainment
 - id: roland-grapow
   wikidata: Q1443285
   name: Roland Grapow
@@ -25800,6 +26083,7 @@ entities:
   country: DE
   description: deutscher Rapper und Sänger
   aliases:
+  - '!Cro'
   - Carlo Waibel
 - id: alvaro-brechner
   wikidata: Q2118367
@@ -25838,6 +26122,7 @@ entities:
   country: DE
   description: deutsche DJane, Moderatorin, Produzentin und Schauspielerin
   aliases:
+  - =Marusha
   - Marion Gleiß
   - Marusha Aphrodite Gleiß
 - id: vanessa-mai
@@ -27608,6 +27893,19 @@ entities:
   - Sergey Lagodinsky
   - '!Lagodinsky'
   context: politics
+- id: capital-bra
+  wikidata: Q24008612
+  name: Capital Bra
+  type: PER
+  country: DE
+  description: ukrainischer Deutschrapper
+  aliases:
+  - Capital Bra
+  - Joker Bra
+  - Wladislaw Balowazki
+  - Capi Bra
+  - Smia One
+  context: entertainment
 - id: tobias-hans
   wikidata: Q2437804
   name: Tobias Hans
@@ -27653,6 +27951,7 @@ entities:
   country: DE
   description: deutsche Sängerin
   aliases:
+  - =Rollergirl
   - Nicci Juice
   - Nicole Safft
 - id: bellevue-investments
@@ -28172,6 +28471,15 @@ entities:
   - Herta Däubler-Gmelin
   - '!Däubler-Gmelin'
   context: politics
+- id: bernd-lange
+  wikidata: Q65437
+  name: Bernd Lange
+  type: PER
+  country: DE
+  description: Europaabgeordneter (SPD)
+  aliases:
+  - Bernd Lange
+  context: politics
 - id: friedrich-zimmermann
   wikidata: Q65529
   name: Friedrich Zimmermann
@@ -28180,7 +28488,6 @@ entities:
   description: deutscher Politiker (CSU); MdB, Bundesminister
   aliases:
   - Friedrich Zimmermann
-  - Der Meineidbauer
   - Fritz Zimmermann
   - Friedrich Walter Zimmermann
   - Old Schwurhand
@@ -28246,6 +28553,16 @@ entities:
   - Bärenreiter-Verlag
   - Bärenreiter
   context: business
+- id: edelgard-bulmahn
+  wikidata: Q66008
+  name: Edelgard Bulmahn
+  type: PER
+  country: DE
+  description: deutsche Politikerin (SPD), MdB a.D., Bundestagsvizepräsidentin a.D., Bundesministerin für Bildung und Forschung (1998–2
+  aliases:
+  - Edelgard Bulmahn
+  - '!Bulmahn'
+  context: politics
 - id: collien-fernandes
   wikidata: Q66548
   name: Collien Fernandes
@@ -28717,7 +29034,6 @@ entities:
   aliases:
   - Samy Deluxe
   - Big Baus of the Nauf
-  - Herr Sorge
   - Samy Sorge
   - Wickeda MC
 - id: simone-rethel
@@ -28844,6 +29160,7 @@ entities:
   country: DE
   description: deutscher Rapper
   aliases:
+  - '!Fler'
   - Frank White
   - Patrick Losenský
 - id: heinrich-august-winkler
@@ -29639,6 +29956,16 @@ entities:
   description: deutsche Linguistin, Journalistin und Schriftstellerin
   aliases:
   - Dörte Hansen
+- id: marianne-birthler
+  wikidata: Q243081
+  name: Marianne Birthler
+  type: PER
+  country: DE
+  description: deutsche Politikerin (Bündnis 90/Die Grünen), MdV, MdL, MdB
+  aliases:
+  - Marianne Birthler
+  - '!Birthler'
+  context: politics
 - id: barbara-honigmann
   wikidata: Q243099
   name: Barbara Honigmann
@@ -30543,6 +30870,7 @@ entities:
   country: DE
   description: deutscher Sänger und Rapper
   aliases:
+  - =Clueso
   - Thomas Hübner
 - id: christian-tetzlaff
   wikidata: Q67565
@@ -31159,6 +31487,14 @@ entities:
   aliases:
   - Antje Rávik Strubel
   - '!Strubel'
+- id: henning-baum
+  wikidata: Q89484
+  name: Henning Baum
+  type: PER
+  country: DE
+  description: deutscher Schauspieler
+  aliases:
+  - Henning Baum
 - id: laura-tonke
   wikidata: Q89672
   name: Laura Tonke
@@ -31800,6 +32136,14 @@ entities:
   aliases:
   - Torben Liebrecht
   - '!Liebrecht'
+- id: yanou
+  wikidata: Q1369287
+  name: Yanou
+  type: PER
+  country: DE
+  description: deutscher DJ und Musikproduzent
+  aliases:
+  - =Yanou
 - id: atotech
   wikidata: Q13715273
   name: Atotech
@@ -31863,6 +32207,15 @@ entities:
   - Lapp Holding
   - Lapp Gruppe
   context: business
+- id: scuba-schools-international
+  wikidata: Q1454136
+  name: Scuba Schools International
+  type: ORG
+  country: DE
+  description: Tauchverband
+  aliases:
+  - Scuba Schools International
+  context: business
 - id: sucharit-bhakdi
   wikidata: Q1473437
   name: Sucharit Bhakdi
@@ -31907,6 +32260,7 @@ entities:
   country: DE
   description: deutscher DJ
   aliases:
+  - =Tujamo
   - Matthias Richter
 - id: luise-heyer
   wikidata: Q15431507
@@ -32297,9 +32651,9 @@ entities:
   description: deutsche Reality-TV-Teilnehmerin, Sängerin, Fernsehmoderatorin und Model
   aliases:
   - Daniela Katzenberger
-  - Die Katze
   - Daniela Denise Katzenberger
-  - '!Katzenberger'
+  - ~Katzenberger
+  context: entertainment
 - id: statista
   wikidata: Q2333891
   name: Statista
@@ -32550,6 +32904,18 @@ entities:
   aliases:
   - Fritz Hilpert
   - '!Hilpert'
+- id: phoenix
+  wikidata: Q3381361
+  name: phoenix
+  type: ORG
+  country: DE
+  description: deutscher Fernsehsender
+  aliases:
+  - '@phoenix'
+  - =Phoenix HD
+  - =phoenix von ARD und ZDF
+  - '@Phoenix'
+  context: media
 - id: adriana-altaras
   wikidata: Q374812
   name: Adriana Altaras
@@ -32857,7 +33223,6 @@ entities:
   - Mousse T
   - Mustafa Gündogdu
   - Mustafa Gündoğdu
-  - The Moussekateers
 - id: folkwang-universitaet-der-kuenste
   wikidata: Q521612
   name: Folkwang Universität der Künste
@@ -32939,6 +33304,15 @@ entities:
   aliases:
   - Marc Streitenfeld
   - '!Streitenfeld'
+- id: flixtrain
+  wikidata: Q55499626
+  name: FlixTrain
+  type: ORG
+  country: DE
+  description: Eisenbahnverkehrsunternehmen in Deutschland, erbringt Personenfernverkehrsleistungen
+  aliases:
+  - FlixTrain
+  context: business
 - id: guy-spier
   wikidata: Q5622610
   name: Guy Spier
@@ -33554,6 +33928,7 @@ entities:
   - Oli Pocher
   - Olli Pocher
   - '!Pocher'
+  context: entertainment
 - id: sandra-nettelbeck
   wikidata: Q70953
   name: Sandra Nettelbeck
@@ -34060,6 +34435,16 @@ entities:
   aliases:
   - Tobias Schenke
   - '!Schenke'
+- id: sebastian-edathy
+  wikidata: Q87648
+  name: Sebastian Edathy
+  type: PER
+  country: DE
+  description: deutscher Politiker (SPD)
+  aliases:
+  - Sebastian Edathy
+  - '!Edathy'
+  context: politics
 - id: antje-huber
   wikidata: Q87744
   name: Antje Huber
@@ -34087,6 +34472,15 @@ entities:
   - Ionos
   - IONOS SE
   context: business
+- id: winfried-glatzeder
+  wikidata: Q882919
+  name: Winfried Glatzeder
+  type: PER
+  country: DE
+  description: deutscher Schauspieler
+  aliases:
+  - Winfried Glatzeder
+  - '!Glatzeder'
 - id: christa-luft
   wikidata: Q88304
   name: Christa Luft
@@ -34712,6 +35106,17 @@ entities:
   - Hüseyin-Kenan Aydin
   - '!Aydın'
   context: politics
+- id: jewa-marja-cornakec
+  wikidata: Q106549
+  name: Jěwa-Marja Čornakec
+  type: PER
+  country: DE
+  description: sorbische Schriftstellerin, Übersetzerin und Redakteurin
+  aliases:
+  - Jěwa-Marja Čornakec
+  - Eva-Maria Zschornack
+  - Jewa-Marja Cornakec
+  - '!Čornakec'
 - id: burkhard-jung
   wikidata: Q106747
   name: Burkhard Jung
@@ -34774,6 +35179,15 @@ entities:
   description: deutscher Schriftsteller
   aliases:
   - Georg Klein
+- id: marco-buelow
+  wikidata: Q108771
+  name: Marco Bülow
+  type: PER
+  country: DE
+  description: deutscher Politiker und Autor (1971–2026)
+  aliases:
+  - Marco Bülow
+  context: politics
 - id: liz-mohn
   wikidata: Q108859
   name: Liz Mohn
@@ -35148,6 +35562,7 @@ entities:
   country: DE
   description: deutscher Rapper
   aliases:
+  - '!Gzuz'
   - Ghetto-Zeug unzensiert
   - Jonas Klauß
   - Kristoffer Jonas Klauß
@@ -35302,6 +35717,16 @@ entities:
   aliases:
   - Aris Kalaizis
   - '!Kalaizis'
+- id: g-schneider-sohn
+  wikidata: Q2111113
+  name: G. Schneider & Sohn
+  type: ORG
+  country: DE
+  description: Brauerei aus Bayern
+  aliases:
+  - =G. Schneider & Sohn
+  - Weissbierbrauerei
+  context: business
 - id: jamila-schaefer
   wikidata: Q21286329
   name: Jamila Schäfer
@@ -35894,6 +36319,16 @@ entities:
   - Königliche Porzellanmanufaktur Berlin
   - Staatliche Porzellanmanufaktur Berlin
   context: business
+- id: alfred-gomolka
+  wikidata: Q518534
+  name: Alfred Gomolka
+  type: PER
+  country: DE
+  description: deutscher Politiker (CDU), Ministerpräsident von Mecklenburg-Vorpommern
+  aliases:
+  - Alfred Gomolka
+  - '!Gomolka'
+  context: politics
 - id: bundeszentrale-fuer-politische-bildung
   wikidata: Q520524
   name: Bundeszentrale für politische Bildung
@@ -36234,11 +36669,12 @@ entities:
   country: DE
   description: deutscher Rapper
   aliases:
+  - Kollegah
   - Young Latino
-  - der Boss
   - Westdeutschlands King
   - Felix Antoine Blume
   - Felix Martin Andreas Matthias Blume
+  context: entertainment
 - id: t-online
   wikidata: Q590940
   name: T-Online
@@ -36257,6 +36693,7 @@ entities:
   country: DE
   description: deutscher-türkischer Rapper
   aliases:
+  - '!Mero'
   - Enes Meral
 - id: wolfgang-laib
   wikidata: Q600456
@@ -37057,6 +37494,16 @@ entities:
   - Gerhard Martin Sessler
   - Gerhard Seßler
   - '!Sessler'
+- id: sarah-kuttner
+  wikidata: Q77471
+  name: Sarah Kuttner
+  type: PER
+  country: DE
+  description: deutsche Fernsehmoderatorin, Autorin und Kolumnistin
+  aliases:
+  - Sarah Kuttner
+  - Sandra Kuttler
+  - '!Kuttner'
 - id: pamela-spence
   wikidata: Q77657
   name: Pamela Spence
@@ -37674,7 +38121,6 @@ entities:
   description: deutsche Professorin für Informatik
   aliases:
   - Susanne Albers
-  - '!Albers'
 - id: zoe-wees
   wikidata: Q96119730
   name: Zoe Wees
@@ -37791,6 +38237,7 @@ entities:
   country: DE
   description: deutsche Sängerin
   aliases:
+  - =Leony
   - Leonie Burger
 - id: anja-knauer
   wikidata: Q97619
@@ -39833,6 +40280,7 @@ entities:
   country: DE
   description: deutscher Rapper
   aliases:
+  - '!Casper'
   - Benjamin Griffey
 - id: vanessa-radman
   wikidata: Q3575141
@@ -39905,6 +40353,17 @@ entities:
   - Zuxxez
   - Zuxxez Entertainment
   context: business
+- id: zaklin-nastic
+  wikidata: Q40998599
+  name: Żaklin Nastić
+  type: PER
+  country: DE
+  description: polnisch-deutsche Politikerin (parteilos, zuvor BSW, Linke), MdB
+  aliases:
+  - Żaklin Nastić
+  - Jacqueline Nastić
+  - '!Nastić'
+  context: politics
 - id: dardan
   wikidata: Q41664611
   name: Dardan
@@ -39912,6 +40371,7 @@ entities:
   country: DE
   description: deutscher Rapper kosovo-albanischer Abstammung
   aliases:
+  - =Dardan
   - Dardan Mushkolaj
   - Mister Dardy
 - id: manuela-kraller
@@ -40042,6 +40502,7 @@ entities:
   country: DE
   description: deutscher Schlagzeuger
   aliases:
+  - =Tromla
   - Christoph Hans
 - id: peter-ruzicka
   wikidata: Q457207
@@ -40203,6 +40664,7 @@ entities:
   country: DE
   description: deutsche Rapperin
   aliases:
+  - '!Juju'
   - Judith Wessendorf
 - id: lior-shamriz
   wikidata: Q527208
@@ -40375,6 +40837,7 @@ entities:
   country: DE
   description: deutscher Musiker
   aliases:
+  - =Karunesh
   - Bruno Reuter
 - id: carolin-kebekus
   wikidata: Q583792
@@ -40486,6 +40949,15 @@ entities:
   aliases:
   - ~G-Power
   context: business
+- id: eugen-rochko
+  wikidata: Q64876086
+  name: Eugen Rochko
+  type: PER
+  country: DE
+  description: deutscher Softwareentwickler
+  aliases:
+  - Eugen Rochko
+  - '!Rochko'
 - id: meltem-kaptan
   wikidata: Q65575306
   name: Meltem Kaptan
@@ -40759,6 +41231,16 @@ entities:
   - Charles M. Huber
   - Charles Muhamed Huber
   - Karl-Heinz Huber
+  context: politics
+- id: constanze-angela-krehl
+  wikidata: Q71660
+  name: Constanze Angela Krehl
+  type: PER
+  country: DE
+  description: deutsche Politikerin (SPD), MdEP
+  aliases:
+  - Constanze Angela Krehl
+  - '!Krehl'
   context: politics
 - id: gisela-kallenbach
   wikidata: Q71671
@@ -41037,6 +41519,16 @@ entities:
   - Dieter Nuhr
   - Dieter Herbert Nuhr
   - '!Nuhr'
+- id: klaus-uwe-benneter
+  wikidata: Q76289
+  name: Klaus Uwe Benneter
+  type: PER
+  country: DE
+  description: deutscher Politiker (SPD), MdA, MdB
+  aliases:
+  - Klaus Uwe Benneter
+  - '!Benneter'
+  context: politics
 - id: wigald-boning
   wikidata: Q76390
   name: Wigald Boning
@@ -41300,6 +41792,15 @@ entities:
   - Markus Ferber
   - '!Ferber'
   context: politics
+- id: andre-brie
+  wikidata: Q85691
+  name: André Brie
+  type: PER
+  country: DE
+  description: deutscher Politiker, MdL, MdEP, inoffizieller Mitarbeiter der DDR-Staatssicherheit
+  aliases:
+  - André Brie
+  context: politics
 - id: anja-weisgerber
   wikidata: Q85773
   name: Anja Weisgerber
@@ -41417,6 +41918,7 @@ entities:
   country: DE
   description: deutscher DJ und Musikproduzent
   aliases:
+  - =Moguai
   - Andre Tegeler
   - Dial M for Moguai
 - id: staatliche-hochschule-fuer-bildende-kuenste-staedelschule
@@ -42098,6 +42600,15 @@ entities:
   - Dallmayr
   - Alois Dallmayr
   context: business
+- id: karin-junker
+  wikidata: Q11735707
+  name: Karin Junker
+  type: PER
+  country: DE
+  description: deutsche Politikerin und Autorin
+  aliases:
+  - Karin Junker
+  - '!Junker'
 - id: aleph-alpha
   wikidata: Q123368857
   name: Aleph Alpha
@@ -43158,6 +43669,15 @@ entities:
   - Chris Liebing
   - Christoph Liebing
   - '!Liebing'
+- id: maria-boehmer
+  wikidata: Q67529
+  name: Maria Böhmer
+  type: PER
+  country: DE
+  description: Staatsminister (CDU)
+  aliases:
+  - Maria Böhmer
+  context: politics
 - id: renate-schmidt
   wikidata: Q69677
   name: Renate Schmidt
@@ -43335,6 +43855,16 @@ entities:
   aliases:
   - Miriam Cani
   - '!Cani'
+- id: vural-oeger
+  wikidata: Q77675
+  name: Vural Öger
+  type: PER
+  country: DE
+  description: türkisch-deutscher Unternehmer und Politiker, MdEP
+  aliases:
+  - Vural Öger
+  - '!Öger'
+  context: investors
 - id: andreas-schwab
   wikidata: Q78194
   name: Andreas Schwab
@@ -43417,6 +43947,20 @@ entities:
   - Peter Liese
   - '!Liese'
   context: politics
+- id: dagmar-woehrl
+  wikidata: Q85662
+  name: Dagmar Wöhrl
+  type: PER
+  country: DE
+  description: deutsche Politikerin (CSU), MdB und Unternehmerin
+  aliases:
+  - Dagmar Wöhrl
+  - Dagmar G. Wöhrl
+  - Dagmar Gabriele Winkler
+  - Dagmar Gabriele Wöhrl
+  - Sandra Monte
+  - '!Wöhrl'
+  context: investors
 - id: giovanni-di-lorenzo
   wikidata: Q86081
   name: Giovanni di Lorenzo
@@ -43575,6 +44119,8 @@ entities:
   - Johannes B. Kerner
   - Johannes Baptist Kerner
   - Johannes Kerner
+  - '@Kerner'
+  context: entertainment
 - id: werner-muench
   wikidata: Q96954
   name: Werner Münch
@@ -43678,7 +44224,6 @@ entities:
   description: Bundestagsabgeordnete (SPD)
   aliases:
   - Bärbel Kofler
-  - '!Kofler'
   context: politics
 - id: ulla-jelpke
   wikidata: Q103740
@@ -44240,6 +44785,15 @@ entities:
   aliases:
   - Limbic Entertainment
   context: business
+- id: porsche-engineering-group
+  wikidata: Q18389376
+  name: Porsche Engineering Group
+  type: ORG
+  country: DE
+  description: Unternehmen
+  aliases:
+  - =Porsche Engineering Group
+  context: business
 - id: hans-joachim-lang
   wikidata: Q18599559
   name: Hans-Joachim Lang
@@ -44439,6 +44993,15 @@ entities:
   description: Verkehrsverbund der Stadt München und deren Umland
   aliases:
   - Münchner Verkehrs- und Tarifverbund
+  context: business
+- id: br-fernsehen
+  wikidata: Q259063
+  name: BR Fernsehen
+  type: ORG
+  country: DE
+  description: regionales Fernsehprogramm des Bayerischen Rundfunks
+  aliases:
+  - =BR Fernsehen
   context: business
 - id: b-dienst
   wikidata: Q2610153
@@ -44839,6 +45402,16 @@ entities:
   - =Schmidt & Bender
   - =Schmidt & Bender GmbH & Co. KG
   context: business
+- id: circus-roncalli
+  wikidata: Q378482
+  name: Circus Roncalli
+  type: ORG
+  country: DE
+  description: deutsches Zirkusunternehmen
+  aliases:
+  - Circus Roncalli
+  - Zirkus Roncalli
+  context: business
 - id: siegbert-droese
   wikidata: Q40428300
   name: Siegbert Droese
@@ -44877,6 +45450,28 @@ entities:
   aliases:
   - Opekta
   context: business
+- id: katja-krasavice
+  wikidata: Q44305762
+  name: Katja Krasavice
+  type: PER
+  country: DE
+  description: deutsche Sängerin
+  aliases:
+  - Katja Krasavice
+  - Katrin Vogel
+  - Katrin Vogelová
+  - '!Krasavice'
+  context: entertainment
+- id: luciano
+  wikidata: Q45023244
+  name: Luciano
+  type: PER
+  country: DE
+  description: deutscher Drill-Rapper
+  aliases:
+  - '@Luciano'
+  - Patrick Großmann
+  context: entertainment
 - id: ibach
   wikidata: Q452752
   name: Ibach
@@ -45064,6 +45659,26 @@ entities:
   - =Musikhochschule Lübeck
   - =Hochschule für Musik Lübeck
   context: education
+- id: harald-gloeoeckler
+  wikidata: Q51448
+  name: Harald Glööckler
+  type: PER
+  country: DE
+  description: deutscher Modedesigner
+  aliases:
+  - Harald Glööckler
+  - Harald Glöckler
+  - ~Glööckler
+  context: entertainment
+- id: rezo
+  wikidata: Q51750015
+  name: Rezo
+  type: PER
+  country: DE
+  description: deutscher Webvideoproduzent, Musiker, Streamer, Podcaster und Kolumnist
+  aliases:
+  - =Rezo
+  context: creators
 - id: about-you
   wikidata: Q51844714
   name: About You
@@ -45321,6 +45936,15 @@ entities:
   aliases:
   - Bernhard Albrecht Matthias Lasse Blümel
   - Bernhard Blümel
+- id: reinhold-wuerth
+  wikidata: Q78465
+  name: Reinhold Würth
+  type: PER
+  country: DE
+  description: deutscher Unternehmer
+  aliases:
+  - Reinhold Würth
+  context: business
 - id: westside-xtreme-wrestling
   wikidata: Q822653
   name: Westside Xtreme Wrestling
@@ -46817,6 +47441,16 @@ entities:
   - Julia Willie Hamburg
   - Julia Hamburg
   context: politics
+- id: apache-207
+  wikidata: Q66725900
+  name: Apache 207
+  type: PER
+  country: DE
+  description: deutscher Musiker
+  aliases:
+  - Apache 207
+  - Volkan Yaman
+  context: entertainment
 - id: hans-christoph-berndt
   wikidata: Q68098597
   name: Hans-Christoph Berndt
@@ -47487,6 +48121,17 @@ entities:
   aliases:
   - Saskia Valencia
   - Saskia Gehrke
+- id: carsten-maschmeyer
+  wikidata: Q1045616
+  name: Carsten Maschmeyer
+  type: PER
+  country: DE
+  description: deutscher Unternehmer und Investor („Die Höhle der Löwen“)
+  aliases:
+  - Carsten Maschmeyer
+  - ~Maschmeyer
+  - '@Maschi'
+  context: investors
 - id: michael-schanze
   wikidata: Q104563
   name: Michael Schanze
@@ -47690,6 +48335,7 @@ entities:
   country: DE
   description: deutsche Medienkünstlerin und Drehbuchautorin (Coldmirror)
   aliases:
+  - =Coldmirror
   - Kathrin Fricke
 - id: niels-ruf
   wikidata: Q109335
@@ -47746,6 +48392,15 @@ entities:
   description: deutscher Autor und Musikproduzent
   aliases:
   - Rolf-Ulrich Kaiser
+- id: armin-papperger
+  wikidata: Q111036212
+  name: Armin Papperger
+  type: PER
+  country: DE
+  description: Vorstandsvorsitz Rheinmetall
+  aliases:
+  - Armin Papperger
+  - '!Papperger'
 - id: reinhard-brandl
   wikidata: Q111160
   name: Reinhard Brandl
@@ -48488,6 +49143,22 @@ entities:
   aliases:
   - Meredith Haaf
   - '!Haaf'
+- id: bianca-heinicke
+  wikidata: Q18410747
+  name: Bianca Heinicke
+  type: PER
+  country: DE
+  description: deutsche Webvideoproduzentin und Unternehmerin
+  aliases:
+  - Bianca Heinicke
+  - Bianca Claßen
+  - Bibi Claßen
+  - Bibi H.
+  - Bibi Heinicke
+  - '!Heinicke'
+  - BibisBeautyPalace
+  - Bibis Beauty Palace
+  context: creators
 - id: ludwig-hartmann
   wikidata: Q1874499
   name: Ludwig Hartmann
@@ -48885,6 +49556,16 @@ entities:
   aliases:
   - Hendrik Streeck
   context: politics
+- id: pamela-reif
+  wikidata: Q28866070
+  name: Pamela Reif
+  type: PER
+  country: DE
+  description: deutsche Webvideoproduzentin, Influencerin und Model
+  aliases:
+  - Pamela Reif
+  - Pamela Leonie Reif
+  context: creators
 - id: billy-six
   wikidata: Q29534089
   name: Billy Six
@@ -49061,7 +49742,6 @@ entities:
   aliases:
   - Horst Lichter
   - Wilhelm Horst Lichter
-  - '!Lichter'
 - id: maximilian-arland
   wikidata: Q43882
   name: Maximilian Arland
@@ -49291,6 +49971,20 @@ entities:
   aliases:
   - Katharina Kuhlmann
   - '!Kuhlmann'
+- id: gerresheimer
+  wikidata: Q832533
+  name: Gerresheimer
+  type: ORG
+  country: DE
+  description: deutscher Hersteller von Primärverpackungen aus Spezialglas und Kunststoffen (MDAX)
+  aliases:
+  - Gerresheimer
+  - Actien Gesellschaft der Gerresheimer Glashütte, vorm. Ferd. Heye, Gerresheim bei Düsseldorf
+  - AG der Gerresheimer Glashütte, vorm. Ferd. Heye
+  - Ferd. Heye, Glas-Fabrik, Gerresheim bei Düsseldorf
+  - Gerresheimer Bünde
+  - Gerresheimer Glas AG
+  context: business
 - id: verbio
   wikidata: Q833474
   name: Verbio
@@ -49986,6 +50680,15 @@ entities:
   aliases:
   - Ingo Appelt
   - '!Appelt'
+- id: annette-dittert
+  wikidata: Q107245
+  name: Annette Dittert
+  type: PER
+  country: DE
+  description: deutsch-britische Journalistin, Auslandskorrespondentin und Dokumentarfilmerin
+  aliases:
+  - Annette Dittert
+  - '!Dittert'
 - id: audrey-hannah
   wikidata: Q107312
   name: Audrey Hannah
@@ -50246,6 +50949,16 @@ entities:
   - =Rheinland-Pfälzische Technische Universität Kaiserslautern-Landau
   - RPTU Kaiserslautern-Landau
   context: education
+- id: bernd-busemann
+  wikidata: Q111084
+  name: Bernd Busemann
+  type: PER
+  country: DE
+  description: Präsident des Niedersächsischen Landtages (CDU)
+  aliases:
+  - Bernd Busemann
+  - '!Busemann'
+  context: politics
 - id: juergen-hardt
   wikidata: Q111489
   name: Jürgen Hardt
@@ -50527,6 +51240,17 @@ entities:
   aliases:
   - Jan Löffler
   - '!Löffler'
+  context: politics
+- id: kai-seefried
+  wikidata: Q124438
+  name: Kai Seefried
+  type: PER
+  country: DE
+  description: Landtagsabgeordneter (CDU)
+  aliases:
+  - Kai Seefried
+  - Seefried, Kai
+  - '!Seefried'
   context: politics
 - id: dorothea-dieckmann
   wikidata: Q1246183
@@ -50990,6 +51714,16 @@ entities:
   - Grenkeleasing
   - Grenkeleasing AG
   context: business
+- id: robert-geiss
+  wikidata: Q15457316
+  name: Robert Geiss
+  type: PER
+  country: DE
+  description: deutscher Unternehmer und Fernsehdarsteller
+  aliases:
+  - Robert Geiss
+  - Robert Friedrich Geiss
+  context: entertainment
 - id: dennis-rohde
   wikidata: Q15613500
   name: Dennis Rohde
@@ -51178,6 +51912,16 @@ entities:
   description: deutscher Filmautor, Schriftsteller und Journalist
   aliases:
   - Maxim Leo
+- id: martin-brudermueller
+  wikidata: Q15834173
+  name: Martin Brudermüller
+  type: PER
+  country: DE
+  description: deutscher Manager, Aufsichtsratschef von Mercedes-Benz, ehem. BASF-Chef
+  aliases:
+  - Martin Brudermüller
+  - '!Brudermüller'
+  context: business
 - id: oliver-schroem
   wikidata: Q15837491
   name: Oliver Schröm
@@ -51758,6 +52502,16 @@ entities:
   - Roland Tichy
   - Roland Friedrich Tichy
   - '!Tichy'
+- id: frank-rosin
+  wikidata: Q216328
+  name: Frank Rosin
+  type: PER
+  country: DE
+  description: deutscher Fernsehkoch und Gastronom
+  aliases:
+  - Frank Rosin
+  - '@Rosin'
+  context: entertainment
 - id: ronald-reng
   wikidata: Q2165724
   name: Ronald Reng
@@ -51975,6 +52729,14 @@ entities:
   - Thomas Silberhorn
   - '!Silberhorn'
   context: politics
+- id: tim-renner
+  wikidata: Q2434239
+  name: Tim Renner
+  type: PER
+  country: DE
+  description: deutscher Musikproduzent, Journalist und Autor
+  aliases:
+  - Tim Renner
 - id: ulrich-lange
   wikidata: Q2476246
   name: Ulrich Lange
@@ -52027,6 +52789,15 @@ entities:
   - Wiard Friedrich Siebels
   - '!Siebels'
   context: politics
+- id: sabine-rollberg
+  wikidata: Q25706693
+  name: Sabine Rollberg
+  type: PER
+  country: DE
+  description: deutsche Fernseh-Redaktionsleiterin und Professorin für künstlerische Fernsehformate, Film und Fernsehen
+  aliases:
+  - Sabine Rollberg
+  - '!Rollberg'
 - id: wolfgang-schorlau
   wikidata: Q2591289
   name: Wolfgang Schorlau
@@ -52372,6 +53143,16 @@ entities:
   description: deutscher Journalist und Politikwissenschaftler in Polen
   aliases:
   - Klaus Bachmann
+- id: christian-rach
+  wikidata: Q43758
+  name: Christian Rach
+  type: PER
+  country: DE
+  description: deutscher Koch und Kochbuchautor
+  aliases:
+  - Christian Rach
+  - '@Rach'
+  context: entertainment
 - id: christoph-suess
   wikidata: Q43761
   name: Christoph Süß
@@ -52848,7 +53629,6 @@ entities:
   description: deutscher Autor, Regisseur und Fernsehmoderator
   aliases:
   - Christoph Biemann
-  - Der Mann von der Sendung mit der Maus
   - '!Biemann'
 - id: monica-lierhaus
   wikidata: Q96085
@@ -52984,6 +53764,15 @@ entities:
   - Thomas Jarzombek
   - '!Jarzombek'
   context: politics
+- id: elton
+  wikidata: Q98412
+  name: Elton
+  type: PER
+  country: DE
+  description: deutscher Fernsehmoderator und Entertainer
+  aliases:
+  - '@Elton'
+  context: entertainment
 - id: georg-uecker
   wikidata: Q98763
   name: Georg Uecker
@@ -53562,6 +54351,16 @@ entities:
   - Drillisch AG
   - 1&1
   context: business
+- id: thomas-roewekamp
+  wikidata: Q1263794
+  name: Thomas Röwekamp
+  type: PER
+  country: DE
+  description: Bundestagsabgeordneter (CDU)
+  aliases:
+  - Thomas Röwekamp
+  - '!Röwekamp'
+  context: politics
 - id: paedagogische-hochschule-karlsruhe
   wikidata: Q1310061
   name: Pädagogische Hochschule Karlsruhe
@@ -53684,6 +54483,17 @@ entities:
   - Tamara Ursula Katharina Mazzi
   - '!Mazzi'
   context: politics
+- id: raimond-scheirich
+  wikidata: Q132733585
+  name: Raimond Scheirich
+  type: PER
+  country: DE
+  description: Bundestagsabgeordneter (AfD)
+  aliases:
+  - Raimond Scheirich
+  - Raimond Christian Scheirich
+  - '!Scheirich'
+  context: politics
 - id: ulrich-thoden
   wikidata: Q132733602
   name: Ulrich Thoden
@@ -53744,6 +54554,16 @@ entities:
   - =Evangelische Hochschule für Kirchenmusik Esslingen
   - =Hochschule für Kirchenmusik Tübingen
   context: education
+- id: gronkh
+  wikidata: Q1383186
+  name: Gronkh
+  type: PER
+  country: DE
+  description: deutscher YouTuber
+  aliases:
+  - Gronkh
+  - Erik Range
+  context: creators
 - id: rene-wagner
   wikidata: Q138763771
   name: René Wagner
@@ -53854,6 +54674,17 @@ entities:
   - Martin Hermann Rabanus
   - '!Rabanus'
   context: politics
+- id: luke-mockridge
+  wikidata: Q15056214
+  name: Luke Mockridge
+  type: PER
+  country: DE
+  description: Comedian und Fernsehmoderator
+  aliases:
+  - Luke Mockridge
+  - Lucas Edward Britton Mockridge
+  - ~Mockridge
+  context: entertainment
 - id: serdar-yueksel
   wikidata: Q1512600
   name: Serdar Yüksel
@@ -53892,6 +54723,16 @@ entities:
   aliases:
   - Johannes Fechner
   context: politics
+- id: frank-thelen
+  wikidata: Q15465039
+  name: Frank Thelen
+  type: PER
+  country: DE
+  description: deutscher Unternehmer und Investor (ehem. „Die Höhle der Löwen“)
+  aliases:
+  - Frank Thelen
+  - ~Thelen
+  context: investors
 - id: katja-hessel
   wikidata: Q1557103
   name: Katja Hessel
@@ -54071,6 +54912,16 @@ entities:
   - Iris Spranger
   - '!Spranger'
   context: politics
+- id: judith-williams
+  wikidata: Q1685653
+  name: Judith Williams
+  type: PER
+  country: DE
+  description: deutsch-amerikanische Opernsängerin, Fernsehmoderatorin und Unternehmerin
+  aliases:
+  - Judith Williams
+  - Judith Alexis Stecher-Williams
+  context: investors
 - id: martin-gerster
   wikidata: Q1710147
   name: Martin Gerster
@@ -54124,6 +54975,18 @@ entities:
   - SFC Energy
   - SFC Energy AG
   context: business
+- id: jens-knossalla
+  wikidata: Q18222351
+  name: Jens Knossalla
+  type: PER
+  country: DE
+  description: deutscher Entertainer und Moderator
+  aliases:
+  - Jens Knossalla
+  - König des Internets
+  - '!Knossalla'
+  - Knossi
+  context: creators
 - id: isabelle-vandre
   wikidata: Q18334619
   name: Isabelle Vandre
@@ -54363,6 +55226,16 @@ entities:
   - Ströer Out-of-Home Media AG
   - Ströer SE & Co. KGaA
   context: business
+- id: julien-bam
+  wikidata: Q23817186
+  name: Julien Bam
+  type: PER
+  country: DE
+  description: deutscher Webvideoproduzent, Musiker, Synchronsprecher, Podcaster
+  aliases:
+  - Julien Bam
+  - Julien Zheng Zheng Kho Budorovits
+  context: creators
 - id: telefonica-deutschland
   wikidata: Q2401561
   name: Telefónica Deutschland
@@ -54829,6 +55702,18 @@ entities:
   aliases:
   - Claus Ruhe Madsen
   context: politics
+- id: evelyn-palla
+  wikidata: Q58603743
+  name: Evelyn Palla
+  type: PER
+  country: DE
+  description: italienische Managerin, Vorstandsvorsitzende der Deutschen Bahn AG
+  aliases:
+  - Evelyn Palla
+  - Bahnchefin Palla
+  - ~Palla
+  - Bahn-Chefin Palla
+  context: transit
 - id: celonis
   wikidata: Q63725648
   name: Celonis
@@ -54991,6 +55876,16 @@ entities:
   - =Philosophisch-Theologische Fakultät
   - =Philosophisch-Theologische Fakultät Paderborn
   context: education
+- id: jochen-schweizer
+  wikidata: Q98640
+  name: Jochen Schweizer
+  type: PER
+  country: DE
+  description: deutscher Stuntman
+  aliases:
+  - Jochen Schweizer
+  - Joachim Schweizer
+  context: investors
 - id: burg-giebichenstein-kunsthochschule-halle
   wikidata: Q1011953
   name: Burg Giebichenstein Kunsthochschule Halle
@@ -55652,6 +56547,17 @@ entities:
   - =Tomorrow University
   - ToU
   context: education
+- id: papaplatte
+  wikidata: Q123118096
+  name: Papaplatte
+  type: PER
+  country: DE
+  description: deutscher Webvideoproduzent, Livestreamer und Podcaster
+  aliases:
+  - =Papaplatte
+  - Kevin Andreas Teller
+  - Kevin Teller
+  context: creators
 - id: kurt-kleinschmidt
   wikidata: Q124290189
   name: Kurt Kleinschmidt
@@ -56348,6 +57254,16 @@ entities:
   aliases:
   - Michael Kellner
   context: politics
+- id: carmen-geiss
+  wikidata: Q15456947
+  name: Carmen Geiss
+  type: PER
+  country: DE
+  description: deutsche Millionärsgattin, Sängerin und Fernsehdarstellerin
+  aliases:
+  - Carmen Geiss
+  - Carmen Schmitz
+  context: entertainment
 - id: matthias-machnig
   wikidata: Q1555166
   name: Matthias Machnig
@@ -56561,6 +57477,27 @@ entities:
   aliases:
   - Internationales Priesterseminar St. Petrus
   context: education
+- id: oliver-samwer
+  wikidata: Q16868098
+  name: Oliver Samwer
+  type: PER
+  country: DE
+  description: deutscher Internetunternehmer (Rocket Internet)
+  aliases:
+  - Oliver Samwer
+  - '!Samwer'
+  context: investors
+- id: joko-winterscheidt
+  wikidata: Q1702610
+  name: Joko Winterscheidt
+  type: PER
+  country: DE
+  description: deutscher Fernsehmoderator und Schauspieler
+  aliases:
+  - Joko Winterscheidt
+  - Joachim Winterscheidt
+  - ~Winterscheidt
+  context: entertainment
 - id: kirsten-eickhoff-weber
   wikidata: Q1743630
   name: Kirsten Eickhoff-Weber
@@ -56650,6 +57587,18 @@ entities:
   - Rainer Rothfuß
   - '!Rothfuß'
   context: politics
+- id: dagi-bee
+  wikidata: Q19958947
+  name: Dagi Bee
+  type: PER
+  country: DE
+  description: deutsche Webvideoproduzentin
+  aliases:
+  - Dagi Bee
+  - Dagmar Kazakov
+  - Dagmar Ochmanczyk
+  - Dagmar Nicole Ochmanczyk
+  context: creators
 - id: norbert-altenkamp
   wikidata: Q1996643
   name: Norbert Altenkamp
@@ -56770,6 +57719,16 @@ entities:
   - Secunet
   - Secunet Security Networks AG
   context: business
+- id: ralf-duemmel
+  wikidata: Q23062132
+  name: Ralf Dümmel
+  type: PER
+  country: DE
+  description: deutscher Unternehmer und Investor („Die Höhle der Löwen“)
+  aliases:
+  - Ralf Dümmel
+  - ~Dümmel
+  context: investors
 - id: stefan-ruppert
   wikidata: Q2337465
   name: Stefan Ruppert
@@ -57131,6 +58090,16 @@ entities:
   - Stefan Henze
   - '!Henze'
   context: politics
+- id: fynn-kliemann
+  wikidata: Q43398874
+  name: Fynn Kliemann
+  type: PER
+  country: DE
+  description: deutscher Influencer, Musiker und YouTuber
+  aliases:
+  - Fynn Kliemann
+  - ~Kliemann
+  context: creators
 - id: eva-lettenbauer
   wikidata: Q57399969
   name: Eva Lettenbauer
@@ -57848,6 +58817,16 @@ entities:
   aliases:
   - Tonies
   context: business
+- id: philipp-westermeyer
+  wikidata: Q125693192
+  name: Philipp Westermeyer
+  type: PER
+  country: DE
+  description: deutscher Unternehmer (OMR) und Podcaster
+  aliases:
+  - Philipp Westermeyer
+  - ~Westermeyer
+  context: investors
 - id: priesterseminar-koeln
   wikidata: Q1257371
   name: Priesterseminar Köln
@@ -59064,6 +60043,16 @@ entities:
   aliases:
   - =Asta Energy Solutions
   context: business
+- id: georg-kofler
+  wikidata: Q1417864
+  name: Georg Kofler
+  type: PER
+  country: DE
+  description: Südtiroler Medienunternehmer und Investor („Die Höhle der Löwen“)
+  aliases:
+  - Georg Kofler
+  - Georg Jakob Kofler
+  context: investors
 - id: paedagogische-hochschule-heidelberg
   wikidata: Q1429906
   name: Pädagogische Hochschule Heidelberg
@@ -59110,6 +60099,16 @@ entities:
   aliases:
   - Stephanie Erben
   context: politics
+- id: richard-lutz
+  wikidata: Q15428348
+  name: Richard Lutz
+  type: PER
+  country: DE
+  description: deutscher Betriebswirt, Vorstandsvorsitzender der Deutschen Bahn (2017–2025)
+  aliases:
+  - Richard Lutz
+  - Bahnchef Lutz
+  context: transit
 - id: wolfgang-kopitzsch
   wikidata: Q1565356
   name: Wolfgang Kopitzsch
@@ -59304,6 +60303,17 @@ entities:
   - Collegium Leoninum (Paderborn)
   - Priesterseminar Paderborn
   context: education
+- id: unge
+  wikidata: Q18758213
+  name: Unge
+  type: PER
+  country: DE
+  description: deutscher Influencer und Webvideoproduzent
+  aliases:
+  - '@Unge'
+  - Simon Unge
+  - Simon Wiefels
+  context: creators
 - id: mbb-se
   wikidata: Q1881223
   name: MBB SE
@@ -59390,6 +60400,28 @@ entities:
   - =R+V Allgemeine Versicherung AG
   - Raiffeisen- und Volksbanken Versicherung
   context: business
+- id: hubertus-albers
+  wikidata: Q21820014
+  name: Hubertus Albers
+  type: PER
+  country: DE
+  description: deutscher Comedy-Schauspieler, bekannt für die Rolle als Atze Schröder
+  aliases:
+  - Hubertus Albers
+  - Atze Schröder
+  context: entertainment
+- id: marcel-eris
+  wikidata: Q22937468
+  name: Marcel Eris
+  type: PER
+  country: DE
+  description: Webvideoproduzent und Livestreamer
+  aliases:
+  - Marcel Eris
+  - Marcel Thomas Andreas Eris
+  - Montana Black
+  - MontanaBlack
+  context: creators
 - id: sibylle-meister
   wikidata: Q23059453
   name: Sibylle Meister
@@ -59417,6 +60449,16 @@ entities:
   description: Vorstandsvorsitz Fraport
   aliases:
   - Stefan Schulte
+- id: steffen-henssler
+  wikidata: Q2338629
+  name: Steffen Henssler
+  type: PER
+  country: DE
+  description: deutscher Fernsehkoch und Kochbuchautor
+  aliases:
+  - Steffen Henssler
+  - ~Henssler
+  context: entertainment
 - id: christina-baum
   wikidata: Q23559850
   name: Christina Baum
@@ -59700,6 +60742,15 @@ entities:
   aliases:
   - XU Exponential University of Applied Sciences
   context: education
+- id: lea-sophie-cramer
+  wikidata: Q62088415
+  name: Lea-Sophie Cramer
+  type: PER
+  country: DE
+  description: deutsche Unternehmerin und Investorin (ehem. „Die Höhle der Löwen“)
+  aliases:
+  - Lea-Sophie Cramer
+  context: investors
 - id: staatliche-studienakademie-leipzig
   wikidata: Q65952781
   name: Staatliche Studienakademie Leipzig
@@ -59753,6 +60804,16 @@ entities:
   - Michael Kaufmann
   - Michael Heinz Kaufmann
   context: politics
+- id: tijen-onaran
+  wikidata: Q74728999
+  name: Tijen Onaran
+  type: PER
+  country: DE
+  description: deutsche Autorin und Unternehmerin
+  aliases:
+  - Tijen Onaran
+  - ~Onaran
+  context: investors
 - id: mercedes-benz-ag
   wikidata: Q76754241
   name: Mercedes-Benz AG
@@ -59832,6 +60893,18 @@ entities:
   description: Vorstandsvorsitz Schaeffler Gruppe
   aliases:
   - Klaus Rosenfeld
+- id: amira-aly
+  wikidata: Q94554039
+  name: Amira Aly
+  type: PER
+  country: DE
+  description: österreichische Moderatorin
+  aliases:
+  - Amira Aly
+  - Amira Marijam Aly
+  - Amira Marijam Pocher
+  - Amira Pocher
+  context: entertainment
 - id: staatliche-studienakademie-riesa
   wikidata: Q96623670
   name: Staatliche Studienakademie Riesa
@@ -60030,6 +61103,17 @@ entities:
   aliases:
   - =Humanistische Hochschule Berlin
   context: education
+- id: janna-ensthaler
+  wikidata: Q117856227
+  name: Janna Ensthaler
+  type: PER
+  country: DE
+  description: deutsche Unternehmerin und Investorin („Die Höhle der Löwen“)
+  aliases:
+  - Janna Ensthaler
+  - Janna Schmidt-Holtz
+  - ~Ensthaler
+  context: investors
 - id: europaeische-hochschule-fuer-innovation-und-perspektive
   wikidata: Q118258797
   name: Europäische Hochschule für Innovation und Perspektive
@@ -60144,6 +61228,15 @@ entities:
   - Jakob Migenda
   - '!Migenda'
   context: politics
+- id: tillman-schulz
+  wikidata: Q124385918
+  name: Tillman Schulz
+  type: PER
+  country: DE
+  description: deutscher Unternehmer und Investor („Die Höhle der Löwen“)
+  aliases:
+  - Tillman Schulz
+  context: investors
 - id: helios-kliniken
   wikidata: Q1254151
   name: Helios Kliniken
@@ -60220,6 +61313,15 @@ entities:
   aliases:
   - CIU Korntal
   context: education
+- id: shelly-group
+  wikidata: Q134520240
+  name: Shelly Group
+  type: ORG
+  country: DE
+  description: bulgarischer Technologiekonzern mit Sitz in Sofia (SDAX)
+  aliases:
+  - Shelly Group
+  context: business
 - id: lilia-kayra-kuyumcu
   wikidata: Q136459828
   name: Lilia Kayra Kuyumcu
@@ -60837,6 +61939,16 @@ entities:
   - Polytechnikum Karlsruhe
   - Großherzogliche Badische Polytechnische Schule Karlsruhe
   context: education
+- id: nils-glagau
+  wikidata: Q66424819
+  name: Nils Glagau
+  type: PER
+  country: DE
+  description: deutscher Unternehmer und Investor („Die Höhle der Löwen“)
+  aliases:
+  - Nils Glagau
+  - ~Glagau
+  context: investors
 - id: otto-stern-school-for-integrated-doctoral-education
   wikidata: Q7109839
   name: Otto Stern School for Integrated Doctoral Education
@@ -61258,6 +62370,15 @@ entities:
   - =Konservatorium für Musik der Stadt Würzburg
   - Fachakademie für Musik Würzburg
   context: education
+- id: stephanie-henkel
+  wikidata: Q141645388
+  name: Stephanie Henkel
+  type: PER
+  country: DE
+  description: Vorsitz Piratenpartei Sachsen (PIRATEN)
+  aliases:
+  - Stephanie Henkel
+  context: politics
 - id: sanjay-brahmawar
   wikidata: Q141702318
   name: Sanjay Brahmawar
