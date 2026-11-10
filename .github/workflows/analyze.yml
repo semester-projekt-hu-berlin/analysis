@@ -102,12 +102,15 @@ jobs:
     # runs unless the gate found a duplicate (also when the gate was not needed or failed)
     if: ${{ !cancelled() && needs.gate.outputs.skip != 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 150 # ~6k comments per half day; measured ~280 comments/min with 2 threads, so 9000 fit with margin
+    timeout-minutes: 150 # ~4k comments per half day take 20-45 min on the 4-vCPU runners; 9000 fit with margin
     env:
       FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
       # soft deadline (analysis/timebudget.py): from the job start, 15 min before timeout-minutes, the run
       # saves its cursors, aggregates what it processed, records the budget and exits cleanly
       ANALYSIS_TIME_BUDGET_MIN: "135"
+      # the models run through ONNX Runtime when it reproduces the PyTorch logits (checked at every
+      # load, else PyTorch is used; analysis/onnx_backend.py). "0" goes back to PyTorch only.
+      ANALYSIS_ONNX: "1"
       HF_HOME: ${{ github.workspace }}/.hf-cache
       FLAIR_CACHE_ROOT: ${{ github.workspace }}/.flair-cache
       ANALYSIS_CACHE_DIR: ${{ github.workspace }}/.cache
@@ -136,14 +139,18 @@ jobs:
         run: |
           pip install torch --index-url https://download.pytorch.org/whl/cpu
           pip install -r requirements.txt
+          # Flair and its ~60 dependencies only when its NER is asked for
+          if [ "${{ inputs.ner }}" = "flair" ]; then pip install -r requirements-flair.txt; fi
 
-      - name: Cache models (Hugging Face + Flair)
+      # Model weights and their ONNX exports (.hf-cache/onnx, written on the first run with a new
+      # key). A cache is immutable per key: bump the key when a model or the export changes.
+      - name: Cache models (Hugging Face, ONNX exports, Flair)
         uses: actions/cache@v4
         with:
           path: |
             .hf-cache
             .flair-cache
-          key: models-v3-bert-flair-ner-news-guhr-sentiment
+          key: models-v4-bert-ner-mdeberta-nli-news-sentiment-onnx1
           restore-keys: models-
 
       - name: Cache Wikidata lookups

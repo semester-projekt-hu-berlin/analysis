@@ -1,7 +1,11 @@
 # Install CPU-only torch first:
 #   pip install torch --index-url https://download.pytorch.org/whl/cpu
-flair==0.15.1
 transformers==4.57.6
+sentencepiece>=0.2  # tokenizer of the NLI model
+protobuf>=4
+segtok==1.5.11  # sentence splitting
+onnxruntime>=1.20  # optional: the same models through ONNX Runtime (analysis/onnx_backend.py)
+onnx>=1.16  # export of the models for ONNX Runtime
 google-auth==2.62.0
 requests>=2.32
 PyYAML>=6.0

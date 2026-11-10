@@ -1,0 +1,2 @@
+# Only for `--ner flair` (the default NER is the BERT model in requirements.txt).
+flair==0.15.1

@@ -146,6 +146,41 @@ one "Bild" for a picture); no correct pair was lost. Outside the gold pairs the 
 drops "Söder, schau in den Spiegel!" and "ein düsteres Bild" and adds "Quelle: Die Zeit vom
 15.10.26". Tests: `tests/test_word_names.py`.
 
+## Faster inference, same results (10 Nov 2026)
+
+The NER model and the two sentiment models can run through ONNX Runtime
+(`ANALYSIS_ONNX=1`, [`analysis/onnx_backend.py`](../analysis/onnx_backend.py)), and NER
+batches are sorted by sentence length. Both change the speed only. Measured on 4 CPUs
+(PyTorch 2.14 / 2.15, ONNX Runtime 1.31), each variant on the same inputs:
+
+| | before | sorted batches | + ONNX Runtime |
+|---|---|---|---|
+| NER, 3,243 sentences of production comments (social-heavy) | 23.5 /s | 37.1 /s | 41.9 /s |
+| NER, 1,436 sentences of the gold comments (news) | 21.3 /s | 44.9 /s | 47.5 /s |
+| NER spans equal to before (4,679 sentences) | – | all | all (largest score difference 4e-6) |
+| `scripts/eval_linking.py` (seed + generated) | 428 / 480 linked, 422 correct, 98.6 % | the same | the same |
+| sentiment `cal`, 455 gold windows | 2.85 /s | – | 4.07 /s |
+| sentiment features / labels equal to PyTorch | – | – | largest difference 2e-5 / 455 of 455 labels |
+| macro-F1, fit on dev, scored on test | 0.474 | – | 0.474 |
+| macro-F1 of the shipped calibration on the test split | 0.495 | – | 0.495 |
+
+The sentiment rows use the production code path (`CalibratedSentiment.features`) and today's
+entity lists: the windows of 455 of the 456 pairs can still be built (the lists have grown
+since the calibration was trained, so one target is no longer located and some windows are
+narrower). That is why the dev → test number is 0.474 here and not the 0.483 of the table
+above; it is the same with PyTorch and with ONNX Runtime, before and after the change.
+
+At every model load the ONNX session is compared with the PyTorch model on probe sentences;
+if a logit differs by more than 0.002 (measured: 7e-6), or the export or the session fails,
+PyTorch is used.
+
+**int8 quantization was rejected.** Dynamic quantization (PyTorch, engines x86 / fbgemm /
+onednn; ONNX Runtime, with and without per-channel weights) is 1.5–2.2× faster but changes the
+models: NLI logits differ by 1.3 on average and the strongest class is the same for only
+39 % of the inputs; the news classifier keeps its label for 47 % (88 % with qnnpack, which is
+ten times slower). With features this far off, the calibration would have to be retrained
+and re-validated on quantized features; that is a new model, not a faster one.
+
 ## Limitations
 
 * The best free CPU method reaches only **≈ 0.48 macro-F1** on stance toward the entity. Single labels are often wrong. The aggregates over many mentions (daily

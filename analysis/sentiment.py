@@ -84,6 +84,17 @@ def target_window(sentence: str, mention_start: int, mention_end: int, other_men
     return clause if len(clause) >= 12 else sentence
 
 
+def _forward(model, tok, name: str, pair: bool = False):
+    """encoding -> logits: through ONNX Runtime when it reproduces the PyTorch model (see
+    analysis/onnx_backend.py), else through PyTorch."""
+    from . import onnx_backend
+
+    session = onnx_backend.accelerate(model, tok, name, pair=pair)
+    if session is not None:
+        return session.logits
+    return lambda enc: model(**enc).logits
+
+
 class _Single:
     def __init__(self, key: str, max_length: int):
         from transformers import AutoModelForSequenceClassification, AutoTokenizer
@@ -91,6 +102,7 @@ class _Single:
         name, self.clean = MODELS[key]
         self.tok = AutoTokenizer.from_pretrained(name)
         self.model = AutoModelForSequenceClassification.from_pretrained(name).eval()
+        self.forward = _forward(self.model, self.tok, name)
         self.max_length = max_length
         labels = {i: lab.lower() for i, lab in self.model.config.id2label.items()}
         self.idx = {k: next(i for i, lab in labels.items() if lab.startswith(k)) for k in ("pos", "neu", "neg")}
@@ -98,7 +110,7 @@ class _Single:
     def probs(self, torch, texts: list[str]) -> list[tuple[float, float, float]]:
         prepared = [(guhr_clean(t) if self.clean else t) or "." for t in texts]
         enc = self.tok(prepared, padding=True, truncation=True, max_length=self.max_length, return_tensors="pt")
-        out = torch.softmax(self.model(**enc).logits, dim=-1).tolist()
+        out = torch.softmax(self.forward(enc), dim=-1).tolist()
         return [(p[self.idx["pos"]], p[self.idx["neu"]], p[self.idx["neg"]]) for p in out]
 
 
@@ -123,6 +135,7 @@ class _Nli:
 
         self.tok = AutoTokenizer.from_pretrained(name)
         self.model = AutoModelForSequenceClassification.from_pretrained(name).eval()
+        self.forward = _forward(self.model, self.tok, name, pair=True)
         self.max_length = max_length
         labels = {i: lab.lower() for i, lab in self.model.config.id2label.items()}
         self.ent = next(i for i, lab in labels.items() if lab.startswith("entail"))
@@ -137,7 +150,7 @@ class _Nli:
         enc = self.tok(
             prem, hyp, padding=True, truncation="only_first", max_length=self.max_length, return_tensors="pt"
         )
-        out = self.model(**enc).logits
+        out = self.forward(enc)
         order = [self.ent, *[i for i in range(out.shape[1]) if i != self.ent]]
         lg = out[:, order].reshape(len(items), -1).tolist()
         return lg
@@ -151,7 +164,7 @@ class _Nli:
         enc = self.tok(
             prem, hyp, padding=True, truncation="only_first", max_length=self.max_length, return_tensors="pt"
         )
-        ent = self.model(**enc).logits[:, self.ent].reshape(-1, 3)
+        ent = self.forward(enc)[:, self.ent].reshape(-1, 3)
         return [tuple(p) for p in torch.softmax(ent, dim=-1).tolist()]
 
 
@@ -195,21 +208,29 @@ class CalibratedSentiment:
         self.version = f"sent-cal@{cal.get('version', 1)}"
         log.info("loaded calibrated sentiment in %.1fs", time.time() - t)
 
-    def probs(self, items: list) -> list[tuple[float, float, float]]:
+    def features(self, items: list) -> list[list[float]]:
+        """The model outputs the calibration is fitted on, per (window, target name): the NLI
+        logits of each hypothesis, then the classifier's probabilities. Batches are formed over
+        the windows sorted by length, so little is padded."""
         items = [x if isinstance(x, tuple) else (x, "") for x in items]
         order = sorted(range(len(items)), key=lambda i: len(items[i][0]))
-        out: dict[int, tuple[float, float, float]] = {}
+        out: dict[int, list[float]] = {}
         with self.torch.inference_mode():
             for s in range(0, len(order), self.batch_size):
                 idxs = order[s : s + self.batch_size]
                 batch = [items[i] for i in idxs]
                 nl = self.nli.logits(self.torch, batch, self.hypotheses)
                 cp = self.clf.probs(self.torch, [x[0] for x in batch])
-                x = self.torch.tensor([a + list(c) for a, c in zip(nl, cp, strict=True)])
-                p = self.torch.softmax((x - self.mean) / self.std @ self.W + self.b, dim=-1).tolist()
-                for i, row in zip(idxs, p, strict=True):
-                    out[i] = (row[0], row[1], row[2])
+                for i, a, c in zip(idxs, nl, cp, strict=True):
+                    out[i] = a + list(c)
         return [out[i] for i in range(len(items))]
+
+    def probs(self, items: list) -> list[tuple[float, float, float]]:
+        if not items:
+            return []
+        x = self.torch.tensor(self.features(items))
+        p = self.torch.softmax((x - self.mean) / self.std @ self.W + self.b, dim=-1).tolist()
+        return [(row[0], row[1], row[2]) for row in p]
 
     def predict(self, items: list) -> list[tuple[str, float, float]]:
         return [to_label(*p) for p in self.probs(items)]

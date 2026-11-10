@@ -65,6 +65,13 @@ class BertNer:
 
         self.pipe = pipeline("token-classification", model=model, aggregation_strategy="simple", device=-1)
         self.batch_size = batch_size
+        # same model through ONNX Runtime when it reproduces the PyTorch logits (analysis/onnx_backend.py);
+        # the pipeline keeps doing the tokenisation and the grouping of the tags
+        from . import onnx_backend
+
+        session = onnx_backend.accelerate(self.pipe.model, self.pipe.tokenizer, model)
+        if session is not None:
+            self.pipe.model.forward = lambda **enc: (session.logits(enc),)
 
     def predict(self, sentences: list[str]) -> list[list[Span]]:
         if not sentences:
