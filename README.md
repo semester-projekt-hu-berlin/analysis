@@ -409,7 +409,7 @@ python -m analysis seed                 # curated entities (+ Wikimedia images) 
 python -m analysis run                  # analyze unanalyzed comments (≤ 20000), update aggregates
 python -m analysis run --ner flair      # Flair NER instead of BERT (pip install -r requirements-flair.txt first); --no-wikidata disables the fallback
 ANALYSIS_ONNX=1 python -m analysis run  # the same models through ONNX Runtime (as in CI), about 1.4-2x faster
-python -m analysis rescore              # re-run only the sentiment step for all mentions, re-aggregate
+python -m analysis rescore              # re-run only the sentiment step, day by day (newest first), re-aggregate
 python -m analysis seed-requests        # seed accepted entity_requests (also done at the start of `run`)
 python -m analysis relink --days 14     # add mentions of new (generated) entities to the last 14 days
 python -m analysis prune --ids-file ids.txt --add rewe   # re-check mentions of these entities after an alias change
@@ -693,6 +693,16 @@ To keep the project under about €3.70 a month, every command follows the share
     them over (`prune --ids meta-platforms --add facebook`, but within the budget).
 
   `run` continues the jobs in the order seed → prune → relink → rescore → reaggregate.
+* **Rescore after a model change.** `run` records the model that scores new mentions in
+  `meta/analysis.sentiment`; when it differs from the recorded one (first time: `sent-cal@2`), it
+  queues a `rescore`. The job works day by day, newest first: it reads the mentions of one day
+  (not all mentions, as before), rewrites label / score / confidence where they change,
+  re-aggregates that day and moves to the next older day. An unfinished rescore therefore leaves
+  every day on one model except the day it stopped in, and the 7-day windows are converted
+  first. Continued by a regular run it leaves 1.3 × that run's usage for each later run of the
+  day (`ANALYSIS_RUN_INTERVAL_H`, default 12). The comments' `analysisVersion` is not rewritten
+  (one write per comment saved). About 2 reads and 1.2 writes per mention; with the regular runs
+  taking about 16k of the 30k daily writes, roughly 10k mentions per day (`tests/test_rescore.py`).
 
 ## Time budget per run
 

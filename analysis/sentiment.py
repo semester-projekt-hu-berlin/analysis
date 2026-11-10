@@ -18,6 +18,8 @@ from typing import ClassVar
 
 log = logging.getLogger(__name__)
 
+DEFAULT_SENTIMENT = "cal"  # key of the model that scores new mentions (see load_sentiment)
+
 MODELS = {
     # Trained on ~1.8M German texts (reviews, tweets, Facebook comments, news). Expects
     # the package's normalization (lowercase, letters only).
@@ -236,6 +238,70 @@ class CalibratedSentiment:
         return [to_label(*p) for p in self.probs(items)]
 
 
+FT_META = Path(__file__).resolve().parents[1] / "data" / "sentiment_ft.json"
+
+
+class FineTunedSentiment:
+    """Fine-tuned target sentiment ("ft"): one model pass per window.
+
+    The NLI model fine-tuned on the hand-labelled pairs (scripts/train_sentiment_finetune.py;
+    evaluation in eval/README.md). Premise: the mention's sentence +- one sentence with the
+    target in [brackets]; hypothesis: "Der Kommentar äußert sich positiv über {name}."; the NLI
+    head then reads entailment as positive, neutral as neutral and contradiction as negative
+    toward the entity. The weights are assets of a GitHub release, downloaded once and verified
+    against the hashes in data/sentiment_ft.json (analysis/finetune.py).
+    """
+
+    window_mode = "target"
+
+    def __init__(self, batch_size: int = 16, meta: Path = FT_META):
+        import torch
+        from transformers import AutoModelForSequenceClassification, AutoTokenizer
+
+        from .finetune import ensure_model
+
+        t = time.time()
+        self.torch = torch
+        cfg = json.loads(meta.read_text(encoding="utf-8"))
+        self.cfg = cfg
+        path = ensure_model(cfg)
+        self.tok = AutoTokenizer.from_pretrained(path)
+        # stored in half precision, run in single precision (exact conversion)
+        self.model = AutoModelForSequenceClassification.from_pretrained(path, torch_dtype=torch.float32).eval()
+        digest = cfg["files"]["model.safetensors"][:12]
+        self.forward = _forward(self.model, self.tok, f"meinungspuls/{cfg['release']}-{digest}", pair=True)
+        self.order = list(cfg["logitOrder"])  # model logits -> (pos, neu, neg)
+        self.hypothesis = cfg["hypothesis"]
+        self.max_length = int(cfg["maxLength"])
+        self.batch_size = batch_size
+        self.version = f"sent-ft@{cfg['version']}"
+        log.info("loaded fine-tuned sentiment %s in %.1fs", cfg["release"], time.time() - t)
+
+    def probs(self, items: list) -> list[tuple[float, float, float]]:
+        """(p_pos, p_neu, p_neg) per (window, target name); batches over the windows sorted by length."""
+        items = [x if isinstance(x, tuple) else (x, "") for x in items]
+        order = sorted(range(len(items)), key=lambda i: len(items[i][0]))
+        out: dict[int, tuple[float, float, float]] = {}
+        with self.torch.inference_mode():
+            for s in range(0, len(order), self.batch_size):
+                idxs = order[s : s + self.batch_size]
+                enc = self.tok(
+                    [items[i][0] or "." for i in idxs],
+                    [self.hypothesis.format(name=items[i][1]) for i in idxs],
+                    padding=True,
+                    truncation="only_first",
+                    max_length=self.max_length,
+                    return_tensors="pt",
+                )
+                p = self.torch.softmax(self.forward(enc)[:, self.order], dim=-1).tolist()
+                for i, row in zip(idxs, p, strict=True):
+                    out[i] = (row[0], row[1], row[2])
+        return [out[i] for i in range(len(items))]
+
+    def predict(self, items: list) -> list[tuple[str, float, float]]:
+        return [to_label(*p) for p in self.probs(items)]
+
+
 class SentimentModel:
     """Target sentiment model.
 
@@ -322,8 +388,11 @@ def combine(results: list[tuple[str, float, float]]) -> tuple[str, float, float]
     return label, round(score, 4), round(conf, 4)
 
 
-def load_sentiment(key: str = "cal", **kw):
-    """Factory used by the pipeline: "cal" (default, calibrated NLI + classifier) or any SentimentModel key."""
+def load_sentiment(key: str = DEFAULT_SENTIMENT, **kw):
+    """Factory used by the pipeline: "cal" (default, calibrated NLI + classifier), "ft" (fine-tuned
+    NLI model; needs data/sentiment_ft.json and its release) or any SentimentModel key."""
     if key == "cal":
         return CalibratedSentiment()
+    if key == "ft":
+        return FineTunedSentiment()
     return SentimentModel(key, **kw)

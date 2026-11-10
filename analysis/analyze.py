@@ -85,11 +85,22 @@ def mention_window(
     clause: the mention's sentence plus neighbouring sentences without other entities; narrowed
             to the clause when the sentence mentions other entities.
     entity: the mention's sentence +- one sentence, other entities' surfaces masked as "X".
+    target: the mention's sentence +- one sentence, the target's own mentions in [brackets]
+            (for the fine-tuned model, which reads the context and has to know which name is meant).
     """
     k = next((j for j, (a, b) in enumerate(sents) if a <= m.start < b), None)
     if k is None:
         return text[:MAX_WINDOW_CHARS]
     s0, s1 = sents[k]
+    if mode == "target":
+        w0, w1 = sents[max(0, k - 1)][0], sents[min(len(sents) - 1, k + 1)][1]
+        parts, pos = [], w0
+        for o in sorted(matches, key=lambda o: o.start):
+            if o.entity_id == m.entity_id and pos <= o.start and o.end <= w1:
+                parts += [text[pos : o.start], "[", text[o.start : o.end], "]"]
+                pos = o.end
+        parts.append(text[pos:w1])
+        return "".join(parts)[:MAX_WINDOW_CHARS]
     if mode == "entity":
         w0, w1 = sents[max(0, k - 1)][0], sents[min(len(sents) - 1, k + 1)][1]
         chunk = list(text[w0:w1])

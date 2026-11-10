@@ -8,6 +8,8 @@ import logging
 import os
 import sys
 
+from .sentiment import DEFAULT_SENTIMENT
+
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="python -m analysis", description="Meinungspuls analysis pipeline")
@@ -20,8 +22,8 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--ner", choices=["flair", "bert", "none"], default=os.environ.get("ANALYSIS_NER", "bert"))
     r.add_argument(
         "--sentiment",
-        choices=["cal", "ens", "guhr", "guhr-raw", "news", "nli"],
-        default=os.environ.get("ANALYSIS_SENTIMENT", "cal"),
+        choices=["ft", "cal", "ens", "guhr", "guhr-raw", "news", "nli"],
+        default=os.environ.get("ANALYSIS_SENTIMENT", DEFAULT_SENTIMENT),
     )
     r.add_argument("--no-wikidata", action="store_true", help="disable the Wikidata fallback linker")
     r.add_argument("--max-wikidata-lookups", type=int, default=150)
@@ -35,7 +37,7 @@ def main(argv: list[str] | None = None) -> int:
     ra = sub.add_parser("reaggregate", help="rebuild day docs, entity counters and trending from mentions")
     ra.add_argument("--since", help="only recompute (entity, day) pairs from this day (YYYY-MM-DD) on; default: all")
     rs = sub.add_parser("rescore", help="re-run only the sentiment step for all mentions, then re-aggregate")
-    rs.add_argument("--sentiment", default=os.environ.get("ANALYSIS_SENTIMENT", "cal"))
+    rs.add_argument("--sentiment", default=os.environ.get("ANALYSIS_SENTIMENT", DEFAULT_SENTIMENT))
     rl = sub.add_parser("relink", help="add mentions of new entities to analysed comments of the last N days")
     rl.add_argument("--days", type=int, default=14)
     rl.add_argument("--queue", action="store_true", help="only register the job; `run` continues it")

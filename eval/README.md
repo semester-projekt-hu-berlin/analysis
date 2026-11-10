@@ -181,6 +181,68 @@ models: NLI logits differ by 1.3 on average and the strongest class is the same 
 ten times slower). With features this far off, the calibration would have to be retrained
 and re-validated on quantized features; that is a new model, not a faster one.
 
+## Clean protocol and candidates for a better model (10 Nov 2026)
+
+**Protocol** (`scripts/eval_protocol.py`, `scripts/eval_sentiment_cv.py`). The 455 usable gold
+pairs come from 363 comments; in the old hash split 45 comments have pairs on both sides (47 of
+the 215 test pairs), and the settings of `cal` were chosen on the same pairs. All numbers below
+therefore use: 5 folds stratified by class **over comments** (a comment's pairs are never
+split), everything fitted inside the training folds, a 95 % cluster bootstrap over comments,
+and a paired bootstrap on the same folds to compare two models. The pair that can no longer be
+built is `d5d4a69e83249d2e1e3f_meta-platforms`: the comment says "Facebook", and that alias
+moved to the product entity.
+
+| baseline `cal` (sent-cal@2) | macro-F1 | 95 % CI | accuracy |
+|---|---|---|---|
+| old protocol: fit on dev (240), scored on test (215) | 0.474 | 0.394 to 0.550 | |
+| shipped calibration scored on pairs it was trained on (all / test split) | 0.502 / 0.495 | (in-sample) | |
+| **grouped 5-fold CV, mean of 10 fold seeds** | **0.482** (0.476 to 0.492 over seeds) | 0.43 to 0.53 | 0.505 |
+
+Per class F1 0.42 (pos) / 0.46 (neu) / 0.56 (neg). The accuracy equals that of always answering
+"negative" (0.512). The mean score per entity (29 entities with at least 5 pairs) correlates
+with the gold mean at r = 0.65, but all scores are shifted by +0.23: the class weights of the
+calibration favour pos and neu, so `score` is too positive (mean -0.15, gold -0.38). An
+unweighted fit removes the shift (bias 0.00, entity r 0.69, source r 0.68 instead of 0.49) at
+the same macro-F1.
+
+**Labels are not the ceiling.** A second, blind annotation of 100 random pairs (`relabel2.csv`)
+agrees with the gold labels on 91 (kappa 0.85, macro-F1 0.91). `labels_extra.csv` holds 243
+further pairs (other entities in the gold comments), for training only.
+
+**Where `cal` fails** (224 of 455 out-of-fold errors, 70 read by hand): criticism without
+sentiment words that needs world knowledge or the rest of the comment (neg predicted neu: 88),
+entities that are only context, victim or comparison in an angry comment (neu predicted neg:
+62), support expressed by defending or by attacking the other side (pos missed), and windows
+cut too narrow. Macro-F1 is 0.39 when another entity is in the same sentence (0.52 otherwise),
+0.34 on taz.de (long comments, many entities), 0.43 with a question mark, 0.39 with quotes.
+
+**Candidates** (same folds; difference to `cal` with its paired 95 % CI; CPU seconds per 1,000
+mentions on 4 threads, PyTorch; * = 2 threads on a shared machine):
+
+| candidate | macro-F1 | difference to `cal` | s / 1,000 |
+|---|---|---|---|
+| `cal` (3 NLI hypotheses + news classifier, logistic regression) | 0.482 | – | 339 |
+| surface form instead of the entity name in the hypotheses | 0.487 | +0.004 (-0.035 to +0.044) | 339 |
+| + hypothesis "neutral über" / "Der Autor kritisiert" | 0.498 / 0.499 | +0.016 / +0.017 (n.s.) | 410 |
+| "Der Autor äußert sich …" templates | 0.451 | -0.031 (n.s.) | 339 |
+| + Guhr sentiment classifier (the "+0.04" of the first table) | 0.486 | +0.003 (n.s.) | 450 |
+| + probe on the NLI model's [CLS] vector | 0.501 | +0.019 (-0.023 to +0.060) | 339 |
+| Qwen2.5-3B-Instruct (Q4, llama.cpp), 5 shots, 150 pairs | 0.479 (0.38 to 0.57) | +0.026 (-0.08 to +0.13) | 6,200 * |
+| MiniLM-L6 NLI model fine-tuned on the pairs, 1 pass | 0.485 | n.s. (accuracy 0.56) | about 40 |
+| LoRA (r 16) or only the top 2 layers of the NLI model | – | too slow to converge on CPU (loss 0.9 after 4 epochs) | |
+| **NLI model fully fine-tuned on the pairs (`ft`), 1 pass** | see below | | below `cal` (1 pass instead of 4) |
+
+Nothing that keeps the frozen models gets beyond the noise: better templates, more
+hypotheses, a second classifier and a small generative model all stay within +-0.02. The
+stance needs a model that is trained on the task.
+
+**Fine-tuned model `ft`** (`scripts/train_sentiment_finetune.py`, `analysis/sentiment.py`
+`FineTunedSentiment`, not the default): the NLI model reads the mention's sentence +- one
+sentence with the target in [brackets] against "Der Kommentar äußert sich positiv über {Name}.";
+its head (entailment / neutral / contradiction) is trained to mean pos / neu / neg. Settings
+fixed before the run: all weights, 4 epochs, learning rate 3e-5, batch 16, class weights^0.5.
+One fold takes about 14 minutes on 4 CPUs. Result of the first fold: macro-F1 0.596 on 90 pairs; the other folds had not finished when this was written (`cv --resume` continues them, `scripts/eval_sentiment_cv.py` prints the comparison). It is not the default: it ships only if the full cross-validation shows at least +0.03 with a paired interval above 0, and its weights (about 560 MB in half precision) need a home (a GitHub release, verified by hash: `analysis/finetune.py`).
+
 ## Limitations
 
 * The best free CPU method reaches only **≈ 0.48 macro-F1** on stance toward the entity. Single labels are often wrong. The aggregates over many mentions (daily
