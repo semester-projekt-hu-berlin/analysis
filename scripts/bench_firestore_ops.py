@@ -47,8 +47,10 @@ def main(n: int = 4000) -> None:
             "analysisVersion": None,
         }
     fs = FakeFirestore(docs)
-    pipeline.run(fs, limit=n, use_wikidata=False)
+    out = pipeline.run(fs, limit=n, use_wikidata=False)
     print(f"per 1000 comments: reads={fs.reads * 1000 / n:.0f} writes={fs.writes * 1000 / n:.0f}")
+    for kind, ops in out["firestoreOps"].items():  # the same breakdown every real run logs
+        print(f"  {kind}: " + ", ".join(f"{k} {v * 1000 / n:.0f}" for k, v in ops.items()))
 
 
 if __name__ == "__main__":

@@ -46,7 +46,7 @@ The data contract is [`infrastructure/SCHEMA.md`](https://github.com/semester-pr
  comments/{id}: analyzed=true, analyzedAt, analysisVersion
         │
         ▼
- Aggregation (idempotent, every 2000 comments and at the end of a run)
+ Aggregation (idempotent, once at the end of a run; `--agg-every N` adds rounds in between)
    for every affected (entity, day) pair: recompute entities/{id}/days/{day} from the mentions
      of that pair (query entityId == X AND day == D; coMentions from mentions.coEntityIds)
    entity totals += (new day doc − old day doc), committed atomically with the day docs
@@ -354,8 +354,10 @@ The default pipeline is entirely open-source and free. The HU LLM offer is not u
   other organisation classes → `ORG`. If Wikidata rate-limits, they are retried in the
   next run.
 * Rolling windows are recomputed every run for all entities (they slide even without new
-  mentions) from `recentDays`; only entity docs whose values change are written. `meta/trending` and `meta/stats` (`mentions`, `entities` = allowlisted entities
-  with ≥ 1 mention, `lastAnalysisAt`) are rewritten after each run.
+  mentions) from `recentDays`; only entity docs whose values change are written. `meta/trending` and `meta/stats` (`entities` = allowlisted entities
+  with ≥ 1 mention, `lastAnalysisAt`) are rewritten after each run. `meta/stats.mentions` changes
+  by the difference of every day doc, in the commit that writes the day doc; a count query
+  (1 read per 1000 mentions) corrects it once a week and after a full `reaggregate`.
 * Tests: `tests/test_aggregate.py` (math), `tests/test_pipeline.py` (end-to-end on an in-memory
   Firestore: re-run gives an identical snapshot, reaggregate matches incremental, stale mention
   removal, privacy).
@@ -374,6 +376,9 @@ All optional, no existing field changed:
 | `mentions` | `coEntityIds` | other entities of the same comment, so one (entity, day) can be recomputed from its own mentions |
 | `meta/trending` items | `spark` | 30 daily `avgSentiment` values (oldest first, ending on the Berlin day of `updatedAt`, `null` without mentions) |
 | `meta/analysis` | `pendingPairs` | internal crash-recovery state |
+| `meta/analysis` | `indexSince` | first day whose analysed comments are all in `comment_index` (relinks scan earlier days) |
+| `meta/stats` | `mentionsCountedAt`, `mentionsUpdatedAt` | internal: last full count of `mentions`, last increment |
+| `comment_index/{day}_{hash}` | `day`, `n`, `v`, `blob`, `createdAt` | internal, new collection: word prefixes of the comments of one batch and day (no text), for relinks; see "Cost and speed" |
 
 These are documented in `infrastructure/SCHEMA.md`, which also lists the composite index
 `mentions (entityId, day)`. Equality-only queries also work without it.
@@ -402,7 +407,8 @@ export GOOGLE_APPLICATION_CREDENTIALS=/path/to/sa.json   # or FIREBASE_SERVICE_A
 
 python -m analysis seed                 # curated entities (+ Wikimedia images) and events
 python -m analysis run                  # analyze unanalyzed comments (≤ 20000), update aggregates
-python -m analysis run --ner flair      # Flair NER instead of BERT; --no-wikidata disables the fallback
+python -m analysis run --ner flair      # Flair NER instead of BERT (pip install -r requirements-flair.txt first); --no-wikidata disables the fallback
+ANALYSIS_ONNX=1 python -m analysis run  # the same models through ONNX Runtime (as in CI), about 1.4-2x faster
 python -m analysis rescore              # re-run only the sentiment step for all mentions, re-aggregate
 python -m analysis seed-requests        # seed accepted entity_requests (also done at the start of `run`)
 python -m analysis relink --days 14     # add mentions of new (generated) entities to the last 14 days
@@ -581,6 +587,78 @@ set and the touched entities. That is a few hundred reads, whatever the total en
 (`tests/test_scaling.py` adds 5,000 never-mentioned entities and checks that the reads of a
 run stay the same).
 
+## Cost and speed (10 Nov 2026)
+
+Measured first (run logs of 5–9 Nov, a dry run of 1,500 production comments against the
+in-memory Firestore, model benchmarks on 4 CPUs), then changed, then measured again.
+
+**Where a run's Firestore operations went** (runs of 2,800–5,000 comments: 13–22k reads, 7–10k
+writes, i.e. 3.5–5 reads and 2.0–2.3 writes per comment):
+
+| reads | share | what |
+|---|---|---|
+| unanalysed comments | 1 per comment | the fetch (a field mask does not make it cheaper: Firestore bills per document) |
+| entity docs of `meta/active` | ~2,220 per run, **and again for every job the run continued** | windows, baseline, peers, trending |
+| mentions of the touched (entity, day) pairs | ~1.1 per mention **per aggregation round** | day docs are recomputed from all mentions of the pair |
+| day docs + `community_text` docs | 2 per pair per round | the second one almost always missing |
+| count of `mentions` | 111 per aggregation (1 per 1000 mentions, growing) | `meta/stats.mentions`; the budget counted it as 1 |
+| article titles | ~30 per batch of 250 | context for contextual aliases |
+| relink of new entities | 1 per comment of the last 14 days (~140,000) | 3 % contain an alias, 0.06 % get a mention |
+
+| writes | share | what |
+|---|---|---|
+| `analyzed` flag | 1 per comment (45–50 %) | |
+| mentions | ~0.6 per comment (27 %) | |
+| day docs + entity docs | ~800 per aggregation round (25 % with 2–3 rounds) | entity docs also for `relative7d` and peer ranks, which move with every round |
+
+**What changed**
+
+| change | effect |
+|---|---|
+| one aggregation at the end of a run instead of every 2000 comments | mentions, day docs and entity docs of a pair are read and written once per run |
+| `community_text` docs are read only where the entity's `communityRecentDays` (or a community mention) says one can exist | −1 read per pair |
+| the jobs a run continues (prune, relink, …) use the entity docs the run holds | −2,220 reads per continued job |
+| `meta/stats.mentions` by increments, counted weekly | −111 reads per aggregation today, and no growth with the number of mentions |
+| article titles cached for the run | fewer article reads when an article spans batches |
+| a run with nothing to do (no comments, no pending pairs, windows already moved today) | 5 reads instead of ~2,350 |
+| comment index for relinks (below) | a 14-day relink: ~140,000 → about 5,000–8,000 reads once the index covers the days |
+| NER batches sorted by sentence length | NER 1.6–2.1× faster, identical spans |
+| models through ONNX Runtime (`ANALYSIS_ONNX=1`, set in `analyze.yml`) | NER another 1.1×, sentiment 1.4× faster, identical labels |
+| Flair is installed only for `--ner flair` | ~30 s less setup per run, ~60 fewer packages |
+
+Dry run, the same 1,500 comments (1,132 mentions) before and after: 5,954 → 5,216 reads,
+3,846 → 3,413 writes (one intermediate round before, none after; the fixed 2,224 entity reads
+weigh more in this small run than in a real one). Every run now logs its reads and writes per
+collection (`firestoreOps` in the run summary), so the shares above can be read off each run.
+
+**Comment index** ([`analysis/textindex.py`](analysis/textindex.py)). `run` writes one small
+document per batch and day, `comment_index/{day}_{hash}`: for every comment of the batch the
+first 8 characters of each of its words, normalised (about 80–120 bytes per comment, no text,
+no order). It is written before the comments are marked as analysed. A relink reads these
+documents, selects the comments whose words can contain an alias of a new entity, reads only
+those and applies the exact alias pattern as before. Nothing is missed: wherever the pattern
+matches, the index selects the comment (argument in the module, tested with random texts and
+against all case-insensitive character pairs of Python's `re`). On production comments and
+the aliases of 109 new entities the index selects 2.3 % / 4.4 % of the comments, the exact
+pattern 2.1 % / 4.4 %. `meta/analysis.indexSince` is the first day the index covers
+completely (two days after the first run that writes it); a relink scans earlier days as
+before, so the index takes over within 14 days. `ANALYSIS_TEXT_INDEX=0` switches it off (the
+next run removes `indexSince`, relinks scan again). A failed index write never fails a run.
+Documents older than 45 days are deleted.
+
+**Evaluated and rejected: int8 quantization.** Dynamic quantization makes the NLI model 1.5×
+(PyTorch) to 2.1× (ONNX Runtime) and the news classifier 2.2× faster, but the outputs are no
+longer the same model: the NLI logits move by 1.3 on average (argmax equal for 39 % of the
+inputs), the classifier's label agrees for 47 %. Not used.
+
+**Not changed: the `analyzed` flag** (1 write per comment, about 8,000 a day). A cursor on
+`crawledAt` would save it, but the crawler sets `crawledAt` before it fetches a thread or a
+stream and commits the comments afterwards, so a cursor can move past comments that are not
+stored yet and would never be analysed. An exact design needs the crawler: with every batch
+of comments it inserts it writes one small inbox document with their ids; the analysis reads
+the inbox, fetches those comments and deletes each inbox document once its comments are
+analysed. That is not built. At today's volume it would save about €0.10 a month.
+
 ## Daily Firestore budget
 
 To keep the project under about €3.70 a month, every command follows the shared
@@ -640,7 +718,7 @@ Tests: `tests/test_timebudget.py`.
 
 | workflow | trigger | what |
 |---|---|---|
-| `analyze.yml` | twice a day at 05:30 and 17:30 UTC (`30 5,17 * * *`), about an hour after the crawler (`17 4,16 * * *`), + manual | `python -m analysis run` over the half-day backlog, newest first (about 6k comments; `--limit 9000`, timeout 150 min with a soft time budget of 135 min, aggregation every 2000 comments); CPU-only torch, pip cache, Hugging Face + Flair model cache, Wikidata lookup cache; `concurrency: analysis` prevents overlapping runs |
+| `analyze.yml` | twice a day at 05:30 and 17:30 UTC (`30 5,17 * * *`), about an hour after the crawler (`17 4,16 * * *`), + manual | `python -m analysis run` over the half-day backlog, newest first (about 4k comments; `--limit 9000`, timeout 150 min with a soft time budget of 135 min, one aggregation at the end); CPU-only torch, ONNX Runtime (`ANALYSIS_ONNX=1`), pip cache, model cache (Hugging Face weights and their ONNX exports), Wikidata lookup cache; `concurrency: analysis` prevents overlapping runs |
 | `seed.yml` | push to `data/*.yaml` + manual | `python -m analysis seed` |
 | `ci.yml` | push / PR | ruff + pytest (fake models, no torch needed) |
 
@@ -671,6 +749,8 @@ analysis/
   wikidata.py    Wikidata client, public-figure filter, hashed lookup cache
   ner.py         Flair / BERT / none backends
   sentiment.py   target window, sentiment models, label/score mapping
+  onnx_backend.py  optional ONNX Runtime inference, checked against PyTorch at every load
+  textindex.py   comment index: word prefixes per comment, so relinks read only candidates
   analyze.py     comments → mentions (pure, no I/O)
   aggregate.py   day docs, deltas, rolling windows, trending (pure)
   budget.py      daily Firestore budget (meta/budget)
