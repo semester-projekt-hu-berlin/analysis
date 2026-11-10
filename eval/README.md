@@ -201,13 +201,13 @@ moved to the product entity.
 Per class F1 0.42 (pos) / 0.46 (neu) / 0.56 (neg). The accuracy equals that of always answering
 "negative" (0.512). The mean score per entity (29 entities with at least 5 pairs) correlates
 with the gold mean at r = 0.65, but all scores are shifted by +0.23: the class weights of the
-calibration favour pos and neu, so `score` is too positive (mean -0.15, gold -0.38). An
-unweighted fit removes the shift (bias 0.00, entity r 0.69, source r 0.68 instead of 0.49) at
-the same macro-F1.
+calibration favour pos and neu, so `score` is too positive (mean -0.15, gold -0.38). Fitting
+without class weights removes the shift but costs labels (macro-F1 0.40 on the larger set
+below); sent-cal@3 keeps the weighted label and takes the weights out of the score only.
 
-**Labels are not the ceiling.** A second, blind annotation of 100 random pairs (`relabel2.csv`)
-agrees with the gold labels on 91 (kappa 0.85, macro-F1 0.91). `labels_extra.csv` holds 243
-further pairs (other entities in the gold comments), for training only.
+**Labels are not the ceiling.** A second, blind annotation of 100 random pairs by the automated
+annotator of the next section (`relabel2.csv`) agrees with the gold labels on 91 (kappa 0.85,
+macro-F1 0.91).
 
 **Where `cal` fails** (224 of 455 out-of-fold errors, 70 read by hand): criticism without
 sentiment words that needs world knowledge or the rest of the comment (neg predicted neu: 88),
@@ -258,16 +258,63 @@ verified by hash (`analysis/finetune.py`). With 455 pairs a true gain of +0.05 i
 about half of the cases; about 1,000 gold pairs (roughly 130 pos, 360 neu, 510 neg) would make
 +0.03 to +0.05 reliably visible.
 
+## Larger gold set and sent-cal@3 (11 Nov 2026)
+
+**566 new labels.** The new labels come from an **automated annotator** (an AI agent working in
+this repository), not from a person, with the guidelines above (stance toward the entity,
+sarcasm by its meaning; `linkOk` 0 for wrong links). It labelled blind: no model prediction was
+read or shown (the sample query does not read the `label` field of the mentions).
+
+* `labels_extra.csv`: 244 further pairs of the gold comments (other entities in them; 243 usable).
+* `labels_extra2.csv`: 335 pairs of 335 new production comments (12 days, 22 Oct to 9 Nov), at
+  most one pair per comment, at most 22 % per source, 4 per entity and 38 % per entity type, so
+  the newer sources (Bluesky, apollo, computerbase, rbb24, tagesschau …) and products are covered;
+  12 are wrong links, 323 usable. Sampling cost 1,334 reads, recorded in `meta/budget`.
+* Consistency: a second blind pass over 57 random new pairs (10 %, `relabel3.csv`) agreed on 53
+  (93 %, kappa 0.88, macro-F1 0.91). One of the four differences was a slip in the first pass
+  (Microsoft, clearly negative, typed as positive) and was corrected; the other three are
+  genuine borderline cases and keep the first label. Together with `relabel2.csv` (91 / 100,
+  kappa 0.85, against the original labels) this measures one annotator's consistency, not the
+  agreement of independent annotators.
+
+All files together: **1,021 pairs from 686 comments, pos 109 / neu 387 / neg 525.**
+
+**Baseline on the larger set** (same protocol, `scripts/eval_sentiment_cv.py`): macro-F1
+**0.493** (10 fold seeds 0.487 to 0.500; seed 0: 0.487, 95 % CI 0.449 to 0.522), accuracy 0.529,
+F1 pos 0.40 / neu 0.50 / neg 0.59. The interval is now about +-0.04 instead of +-0.05. The shipped
+sent-cal@2, scored on the 566 new pairs it never saw, reaches 0.481 (0.437 to 0.526), mean score
+-0.12 against a gold mean of -0.43.
+
+**sent-cal@3: unbiased score.** The calibration is refitted on all 1,021 pairs with the same
+settings; the label is the strongest of the weighted logits as before, and the score and
+confidence come from the same logits with the class weights and the neutral bias subtracted
+(`scoreCorrection` = log class weight + bias; a model fitted with class weight w_k estimates
+probabilities proportional to w_k p_k). Cross-validated, 10 fold seeds:
+
+| | sent-cal@2 score | **sent-cal@3 score** |
+|---|---|---|
+| macro-F1 (label) | 0.493 | 0.493 (same label) |
+| bias of the mean score against the mean gold polarity | +0.248 | **-0.007** |
+| r per mention | 0.294 | 0.308 |
+| entity means, 54 entities with >= 5 pairs: r / MAE | 0.653 / 0.317 | 0.669 / **0.263** |
+| source means, 11 sources with >= 10 pairs: r / MAE | 0.725 / 0.252 | 0.713 / **0.104** |
+| entity type means: r / MAE | 0.838 / 0.246 | 0.843 / **0.077** |
+
+The change of the source-level r (-0.012) is within its noise (bootstrap over comments of the
+difference: -0.13 to +0.10; entity level -0.08 to +0.07). The absolute averages drop by about
+0.25, including `baseline7d`; `relative7d` (entity minus baseline) changes much less. Existing
+mentions are rescored by the `rescore` job, newest day first (README).
+
 ## Limitations
 
-* The best free CPU method reaches only **≈ 0.48 macro-F1** on stance toward the entity. Single labels are often wrong. The aggregates over many mentions (daily
+* The best free CPU method reaches only **≈ 0.49 macro-F1** on stance toward the entity. Single labels are often wrong. The aggregates over many mentions (daily
   counts, 7-day averages, the relative sentiment against the baseline) are much more reliable
-  than any single label, but they are still biased. The model under-detects neutral mentions
+  than any single label (since sent-cal@3 the mean score is unbiased on the gold set). The model under-detects neutral mentions
   (recall 0.42) and confuses them with negative ones, especially when the entity is a victim or
   a comparison.
 * Sarcasm, rhetorical questions and implicit criticism are common in comment sections and are
   the main source of errors.
-* The gold labels come from one annotator. The newer sources are covered by only 60 pairs.
+* Each gold pair has one label from one annotator; 566 of the 1,021 come from an automated annotator. Sources outside derstandard, blick, taz and Bluesky have fewer than 60 pairs each.
 * Comment sections are negative on average, so absolute averages are mostly below zero. The
   dashboard should compare entities with `relative7d` (entity average minus the overall
   `baseline7d`).

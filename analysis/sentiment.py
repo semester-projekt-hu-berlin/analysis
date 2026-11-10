@@ -188,6 +188,11 @@ class CalibratedSentiment:
     news-sentiment classifier's probabilities (1 pass) on the clause window. A multinomial
     logistic regression trained on the hand-labelled pairs
     (data/sentiment_calibration.json, see eval/README.md) maps them to pos/neu/neg.
+
+    The regression is fitted with class weights and a small neutral bias, which give the best
+    labels (macro-F1) but over-state the rarer classes. Since version 3 the score and confidence
+    come from the same logits with the class weights and the bias taken out again
+    (`scoreCorrection`), so the expected value P(pos) - P(neg) is unbiased; the label is unchanged.
     """
 
     window_mode = "clause"
@@ -205,6 +210,8 @@ class CalibratedSentiment:
         self.std = torch.tensor(cal["std"])
         self.W = torch.tensor(cal["W"])
         self.b = torch.tensor(cal["b"]) + torch.tensor(cal.get("bias", [0.0, 0.0, 0.0]))
+        # subtracted from the label logits to get the probabilities of score and confidence
+        self.correction = torch.tensor(cal.get("scoreCorrection", [0.0, 0.0, 0.0]))
         self.hypotheses = tuple(cal.get("hypotheses", ["pos", "neg"]))
         self.batch_size = batch_size
         self.version = f"sent-cal@{cal.get('version', 1)}"
@@ -227,15 +234,30 @@ class CalibratedSentiment:
                     out[i] = a + list(c)
         return [out[i] for i in range(len(items))]
 
+    def logits(self, items: list):
+        """Label logits (pos, neu, neg) per (window, target name)."""
+        x = self.torch.tensor(self.features(items))
+        return (x - self.mean) / self.std @ self.W + self.b
+
     def probs(self, items: list) -> list[tuple[float, float, float]]:
+        """Class probabilities for the score: the label logits without class weights and bias."""
         if not items:
             return []
-        x = self.torch.tensor(self.features(items))
-        p = self.torch.softmax((x - self.mean) / self.std @ self.W + self.b, dim=-1).tolist()
+        p = self.torch.softmax(self.logits(items) - self.correction, dim=-1).tolist()
         return [(row[0], row[1], row[2]) for row in p]
 
     def predict(self, items: list) -> list[tuple[str, float, float]]:
-        return [to_label(*p) for p in self.probs(items)]
+        """(label, score, confidence): label = strongest label logit; score = P(pos) - P(neg)
+        and confidence = P(label) from the corrected probabilities."""
+        if not items:
+            return []
+        lg = self.logits(items)
+        labels = lg.argmax(dim=-1).tolist()
+        probs = self.torch.softmax(lg - self.correction, dim=-1).tolist()
+        out = []
+        for k, p in zip(labels, probs, strict=True):
+            out.append((("pos", "neu", "neg")[k], round(p[0] - p[2], 4), round(p[k], 4)))
+        return out
 
 
 FT_META = Path(__file__).resolve().parents[1] / "data" / "sentiment_ft.json"

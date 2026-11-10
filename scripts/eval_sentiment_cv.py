@@ -1,15 +1,20 @@
-"""Compare the calibrated model ("cal") and the fine-tuned model ("ft") under one clean protocol.
+"""Target sentiment under one clean protocol: the calibrated model ("cal") and the fine-tuned one ("ft").
 
-Protocol (scripts/eval_protocol.py): the 455 gold pairs come from 363 comments, so the folds are
-stratified over comments (a comment's pairs are never split between training and test), the
-confidence intervals come from a cluster bootstrap over comments, and the two models are
-compared on the same folds with a paired bootstrap.
+Protocol (scripts/eval_protocol.py): the gold pairs (eval/labels.csv, labels_extra.csv,
+labels_extra2.csv) come from a few hundred comments, so the folds are stratified over comments
+(a comment's pairs are never split between training and test), everything is fitted inside the
+training folds, the confidence intervals come from a cluster bootstrap over comments, and two
+models are compared on the same folds with a paired bootstrap.
 
-* cal: the calibration is refitted inside every training fold (same settings as
-  scripts/train_sentiment_calibration.py); 10 repetitions with different folds give the mean.
-* ft:  out-of-fold predictions of scripts/train_sentiment_finetune.py cv (fold seed 0).
+* cal: the calibration (scripts/train_sentiment_calibration.py) is refitted inside every
+  training fold; 10 fold seeds give the mean. Its score is reported twice: with the class
+  weights left in (sent-cal@2) and taken out again (sent-cal@3, the label is the same).
+* ft:  out-of-fold predictions of scripts/train_sentiment_finetune.py cv (fold seed 0), if present.
 
-    python scripts/eval_sentiment_cv.py            # needs eval/ft_cv.local.json for "ft"
+Besides macro-F1, the score is checked where the dashboard uses it: the mean score per entity,
+per source and per entity type against the mean gold polarity (+1 / 0 / -1).
+
+    python scripts/eval_sentiment_cv.py
 """
 
 from __future__ import annotations
@@ -17,7 +22,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import sys
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 
 import torch
@@ -36,15 +41,23 @@ from eval_protocol import (  # noqa: E402
     pearson,
     per_class,
 )
-from train_sentiment_finetune import CV_FILE, FOLD_SEED, FOLDS, LABELS, load_pairs  # noqa: E402
+from train_sentiment_finetune import CV_FILE, FOLD_SEED, FOLDS, load_pairs  # noqa: E402
 
-FEATURES = ROOT / "eval" / "calfeatures-cv.local.pt"
+LABEL_FILES = [ROOT / "eval" / f for f in ("labels.csv", "labels_extra.csv", "labels_extra2.csv")]
+FEATURES = ROOT / "eval" / "calfeatures-all.local.pt"
 REPS = 10
 POLARITY = {"pos": 1.0, "neu": 0.0, "neg": -1.0}
-MIN_PER_ENTITY = 5
+GROUPS = {"entity": ("entity", 5), "source": ("source", 10), "type": ("type", 10)}  # key, minimum pairs
 
 
-def _calibration_module():
+def load_gold() -> list[dict]:
+    from analysis.linker import Registry
+
+    reg = Registry.from_yaml()
+    return [p for f in LABEL_FILES for p in load_pairs(f, reg)]
+
+
+def calibration_module():
     spec = importlib.util.spec_from_file_location("cal", ROOT / "scripts" / "train_sentiment_calibration.py")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
@@ -65,108 +78,124 @@ def cal_features(pairs: list[dict]) -> torch.Tensor:
     return x
 
 
-def cal_cv(cal, x: torch.Tensor, y: list[int], groups: list[str], seed: int) -> tuple[list[int], list[float]]:
-    """Out-of-fold labels and scores (P(pos) - P(neg)) of the calibrated model for one fold seed."""
+def cal_cv(cal, x: torch.Tensor, y: list[int], groups: list[str], seed: int) -> dict:
+    """Out-of-fold labels and both scores (with / without the class weights) for one fold seed."""
     yt = torch.tensor(y)
-    pred, score = [0] * len(y), [0.0] * len(y)
+    pol = torch.tensor([1.0, 0.0, -1.0])
+    out = {"pred": [0] * len(y), "score_weighted": [0.0] * len(y), "score": [0.0] * len(y)}
     folds = grouped_folds(y, groups, FOLDS, seed)
     for k, test in enumerate(folds):
         train = torch.tensor([i for j, f in enumerate(folds) if j != k for i in f])
-        te = torch.tensor(test)
-        mu, sd, w, b = cal.train(x[train], yt[train])
-        p = torch.softmax((x[te] - mu) / sd @ w + b + torch.tensor(cal.BIAS), dim=1)
-        for i, row in zip(test, p.tolist(), strict=True):
-            pred[i] = max(range(3), key=row.__getitem__)
-            score[i] = row[0] - row[2]
-    return pred, score
+        params = cal.train(x[train], yt[train])
+        lg = cal.label_logits(params, x[torch.tensor(test)])
+        corr = torch.tensor(cal.score_correction(yt[train]))
+        for name, p in (("score_weighted", torch.softmax(lg, 1)), ("score", torch.softmax(lg - corr, 1))):
+            for i, s in zip(test, (p @ pol).tolist(), strict=True):
+                out[name][i] = s
+        for i, lab in zip(test, lg.argmax(1).tolist(), strict=True):
+            out["pred"][i] = lab
+    return out
 
 
-def entity_level(pairs: list[dict], score: list[float]) -> tuple[float, float, int]:
-    """Pearson r and mean absolute error between the mean predicted score and the mean gold
-    polarity per entity (entities with at least MIN_PER_ENTITY gold pairs)."""
+def group_means(pairs: list[dict], score: list[float], key: str, min_n: int) -> tuple[float, float, int]:
+    """Pearson r and mean absolute error between the mean score and the mean gold polarity per
+    group (groups with at least `min_n` pairs)."""
     by: dict[str, list[int]] = defaultdict(list)
     for i, p in enumerate(pairs):
-        by[p["entity"]].append(i)
-    idx = [v for v in by.values() if len(v) >= MIN_PER_ENTITY]
+        by[p[key]].append(i)
+    idx = [v for v in by.values() if len(v) >= min_n]
     gold = [sum(POLARITY[pairs[i]["gold"]] for i in v) / len(v) for v in idx]
     pred = [sum(score[i] for i in v) / len(v) for v in idx]
     mae = sum(abs(a - b) for a, b in zip(pred, gold, strict=True)) / len(idx)
     return pearson(pred, gold), mae, len(idx)
 
 
-def describe(name: str, pairs: list[dict], y: list[int], pred: list[int], score: list[float]) -> dict:
-    groups = [p["comment"] for p in pairs]
-    f1, lo, hi = bootstrap_ci(y, pred, groups)
-    conf = confusion(y, pred)
-    pc = per_class(conf)
-    gold_pol = [POLARITY[p["gold"]] for p in pairs]
-    r_ent, mae_ent, n_ent = entity_level(pairs, score)
-    print(f"\n{name}")
-    acc = sum(a == b for a, b in zip(y, pred, strict=True)) / len(y)
-    print(f"  macro-F1 {f1:.3f}  (95 % CI {lo:.3f} to {hi:.3f}), accuracy {acc:.3f}")
-    for k, c in enumerate(CLASSES):
-        print(f"  {c}: precision {pc[k][0]:.2f}  recall {pc[k][1]:.2f}  F1 {pc[k][2]:.2f}")
-    print(f"  confusion (rows gold pos/neu/neg, columns predicted): {conf}")
-    print(
-        f"  score vs gold polarity: r {pearson(score, gold_pol):.3f} per mention, "
-        f"mean {sum(score) / len(score):+.3f} (gold {sum(gold_pol) / len(gold_pol):+.3f}); "
-        f"entity means ({n_ent} entities with >= {MIN_PER_ENTITY} pairs): r {r_ent:.3f}, MAE {mae_ent:.3f}"
+def score_report(pairs: list[dict], scores: list[list[float]]) -> dict:
+    """Score checks, averaged over fold seeds."""
+    gold = [POLARITY[p["gold"]] for p in pairs]
+    n = len(scores)
+    rep = {
+        "bias": sum(sum(s) / len(s) for s in scores) / n - sum(gold) / len(gold),
+        "r_mention": sum(pearson(s, gold) for s in scores) / n,
+    }
+    for name, (key, min_n) in GROUPS.items():
+        vals = [group_means(pairs, s, key, min_n) for s in scores]
+        rep[f"r_{name}"] = sum(v[0] for v in vals) / n
+        rep[f"mae_{name}"] = sum(v[1] for v in vals) / n
+        rep[f"k_{name}"] = vals[0][2]
+    return rep
+
+
+def print_scores(name: str, rep: dict) -> None:
+    groups = "; ".join(
+        f"{g} means (k={rep[f'k_{g}']}): r {rep[f'r_{g}']:.3f}, MAE {rep[f'mae_{g}']:.3f}" for g in GROUPS
     )
-    return {"f1": f1, "per_class": [c[2] for c in pc], "r_entity": r_ent, "mae_entity": mae_ent}
+    print(f"  {name}: bias of the mean score {rep['bias']:+.3f}, r per mention {rep['r_mention']:.3f}; {groups}")
 
 
-def breakdown(pairs: list[dict], y: list[int], preds: dict[str, list[int]], key: str) -> None:
+def describe(name: str, pairs: list[dict], y: list[int], preds: list[list[int]]) -> dict:
+    groups = [p["comment"] for p in pairs]
+    f1s = [macro_f1(y, p) for p in preds]
+    f1, lo, hi = bootstrap_ci(y, preds[0], groups)
+    pc = [per_class(confusion(y, p)) for p in preds]
+    cls = [sum(c[k][2] for c in pc) / len(pc) for k in range(3)]
+    acc = sum(sum(a == b for a, b in zip(y, p, strict=True)) / len(y) for p in preds) / len(preds)
+    print(f"\n{name}")
+    print(
+        f"  macro-F1 {sum(f1s) / len(f1s):.3f} (mean of {len(f1s)} fold seeds, {min(f1s):.3f} to {max(f1s):.3f}; "
+        f"seed 0: {f1:.3f}, 95 % CI {lo:.3f} to {hi:.3f}), accuracy {acc:.3f}"
+    )
+    print("  F1 pos / neu / neg " + " / ".join(f"{c:.3f}" for c in cls))
+    print(f"  predicted (seed 0): {dict(Counter(CLASSES[k] for k in preds[0]))}")
+    return {"f1": sum(f1s) / len(f1s), "per_class": cls}
+
+
+def breakdown(pairs: list[dict], y: list[int], pred: list[int], key: str) -> None:
     by: dict[str, list[int]] = defaultdict(list)
     for i, p in enumerate(pairs):
         by[p[key]].append(i)
-    print(f"\nby {key}: " + "  ".join(f"{n} macro-F1" for n in preds))
-    for g, idx in sorted(by.items(), key=lambda kv: -len(kv[1])):
-        cells = "  ".join(f"{macro_f1([y[i] for i in idx], [p[i] for i in idx]):.3f}" for p in preds.values())
-        print(f"  {g or '-':16s} n={len(idx):3d}  {cells}")
+    print(f"\nby {key} (seed 0):")
+    for g, idx in sorted(by.items(), key=lambda kv: -len(kv[1]))[:12]:
+        f1 = macro_f1([y[i] for i in idx], [pred[i] for i in idx])
+        print(f"  {g or '-':16s} n={len(idx):4d}  macro-F1 {f1:.3f}")
 
 
 def main() -> None:
-    pairs = load_pairs(LABELS)
+    pairs = load_gold()
     y = [CLASSES.index(p["gold"]) for p in pairs]
     groups = [p["comment"] for p in pairs]
-    n_comments = len(set(groups))
-    print(
-        f"{len(pairs)} gold pairs from {n_comments} comments: "
-        + ", ".join(f"{c} {y.count(k)}" for k, c in enumerate(CLASSES))
-    )
+    counts = ", ".join(f"{c} {y.count(k)}" for k, c in enumerate(CLASSES))
+    print(f"{len(pairs)} gold pairs from {len(set(groups))} comments: {counts}")
 
-    cal = _calibration_module()
+    cal = calibration_module()
     x = cal_features(pairs)
     runs = [cal_cv(cal, x, y, groups, seed) for seed in range(REPS)]
-    f1s = [macro_f1(y, p) for p, _ in runs]
-    print(
-        f"\ncal, grouped {FOLDS}-fold CV, {REPS} fold seeds: macro-F1 mean {sum(f1s) / REPS:.3f} "
-        f"(min {min(f1s):.3f}, max {max(f1s):.3f})"
-    )
-    cal_pred, cal_score = runs[FOLD_SEED]
-    base = describe(f"cal (sent-cal@2), fold seed {FOLD_SEED}", pairs, y, cal_pred, cal_score)
-    preds = {"cal": cal_pred}
+    base = describe("cal (label of sent-cal@2 and @3)", pairs, y, [r["pred"] for r in runs])
+    weighted = score_report(pairs, [r["score_weighted"] for r in runs])
+    corrected = score_report(pairs, [r["score"] for r in runs])
+    print_scores("score with class weights (sent-cal@2)", weighted)
+    print_scores("score without class weights (sent-cal@3)", corrected)
 
     if CV_FILE.exists():
         oof = json.loads(CV_FILE.read_text(encoding="utf-8"))
-        if all(p["id"] in oof for p in pairs):
-            ft_pred = [CLASSES.index(oof[p["id"]]["label"]) for p in pairs]
-            ft_score = [oof[p["id"]]["score"] for p in pairs]
-            new = describe(f"ft (fine-tuned), fold seed {FOLD_SEED}", pairs, y, ft_pred, ft_score)
-            preds["ft"] = ft_pred
-            d, lo, hi, p0 = bootstrap_diff(y, ft_pred, cal_pred, groups)
-            print(f"\nft - cal on the same folds: {d:+.3f} macro-F1 (95 % CI {lo:+.3f} to {hi:+.3f})")
-            print(f"  share of bootstrap draws with ft <= cal: {p0:.4f}")
-            drops = [round(b - a, 3) for a, b in zip(base["per_class"], new["per_class"], strict=True)]
-            print(f"  change of F1 per class (pos, neu, neg): {drops}")
-            print(
-                f"  entity means: r {base['r_entity']:.3f} -> {new['r_entity']:.3f}, "
-                f"MAE {base['mae_entity']:.3f} -> {new['mae_entity']:.3f}"
-            )
-        else:
-            print(f"\n{CV_FILE.name} is incomplete: run scripts/train_sentiment_finetune.py cv --resume")
+        idx = [i for i, p in enumerate(pairs) if p["id"] in oof]
+        if idx:
+            sub = [pairs[i] for i in idx]
+            ys, gs = [y[i] for i in idx], [groups[i] for i in idx]
+            ft = [CLASSES.index(oof[p["id"]]["label"]) for p in sub]
+            cal0 = [runs[FOLD_SEED]["pred"][i] for i in idx]
+            print(f"\nft: out-of-fold predictions for {len(idx)} of {len(pairs)} pairs (fold seed {FOLD_SEED})")
+            new = describe("ft", sub, ys, [ft])
+            old = describe("cal on the same pairs and folds", sub, ys, [cal0])
+            d, lo, hi, p0 = bootstrap_diff(ys, ft, cal0, gs)
+            print(f"\nft - cal: {d:+.3f} macro-F1 (paired 95 % CI {lo:+.3f} to {hi:+.3f}; draws <= 0: {p0:.3f})")
+            change = [round(b - a, 3) for a, b in zip(old["per_class"], new["per_class"], strict=True)]
+            print(f"  change of F1 per class: {change}")
+            print_scores("ft score", score_report(sub, [[oof[p["id"]]["score"] for p in sub]]))
+            print_scores("cal score on the same pairs", score_report(sub, [[runs[FOLD_SEED]["score"][i] for i in idx]]))
+    print(f"\ncal summary: macro-F1 {base['f1']:.3f}")
     for key in ("source", "type"):
-        breakdown(pairs, y, preds, key)
+        breakdown(pairs, y, runs[0]["pred"], key)
 
 
 if __name__ == "__main__":

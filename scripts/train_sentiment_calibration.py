@@ -1,21 +1,23 @@
 """Train the calibrated target-sentiment model (data/sentiment_calibration.json).
 
-Features per (comment, entity) pair, on the clause window:
-  * NLI logits for "Der Kommentar äußert sich positiv über {name}." and "… negativ …" (2 passes)
+Features per (comment, entity) pair, on the clause window (CalibratedSentiment.features):
+  * NLI logits for "Der Kommentar äußert sich positiv / negativ über {name}." and
+    "Der Kommentar bewertet {name}." (3 passes)
   * probabilities of mdraw/german-news-sentiment-bert (1 pass)
 A multinomial logistic regression (L2, class weights = balanced^0.75, small neutral bias) maps
-them to pos/neu/neg. Features: NLI logits for the hypotheses in HYPOTHESES plus the classifier.
-Reports 5-fold cross-validation (3 repetitions) and the fixed dev -> test split.
+them to the label. Class weights and bias give the best labels but over-state the rarer classes;
+`scoreCorrection` takes them out again for the score (version 3), so the mean score is unbiased.
+
+Training pairs: every labelled pair (scripts/eval_sentiment_cv.py LABEL_FILES). The settings
+were fixed on the first 455 pairs; scripts/eval_sentiment_cv.py reports the cross-validation.
 
     python scripts/train_sentiment_calibration.py
 """
 
 from __future__ import annotations
 
-import hashlib
-import importlib.util
 import json
-import random
+import math
 import sys
 from collections import Counter
 from pathlib import Path
@@ -24,8 +26,9 @@ import torch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "scripts"))
 
-from analysis.sentiment import CALIBRATION_FILE, _Nli, _Single  # noqa: E402
+from analysis.sentiment import CALIBRATION_FILE  # noqa: E402
 
 NLI_MODEL = "MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7"
 L2 = 0.1
@@ -33,27 +36,12 @@ CLASS_WEIGHT_POWER = 0.75
 HYPOTHESES = ("pos", "neg", "judge")
 # additive logit bias (pos, neu, neg); the neutral bias was chosen by 5-fold CV inside the dev split
 BIAS = (0.0, 0.1, 0.0)
-VERSION = 2
+VERSION = 3
 CLASSES = ["pos", "neu", "neg"]
 
 
-def load_eval():
-    spec = importlib.util.spec_from_file_location("ev", ROOT / "scripts" / "eval_target_sentiment.py")
-    ev = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(ev)
-    return ev
-
-
-def features(items: list[dict]) -> torch.Tensor:
-    nli, clf = _Nli(NLI_MODEL, 256), _Single("news", 256)
-    rows = []
-    with torch.inference_mode():
-        for b in range(0, len(items), 16):
-            batch = [(i["clause"], i["name"]) for i in items[b : b + 16]]
-            nl = nli.logits(torch, batch, HYPOTHESES)
-            cp = clf.probs(torch, [x[0] for x in batch])
-            rows += [a + list(c) for a, c in zip(nl, cp, strict=True)]
-    return torch.tensor(rows)
+def class_weights(y: torch.Tensor) -> list[float]:
+    return [(len(y) / (3 * max(1, int((y == k).sum())))) ** CLASS_WEIGHT_POWER for k in range(3)]
 
 
 def train(x: torch.Tensor, y: torch.Tensor):
@@ -61,7 +49,7 @@ def train(x: torch.Tensor, y: torch.Tensor):
     xn = (x - mu) / sd
     w = torch.zeros(x.shape[1], 3, requires_grad=True)
     b = torch.zeros(3, requires_grad=True)
-    cw = torch.tensor([(len(y) / (3 * max(1, int((y == k).sum())))) ** CLASS_WEIGHT_POWER for k in range(3)])
+    cw = torch.tensor(class_weights(y))
     opt = torch.optim.LBFGS([w, b], max_iter=200)
 
     def closure():
@@ -74,56 +62,36 @@ def train(x: torch.Tensor, y: torch.Tensor):
     return mu, sd, w.detach(), b.detach()
 
 
-def predict(params, x: torch.Tensor, bias: tuple[float, float, float] = (0.0, 0.0, 0.0)) -> torch.Tensor:
+def label_logits(params, x: torch.Tensor) -> torch.Tensor:
+    """Logits whose argmax is the label (class weights and bias included)."""
     mu, sd, w, b = params
-    return ((x - mu) / sd @ w + b + torch.tensor(bias)).argmax(1)
+    return (x - mu) / sd @ w + b + torch.tensor(BIAS)
 
 
-def per_class_f1(gold: list[str], pred: list[str]) -> dict[str, float]:
-    out = {}
-    for lab in CLASSES:
-        tp = sum(g == p == lab for g, p in zip(gold, pred, strict=True))
-        fp = sum(p == lab != g for g, p in zip(gold, pred, strict=True))
-        fn = sum(g == lab != p for g, p in zip(gold, pred, strict=True))
-        pr = tp / (tp + fp) if tp + fp else 0.0
-        rc = tp / (tp + fn) if tp + fn else 0.0
-        out[lab] = {"f1": round(2 * pr * rc / (pr + rc), 3) if pr + rc else 0.0, "p": round(pr, 3), "r": round(rc, 3)}
-    return out
+def score_correction(y: torch.Tensor) -> list[float]:
+    """Subtracted from the label logits to undo the class weights and the bias: a model fitted
+    with weight w_k estimates probabilities proportional to w_k * p_k."""
+    return [math.log(c) + d for c, d in zip(class_weights(y), BIAS, strict=True)]
+
+
+def predict(params, x: torch.Tensor) -> torch.Tensor:
+    return label_logits(params, x).argmax(1)
 
 
 def main() -> None:
-    ev = load_eval()
-    items = ev.load_items()
-    cache = ROOT / "eval" / f"calfeatures-{'-'.join(HYPOTHESES)}-{len(items)}.local.pt"
-    if cache.exists():
-        x = torch.load(cache)
-    else:
-        x = features(items)
-        torch.save(x, cache)
-    y = torch.tensor([CLASSES.index(i["gold"]) for i in items])
-    gold = [i["gold"] for i in items]
-    scores = []
-    for rep in range(3):
-        idx = list(range(len(items)))
-        random.Random(rep).shuffle(idx)
-        folds = [idx[k::5] for k in range(5)]
-        p = torch.zeros(len(items), dtype=torch.long)
-        for k in range(5):
-            te = torch.tensor(folds[k])
-            tr = torch.tensor([j for f in range(5) if f != k for j in folds[f]])
-            p[te] = predict(train(x[tr], y[tr]), x[te], BIAS)
-        scores.append(ev.macro_f1(gold, [CLASSES[v] for v in p.tolist()]))
-    cv = sum(scores) / len(scores)
-    dev = torch.tensor([int(hashlib.sha1(i["id"].encode()).hexdigest(), 16) % 2 == 0 for i in items])
-    dev_params = train(x[dev], y[dev])
-    test_gold = [g for g, d in zip(gold, dev.tolist(), strict=True) if not d]
-    pt = [CLASSES[v] for v in predict(dev_params, x[~dev], BIAS).tolist()]
-    test_f1 = ev.macro_f1(test_gold, pt)
-    print(f"5-fold CV macro-F1 {cv:.3f}; dev->test macro-F1 {test_f1:.3f} (n_test={len(test_gold)})")
-    print("  test per class:", per_class_f1(test_gold, pt))
+    import eval_sentiment_cv as ev
+
+    pairs = ev.load_gold()
+    x = ev.cal_features(pairs)
+    y = torch.tensor([CLASSES.index(p["gold"]) for p in pairs])
     params = train(x, y)
-    fit = Counter(CLASSES[v] for v in predict(params, x, BIAS).tolist())
-    print("fit distribution", dict(fit), "gold", dict(Counter(gold)))
+    corr = score_correction(y)
+    fit = Counter(CLASSES[v] for v in predict(params, x).tolist())
+    p = torch.softmax(label_logits(params, x) - torch.tensor(corr), 1)
+    mean_score = float((p[:, 0] - p[:, 2]).mean())
+    gold_mean = float(sum({"pos": 1, "neu": 0, "neg": -1}[q["gold"]] for q in pairs) / len(pairs))
+    print(f"{len(pairs)} pairs; fitted labels {dict(fit)}, gold {dict(Counter(q['gold'] for q in pairs))}")
+    print(f"mean score {mean_score:+.3f} (gold mean polarity {gold_mean:+.3f})")
     mu, sd, w, b = params
     CALIBRATION_FILE.write_text(
         json.dumps(
@@ -131,6 +99,7 @@ def main() -> None:
                 "version": VERSION,
                 "hypotheses": list(HYPOTHESES),
                 "bias": list(BIAS),
+                "scoreCorrection": [round(c, 6) for c in corr],
                 "features": [f"nli_{h}_{k}" for h in HYPOTHESES for k in ("entail", "neutral", "contradiction")]
                 + ["news_pos", "news_neu", "news_neg"],
                 "classes": CLASSES,
@@ -138,18 +107,17 @@ def main() -> None:
                 "std": sd.tolist(),
                 "W": w.tolist(),
                 "b": b.tolist(),
-                "trainedOn": len(items),
+                "trainedOn": len(pairs),
                 "l2": L2,
                 "classWeightPower": CLASS_WEIGHT_POWER,
                 "nliModel": NLI_MODEL,
                 "classifier": "mdraw/german-news-sentiment-bert",
                 "window": "clause",
-                "cv5MacroF1": round(cv, 3),
-                "devTestMacroF1": round(test_f1, 3),
-                "devTestPerClass": per_class_f1(test_gold, pt),
+                "evaluation": "scripts/eval_sentiment_cv.py (grouped 5-fold CV, eval/README.md)",
             },
             indent=1,
-        ),
+        )
+        + "\n",
         encoding="utf-8",
     )
     print("saved", CALIBRATION_FILE)

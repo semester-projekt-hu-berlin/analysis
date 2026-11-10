@@ -66,7 +66,7 @@ exponential backoff, and batches that hit 429 are split in halves) using a servi
 |---|---|---|
 | NER (default) | `domischwimmbeck/bert-base-german-cased-fine-tuned-ner` (`--ner bert`, GermEval 2014) | ≈ 2.9× faster than Flair on CPU (52 vs 18 sentences/s), same spans on our smoke tests. The runs are twice a day with a half-day backlog, so CPU time matters. |
 | NER (alt.) | [`flair/ner-german`](https://huggingface.co/flair/ner-german) (`--ner flair`; Flair 0.15, BiLSTM-CRF, CoNLL-03 German F1 ≈ 87) | Course recommendation; kept as an option. |
-| Sentiment (default `cal`, v2) | zero-shot NLI [`MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7`](https://huggingface.co/MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7) with the hypotheses "Der Kommentar äußert sich positiv / negativ über {Entity}." and "Der Kommentar bewertet {Entity}." (target vs. context; 3 passes) + [`mdraw/german-news-sentiment-bert`](https://huggingface.co/mdraw/german-news-sentiment-bert) (1 pass), combined by a logistic regression trained on 456 hand-labelled pairs (`data/sentiment_calibration.json`) | Target-aware. Test macro-F1 0.483 (5-fold CV 0.485), vs 0.383 for the original ensemble ([eval](eval/README.md)). Free, CPU, 1.7 mentions/s with 2 threads. |
+| Sentiment (default `cal`, v3) | zero-shot NLI [`MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7`](https://huggingface.co/MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7) with the hypotheses "Der Kommentar äußert sich positiv / negativ über {Entity}." and "Der Kommentar bewertet {Entity}." (target vs. context; 3 passes) + [`mdraw/german-news-sentiment-bert`](https://huggingface.co/mdraw/german-news-sentiment-bert) (1 pass), combined by a logistic regression trained on 1,021 labelled pairs (`data/sentiment_calibration.json`); the score is P(pos) − P(neg) without the class weights of the label | Target-aware. Macro-F1 0.49 (grouped 5-fold CV, 95 % CI 0.45–0.52), mean score unbiased (v2: +0.25) ([eval](eval/README.md)). Free, CPU, about 4 mentions/s on 4 threads. |
 
 **Throughput** (production data, CPU torch, BERT NER + calibrated sentiment): about 280
 comments/min with **2 threads** (500 newest comments: NER 67 s, sentiment 41 s, 110 mentions;
@@ -387,13 +387,16 @@ These are documented in `infrastructure/SCHEMA.md`, which also lists the composi
 
 [`eval/README.md`](eval/README.md) has the protocol and all numbers. In short: 480
 hand-labelled (comment, entity) pairs from all major sources. Linking precision is 93.6 %.
-Sentiment toward the entity reaches test macro-F1 0.483 (5-fold CV 0.485); per class F1 is
-pos 0.41, neu 0.44, neg 0.60.
+For sentiment, 1,021 labelled pairs from 686 comments: the 455 usable pairs of the original set
+plus 566 pairs labelled in November 2026 by an automated annotator (see eval/README.md). Sentiment toward the entity reaches macro-F1 0.49 (grouped 5-fold
+cross-validation over comments, 95 % CI 0.45–0.52); per class F1 is pos 0.40, neu 0.50,
+neg 0.59. Since sent-cal@3 the mean score matches the mean of the labels (bias −0.01; it was
++0.25 before, so absolute averages and `baseline7d` were too positive).
 
 **Limitations.** A single label is often wrong; only aggregates over many mentions are
 meaningful. Neutral mentions are under-detected and often scored as negative, and sarcasm is
 the main error source, along with entities that are only context (victims, comparisons). The
-gold labels come from one annotator. Comment sections are negative overall, so compare entities via `relative7d`
+gold labels come from a single annotator per pair; the newer 566 from an automated one. Comment sections are negative overall, so compare entities via `relative7d`
 (entity average minus `baseline7d`) rather than by absolute averages.
 
 ## Running
