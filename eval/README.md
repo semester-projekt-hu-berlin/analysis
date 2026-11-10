@@ -241,7 +241,22 @@ stance needs a model that is trained on the task.
 sentence with the target in [brackets] against "Der Kommentar äußert sich positiv über {Name}.";
 its head (entailment / neutral / contradiction) is trained to mean pos / neu / neg. Settings
 fixed before the run: all weights, 4 epochs, learning rate 3e-5, batch 16, class weights^0.5.
-One fold takes about 14 minutes on 4 CPUs. Result of the first fold: macro-F1 0.596 on 90 pairs; the other folds had not finished when this was written (`cv --resume` continues them, `scripts/eval_sentiment_cv.py` prints the comparison). It is not the default: it ships only if the full cross-validation shows at least +0.03 with a paired interval above 0, and its weights (about 560 MB in half precision) need a home (a GitHub release, verified by hash: `analysis/finetune.py`).
+One fold takes about 14 minutes on 4 CPUs. Result so far: two of the five folds (182 pairs; the run was then killed for lack of memory
+on the shared machine, `cv --resume` continues it):
+
+| on the same 182 pairs | macro-F1 | 95 % CI | F1 pos / neu / neg | accuracy | r of score with gold |
+|---|---|---|---|---|---|
+| `cal` | 0.497 | 0.413 to 0.577 | 0.38 / 0.49 / 0.62 | 0.538 | 0.29 |
+| `ft` | 0.548 | 0.454 to 0.628 | 0.47 / 0.49 / 0.69 | 0.593 | 0.43 |
+
+Difference +0.051 (paired 95 % CI -0.048 to +0.147, 16 % of the draws at or below 0): promising,
+not shown. The mean score of `ft` (-0.43) is close to the gold mean (-0.39). `ft` is therefore
+**not the default**. It ships only if all five folds show at least +0.03 with a paired interval
+above 0 and no class losing more than 0.03 (`scripts/eval_sentiment_cv.py` prints exactly
+that); its weights (about 560 MB in half precision) then become assets of a GitHub release,
+verified by hash (`analysis/finetune.py`). With 455 pairs a true gain of +0.05 is detected in
+about half of the cases; about 1,000 gold pairs (roughly 130 pos, 360 neu, 510 neg) would make
++0.03 to +0.05 reliably visible.
 
 ## Limitations
 
