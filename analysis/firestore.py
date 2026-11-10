@@ -7,6 +7,7 @@ between plain Python objects and Firestore's typed JSON representation.
 
 from __future__ import annotations
 
+import base64
 import json
 import logging
 import os
@@ -41,6 +42,8 @@ def to_value(v: Any) -> dict:
         return {"doubleValue": v}
     if isinstance(v, str):
         return {"stringValue": v}
+    if isinstance(v, bytes):
+        return {"bytesValue": base64.b64encode(v).decode("ascii")}
     if isinstance(v, datetime):
         if v.tzinfo is None:
             v = v.replace(tzinfo=UTC)
@@ -84,7 +87,7 @@ def from_value(v: dict) -> Any:
     if "geoPointValue" in v:
         return v["geoPointValue"]
     if "bytesValue" in v:
-        return v["bytesValue"]
+        return base64.b64decode(v["bytesValue"])
     raise ValueError(f"unknown Firestore value: {v!r}")
 
 

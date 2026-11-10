@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
 import time
 from collections import Counter
@@ -12,7 +13,7 @@ from urllib.parse import unquote
 import yaml
 
 from . import aggregate as agg
-from . import timebudget
+from . import textindex, timebudget
 from .analyze import Stats, analyze_comments
 from .budget import Budget
 from .firestore import Doc, Firestore, Write
@@ -27,7 +28,7 @@ from .registry_store import (
     registry_entries_from_docs,
     write_registry_doc,
 )
-from .textutil import normalize_surface, today_berlin
+from .textutil import clean_text, day_key, normalize_surface, today_berlin
 
 log = logging.getLogger(__name__)
 
@@ -391,6 +392,47 @@ EST_WRITES_PER_COMMENT = 1.5
 EST_READS_PER_COMMENT = 2.0
 # pairs kept in meta/analysis.pendingPairs before an aggregation is forced (bounds the size of that doc)
 MAX_PENDING_PAIRS = 8000
+# comment index (analysis/textindex.py): documents older than this are deleted; a relink never looks
+# further back than its `--days` (14 by default)
+INDEX_KEEP_DAYS = 45
+
+
+def index_enabled() -> bool:
+    """ANALYSIS_TEXT_INDEX=0 stops writing the comment index (relinks then scan all comments again)."""
+    return os.environ.get("ANALYSIS_TEXT_INDEX", "1").strip().lower() not in ("0", "false", "off", "no")
+
+
+def _index_since(state: Doc | None) -> str | None:
+    """First day whose analysed comments are all in the comment index (None: no usable index)."""
+    since = state.data.get("indexSince") if state else None
+    return since if index_enabled() and isinstance(since, str) and since else None
+
+
+def _index_writes(chunk: list[dict], ts: datetime) -> list[Write]:
+    """Index documents for a batch of comments (one per day of the batch)."""
+    rows = []
+    for c in chunk:
+        published = c.get("publishedAt")
+        day = c.get("day") or (day_key(published) if published else "")
+        rows.append((c["id"], day, clean_text(c.get("text") or "")))
+    return [Write(path, {**data, "createdAt": ts}) for path, data in textindex.index_docs(rows).items()]
+
+
+def prune_index(fs: Firestore, limit: int = 300) -> int:
+    """Delete comment index documents older than INDEX_KEEP_DAYS (at least 1 read per call)."""
+    cutoff = (date.fromisoformat(today_berlin()) - timedelta(days=INDEX_KEEP_DAYS)).isoformat()
+    old = [
+        d.path
+        for d in fs.query(
+            textindex.COLLECTION,
+            where=[("day", "LESS_THAN", cutoff)],
+            order_by=[("day", "ASCENDING")],  # a range filter needs its field first in the order
+            limit=limit,
+            select=[],
+        )
+    ]
+    fs.commit([Write(p, None) for p in old])
+    return len(old)
 
 
 def _run(fs, budget, limit, batch, ner_backend, sentiment_key, use_wikidata, max_wikidata_lookups, agg_every):
@@ -435,6 +477,17 @@ def _run(fs, budget, limit, batch, ner_backend, sentiment_key, use_wikidata, max
         wd = WikidataLinker(max_lookups=max_wikidata_lookups)
     countries = source_countries(fs)
     stats = Stats()
+    # Comment index for later relinks. `indexSince` is the first day all of whose analysed comments
+    # are in the index: two days after the first run that writes it (a comment published "tomorrow"
+    # by a source's clock may have been analysed before).
+    index_on = index_enabled()
+    stored_since = state.data.get("indexSince") if state else None
+    index_state: list[Write] = []
+    if index_on and not stored_since:
+        since = (date.fromisoformat(today_berlin()) + timedelta(days=2)).isoformat()
+        index_state = [Write(STATE_DOC, {"indexSince": since}, mask=["indexSince"])]
+    elif not index_on and stored_since:
+        index_state = [Write(STATE_DOC, {}, mask=["indexSince"])]  # switched off: the index has gaps from now on
     to_aggregate: set[tuple[str, str]] = set(pending)
     all_days: set[str] = set()
     changed_entities = 0
@@ -466,7 +519,19 @@ def _run(fs, budget, limit, batch, ner_backend, sentiment_key, use_wikidata, max
         result = analyze_comments(
             chunk, registry, ner, sentiment, source_country=countries, article_context=ctx, wikidata=wd, stats=stats
         )
-        pre: list[Write] = []
+        # the index of this batch is written before its comments are marked as analysed, so every
+        # analysed comment is in it (a batch that is repeated after a crash is simply indexed twice)
+        pre: list[Write] = [*index_state]
+        index_state = []
+        if index_on:
+            try:
+                fs.commit(_index_writes(chunk, now()))
+            except RuntimeError as e:
+                # the index is an optimisation: never fail the run for it. Without `indexSince`
+                # relinks scan all comments again, so the gap this leaves cannot hide a comment.
+                log.warning("comment index not written, relinks scan again: %s", str(e)[:300])
+                index_on = False
+                pre = [Write(STATE_DOC, {}, mask=["indexSince"])]
         # New entities discovered through Wikidata must exist before mentions reference them.
         found = [e for eid, e in registry.entities.items() if eid not in known_entities]
         if found:
@@ -546,6 +611,11 @@ def _run(fs, budget, limit, batch, ner_backend, sentiment_key, use_wikidata, max
         fs.commit([Write(STATE_DOC, {"pendingPairs": []}, mask=["pendingPairs"])])
         if wd is not None:
             wd.save()
+    if index_on and stopped is None:
+        try:
+            prune_index(fs)
+        except RuntimeError as e:
+            log.warning("old comment index documents not deleted: %s", str(e)[:300])
     summary = {
         "comments": stats.comments,
         "sentences": stats.sentences,
@@ -685,7 +755,12 @@ def _commit_entity_changes(fs, changes, new_docs, entity_docs, today) -> None:
     def flush(writes: list[Write], delta: int) -> None:
         # meta/stats.mentions moves by the same difference, in the same atomic commit
         if delta:
-            writes = [*writes, Write("meta/stats", {}, mask=[], increments={"mentions": delta})]
+            writes = [
+                *writes,
+                Write(
+                    "meta/stats", {"mentionsUpdatedAt": ts}, mask=["mentionsUpdatedAt"], increments={"mentions": delta}
+                ),
+            ]
         fs.commit_atomic(writes)
 
     for eid, ch in sorted(changes.items()):
@@ -941,7 +1016,7 @@ def _rescore(fs, budget, sentiment_key, ner_version, batch, model_kw, entity_doc
     from .analyze import mention_window
     from .linker import Match
     from .sentiment import combine, load_sentiment
-    from .textutil import clean_text, split_sentences
+    from .textutil import split_sentences
 
     t0 = time.time()
     job = _jobs(fs).get("rescore") or {}
@@ -1138,14 +1213,14 @@ def _finish_relink(fs: Firestore) -> None:
 def _relink(fs, budget, days, entity_ids, ner_backend, sentiment_key, batch, page, entity_docs=None) -> dict:
     from .ner import load_ner
     from .sentiment import load_sentiment
-    from .textutil import clean_text
 
     t0 = time.time()
     entity_docs = _entity_docs(fs, entity_docs)
     registry = load_registry(fs)
-    job = _jobs(fs).get("relink")
+    state = fs.get(STATE_DOC)
+    job = dict(((state.data.get("jobs") or {}) if state else {}).get("relink") or {})
     if job:
-        log.info("relink: resuming (cutoff %s, cursor %s)", job.get("cutoff"), job.get("cursor"))
+        log.info("relink: resuming (cutoff %s, cursor %s)", job.get("cutoff"), job.get("icursor") or job.get("cursor"))
     else:
         if entity_ids is None:  # default: generated entities without any mention yet (reads their docs once)
             gen = [eid for eid, e in registry.entities.items() if e.source == "generated"]
@@ -1164,48 +1239,34 @@ def _relink(fs, budget, days, entity_ids, ner_backend, sentiment_key, batch, pag
         }
     new = {e for e in job["entityIds"] if e in registry.entities}
     names = {registry.entities[e].name for e in new}
-    alias_texts = sorted({a.text.casefold() for a in registry.aliases if a.entity_id in new}, key=len, reverse=True)
+    # the gazetteer matches lower-cased aliases, the lookup of NER spans case-folded ones ("Strauß" / "strauss")
+    own = [a.text for a in registry.aliases if a.entity_id in new]
+    alias_texts = sorted({a.casefold() for a in own} | {a.lower() for a in own}, key=len, reverse=True)
     if not alias_texts:
         _finish_relink(fs)
         return {"newEntities": 0}
     prefilter = re.compile(r"(?<![\w])(" + "|".join(re.escape(a) for a in alias_texts) + r")", re.IGNORECASE)
+    # Days from `split` on are looked up in the comment index (analysis/textindex.py): only the
+    # comments whose words can contain an alias are read. Earlier days are scanned comment by comment.
+    matcher = textindex.Matcher(alias_texts)
+    since = _index_since(state)
+    split = since if since and matcher.complete and not (job.get("cursor") and job["cursor"][0] >= since) else None
+    if job.get("indexSince") and job["indexSince"] != split:
+        # the index was reset since this job started: scan the days that were left to it
+        if job.get("scanDone"):
+            job.update(scanFrom=job["indexSince"], cursor=None)
+        job.update(scanDone=False, icursor=None)
+    job["indexSince"] = split
     ner = sentiment = None
     countries = source_countries(fs)
     pairs = _pairs_in(job)
     done, stopped = False, None
-    w0, r0, seen0 = fs.writes, fs.reads, 0
     tb = timebudget.get()
-    t_page, page_s = time.time(), 0.0
-    while True:
-        if seen0:
-            page_s, t_page = time.time() - t_page, time.time()
-        if tb.reached("relink", reserve=1.2 * page_s):
-            stopped = f"time budget reached after {job['scanned']} comments"
-            log.warning("relink: %s; continuing on the next run", stopped)
-            break
-        # estimate a page from this invocation's own rates (first page: 1 read per comment + 10 %)
-        per_w = (fs.writes - w0) / seen0 if seen0 else 0.1
-        per_r = (fs.reads - r0) / seen0 if seen0 else 1.2
-        if not budget.allows(writes=int(per_w * page) + 3, reads=int(per_r * page) + 1):
-            stopped = f"daily Firestore budget reached after {job['scanned']} comments"
-            log.warning("relink: %s; continuing on the next run", stopped)
-            break
-        docs = list(
-            fs.query(
-                "comments",
-                where=[("day", "GREATER_THAN_OR_EQUAL", job["cutoff"])],
-                order_by=[("day", "ASCENDING")],
-                select=COMMENT_FIELDS,
-                limit=page,
-                start_after=job["cursor"],
-            )
-        )
-        seen0 += len(docs)
-        candidates = [
-            {"id": d.id, **d.data}
-            for d in docs
-            if d.data.get("analysisVersion") and prefilter.search(clean_text(d.data.get("text") or ""))
-        ]
+    ctx_cache: dict[str, str] = {}
+
+    def process(candidates: list[dict]) -> None:
+        """NER + linking for the comments that contain an alias; writes the new mentions."""
+        nonlocal ner, sentiment, pairs
         if candidates and ner is None:
             ner = load_ner(ner_backend)
             sentiment = _OnlyFor(load_sentiment(job.get("sentiment") or sentiment_key), names)
@@ -1213,7 +1274,7 @@ def _relink(fs, budget, days, entity_ids, ner_backend, sentiment_key, batch, pag
         groups: list[list[Write]] = []
         for i in range(0, len(candidates), batch):
             chunk = candidates[i : i + batch]
-            ctx = article_context(fs, {c.get("articleId") for c in chunk if c.get("articleId")})
+            ctx = article_context(fs, {c.get("articleId") for c in chunk if c.get("articleId")}, ctx_cache)
             result = analyze_comments(chunk, registry, ner, sentiment, source_country=countries, article_context=ctx)
             for c in chunk:
                 ms = result[c["id"]]
@@ -1238,10 +1299,11 @@ def _relink(fs, budget, days, entity_ids, ner_backend, sentiment_key, batch, pag
             pairs |= page_pairs
             _save_job(fs, "relink", {**job, "pairs": _pairs_out(pairs)})
         fs.commit_groups(groups)
-        job["scanned"] += len(docs)
         job["candidates"] += len(candidates)
-        if docs:
-            job["cursor"] = [docs[-1].data.get("day"), docs[-1].id]
+
+    def step_done(n: int) -> None:
+        nonlocal pairs
+        job["scanned"] += n
         if len(pairs) >= JOB_AGG_PAIRS:
             aggregate_pairs(fs, pairs, entity_docs, refresh=False)
             pairs = set()
@@ -1251,10 +1313,100 @@ def _relink(fs, budget, days, entity_ids, ner_backend, sentiment_key, batch, pag
             job["candidates"],
             job["newMentions"],
         )
-        if len(docs) < page:
-            done = True
+
+    def may_continue(per_w: float, per_r: float, n: int, step_s: float) -> bool:
+        nonlocal stopped
+        if tb.reached("relink", reserve=1.2 * step_s):
+            stopped = f"time budget reached after {job['scanned']} comments"
+        elif not budget.allows(writes=int(per_w * n) + 3, reads=int(per_r * n) + 1):
+            stopped = f"daily Firestore budget reached after {job['scanned']} comments"
+        if stopped:
+            log.warning("relink: %s; continuing on the next run", stopped)
+        return stopped is None
+
+    # ---- 1. scan: every comment of the days before the index (all days without one)
+    w0, r0, seen = fs.writes, fs.reads, 0
+    t_step, step_s = time.time(), 0.0
+    where = [("day", "GREATER_THAN_OR_EQUAL", max(job["cutoff"], job.get("scanFrom") or ""))]
+    if split:
+        where.append(("day", "LESS_THAN", split))
+    while not job.get("scanDone"):
+        if seen:
+            step_s, t_step = time.time() - t_step, time.time()
+        # estimate a page from this invocation's own rates (first page: 1 read per comment + 10 %)
+        per_w = (fs.writes - w0) / seen if seen else 0.1
+        per_r = (fs.reads - r0) / seen if seen else 1.2
+        if not may_continue(per_w, per_r, page, step_s):
             break
-        _save_job(fs, "relink", {**job, "pairs": _pairs_out(pairs)})
+        docs = list(
+            fs.query(
+                "comments",
+                where=where,
+                order_by=[("day", "ASCENDING")],
+                select=COMMENT_FIELDS,
+                limit=page,
+                start_after=job["cursor"],
+            )
+        )
+        seen += len(docs)
+        process(
+            [
+                {"id": d.id, **d.data}
+                for d in docs
+                if d.data.get("analysisVersion") and prefilter.search(clean_text(d.data.get("text") or ""))
+            ]
+        )
+        if docs:
+            job["cursor"] = [docs[-1].data.get("day"), docs[-1].id]
+        step_done(len(docs))
+        if len(docs) < page:
+            job["scanDone"] = True
+            done = not split
+        if not done:
+            _save_job(fs, "relink", {**job, "pairs": _pairs_out(pairs)})
+
+    # ---- 2. index: only the comments whose words can contain an alias are read
+    w0, r0, seen = fs.writes, fs.reads, 0
+    t_step, step_s = time.time(), 0.0
+    ipage = max(1, page // 250)  # index documents per step (one holds a batch of up to 250 comments)
+    while split and job.get("scanDone") and not done and stopped is None:
+        if seen:
+            step_s, t_step = time.time() - t_step, time.time()
+        # first step: the index documents + about 5 % of their comments
+        per_w = (fs.writes - w0) / seen if seen else 0.05
+        per_r = (fs.reads - r0) / seen if seen else 0.06
+        if not may_continue(per_w, per_r, 250 * ipage, step_s):
+            break
+        idocs = list(
+            fs.query(
+                textindex.COLLECTION,
+                where=[("day", "GREATER_THAN_OR_EQUAL", max(job["cutoff"], split))],
+                order_by=[("day", "ASCENDING")],
+                limit=ipage,
+                start_after=job.get("icursor"),
+            )
+        )
+        entries = [e for d in idocs for e in textindex.decode(d.data.get("blob") or b"")]
+        seen += max(1, len(entries))
+        ids = list(dict.fromkeys(matcher.select(entries)))
+        got = fs.batch_get([f"comments/{i}" for i in ids], mask=COMMENT_FIELDS) if ids else {}
+        process(
+            [
+                {"id": path.split("/", 1)[1], **d.data}
+                for path, d in got.items()
+                if d is not None
+                and d.data.get("analysisVersion")
+                and prefilter.search(clean_text(d.data.get("text") or ""))
+            ]
+        )
+        if idocs:
+            job["icursor"] = [idocs[-1].data.get("day"), idocs[-1].id]
+        step_done(len(entries))
+        if len(idocs) < ipage:
+            done = True
+        else:
+            _save_job(fs, "relink", {**job, "pairs": _pairs_out(pairs)})
+
     info = aggregate_pairs(fs, pairs, entity_docs)
     if done:
         _finish_relink(fs)
@@ -1289,7 +1441,12 @@ def _reaggregate_since(fs, budget, since, entity_docs=None) -> dict:
     keys = sorted(
         {
             f"{d.data.get('entityId', '')}|{d.data.get('day', '')}"
-            for d in fs.query("mentions", where=[("day", "GREATER_THAN_OR_EQUAL", since)], select=["entityId", "day"])
+            for d in fs.query(
+                "mentions",
+                where=[("day", "GREATER_THAN_OR_EQUAL", since)],
+                order_by=[("day", "ASCENDING")],  # Firestore rejects a range filter without its field in the order
+                select=["entityId", "day"],
+            )
         }
     )
     todo = [k for k in keys if k > job["cursor"]]

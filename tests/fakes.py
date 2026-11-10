@@ -35,6 +35,12 @@ class FakeFirestore(OpStats):
     def query(
         self, collection, where=None, order_by=None, limit=None, select=None, parent="", start_after=None
     ) -> Iterator[Doc]:
+        # as Firestore: a range filter needs its field first in the order, a cursor a document id
+        ranged = [f for f, op, _ in where or [] if op != "EQUAL"]
+        if ranged and (not order_by or order_by[0][0] != ranged[0]):
+            raise RuntimeError("Firestore 400: order by clause cannot contain more fields after the key")
+        if start_after is not None and not start_after[-1]:
+            raise RuntimeError("Firestore 400: Document parent name has invalid document id")
         rows = []
         for path, data in self._collection(collection, parent):
             if all(_op(data.get(f), op, v) for f, op, v in where or []):
@@ -144,6 +150,8 @@ def _op(a, op, b):
         return a is not None and a > b
     if op == "GREATER_THAN_OR_EQUAL":
         return a is not None and a >= b
+    if op == "LESS_THAN":
+        return a is not None and a < b
     raise NotImplementedError(op)
 
 
