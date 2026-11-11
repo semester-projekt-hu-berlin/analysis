@@ -9,6 +9,7 @@ P(pos) - P(neg) in [-1, 1], the label the argmax class, the confidence its proba
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
@@ -18,7 +19,7 @@ from typing import ClassVar
 
 log = logging.getLogger(__name__)
 
-DEFAULT_SENTIMENT = "cal"  # key of the model that scores new mentions (see load_sentiment)
+DEFAULT_SENTIMENT = "ft"  # key of the model that scores new mentions (see load_sentiment)
 
 MODELS = {
     # Trained on ~1.8M German texts (reviews, tweets, Facebook comments, news). Expects
@@ -180,7 +181,7 @@ CALIBRATION_FILE = Path(__file__).resolve().parents[1] / "data" / "sentiment_cal
 
 
 class CalibratedSentiment:
-    """Default target sentiment ("cal"): 4 model passes per mention.
+    """Calibrated target sentiment ("cal", the default until sent-ft@3): 4 model passes per mention.
 
     Features: the NLI model's logits for "… positiv über {name}", "… negativ über {name}" and
     "Der Kommentar bewertet {name}" (3 passes, target-aware; the last one separates the judged
@@ -270,34 +271,43 @@ class FineTunedSentiment:
     evaluation in eval/README.md). Premise: the mention's sentence +- one sentence with the
     target in [brackets]; hypothesis: "Der Kommentar äußert sich positiv über {name}."; the NLI
     head then reads entailment as positive, neutral as neutral and contradiction as negative
-    toward the entity. The weights are assets of a GitHub release, downloaded once and verified
-    against the hashes in data/sentiment_ft.json (analysis/finetune.py).
+    toward the entity. The model is the base NLI model (pinned revision) plus the weights that
+    training changed, downloaded once from the `models` branch and verified against the hashes in
+    data/sentiment_ft.json (analysis/finetune.py).
     """
 
     window_mode = "target"
 
     def __init__(self, batch_size: int = 16, meta: Path = FT_META):
         import torch
+        from safetensors.torch import load_file
         from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
-        from .finetune import ensure_model
+        from .finetune import apply_delta, ensure_model
 
         t = time.time()
         self.torch = torch
         cfg = json.loads(meta.read_text(encoding="utf-8"))
         self.cfg = cfg
         path = ensure_model(cfg)
-        self.tok = AutoTokenizer.from_pretrained(path)
-        # stored in half precision, run in single precision (exact conversion)
-        self.model = AutoModelForSequenceClassification.from_pretrained(path, torch_dtype=torch.float32).eval()
-        digest = cfg["files"]["model.safetensors"][:12]
+        base, rev = cfg["baseModel"], cfg.get("baseRevision")  # the delta fits this revision only
+        self.tok = AutoTokenizer.from_pretrained(base, revision=rev)
+        self.model = AutoModelForSequenceClassification.from_pretrained(base, revision=rev).eval()
+        tensors: dict = {}
+        for name in sorted(cfg["files"]):
+            tensors.update(load_file(str(path / name)))
+        n = apply_delta(self.model, tensors)
+        digest = hashlib.sha256("".join(sorted(cfg["files"].values())).encode()).hexdigest()[:12]
+        # the ONNX export is cached under a name of its own: these are not the base weights
         self.forward = _forward(self.model, self.tok, f"meinungspuls/{cfg['release']}-{digest}", pair=True)
         self.order = list(cfg["logitOrder"])  # model logits -> (pos, neu, neg)
         self.hypothesis = cfg["hypothesis"]
         self.max_length = int(cfg["maxLength"])
         self.batch_size = batch_size
         self.version = f"sent-ft@{cfg['version']}"
-        log.info("loaded fine-tuned sentiment %s in %.1fs", cfg["release"], time.time() - t)
+        log.info(
+            "loaded fine-tuned sentiment %s (%d tensors over the base) in %.1fs", cfg["release"], n, time.time() - t
+        )
 
     def probs(self, items: list) -> list[tuple[float, float, float]]:
         """(p_pos, p_neu, p_neg) per (window, target name); batches over the windows sorted by length."""
@@ -411,8 +421,8 @@ def combine(results: list[tuple[str, float, float]]) -> tuple[str, float, float]
 
 
 def load_sentiment(key: str = DEFAULT_SENTIMENT, **kw):
-    """Factory used by the pipeline: "cal" (default, calibrated NLI + classifier), "ft" (fine-tuned
-    NLI model; needs data/sentiment_ft.json and its release) or any SentimentModel key."""
+    """Factory used by the pipeline: "ft" (default, fine-tuned NLI model), "cal" (its predecessor:
+    calibrated NLI + classifier) or any SentimentModel key."""
     if key == "cal":
         return CalibratedSentiment()
     if key == "ft":

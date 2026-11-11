@@ -1,0 +1,34 @@
+{
+ "version": 3,
+ "release": "sentiment-ft-v3",
+ "url": "https://raw.githubusercontent.com/semester-projekt-hu-berlin/analysis/658d613a3d1ee4f1f0ed0d27848dc3f140a07616/sentiment-ft-v3",
+ "files": {
+  "delta-0.safetensors": "7dff924fd0dcabdc518d89d9dc00d801a4103cce62328c593c609a3387f6e65a",
+  "delta-1.safetensors": "a8fec29272bb6279639c739922b57b35f42d9fceee4d0ee0bfde40fd5115d53c",
+  "delta-2.safetensors": "867e532b1e721053be575be28eca3a3eb31e0817b87826c6d27cc7441f38493a"
+ },
+ "baseModel": "MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7",
+ "hypothesis": "Der Kommentar äußert sich positiv über {name}.",
+ "window": "target",
+ "maxLength": 192,
+ "baseRevision": "b5113eb38ab63efdd7f280f8c144ea8b13f978ce",
+ "classes": [
+  "pos",
+  "neu",
+  "neg"
+ ],
+ "logitOrder": [
+  0,
+  1,
+  2
+ ],
+ "training": {
+  "lr": 3e-05,
+  "epochs": 4,
+  "batchSize": 16,
+  "classWeightPower": 0.5,
+  "seed": 0
+ },
+ "trainedOn": 1021,
+ "fitMacroF1": 0.925
+}

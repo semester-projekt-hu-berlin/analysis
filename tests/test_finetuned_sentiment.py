@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -106,8 +107,12 @@ def test_meta_file_names_a_release_with_hashes():
         pytest.skip("no fine-tuned model in this checkout")
     meta = json.loads(FT_META.read_text(encoding="utf-8"))
     assert meta["release"] == f"sentiment-ft-v{meta['version']}"
-    assert meta["url"].endswith("/releases/download/" + meta["release"])
-    assert {"config.json", "model.safetensors"} <= meta["files"].keys()
+    # pinned to a commit of the models branch, so the files cannot change under the hashes
+    assert re.fullmatch(
+        r"https://raw\.githubusercontent\.com/[\w.-]+/[\w.-]+/[0-9a-f]{40}/" + meta["release"], meta["url"]
+    )
+    assert meta["files"] and all(re.fullmatch(r"delta-\d+\.safetensors", f) for f in meta["files"])
+    assert len(meta["baseRevision"]) == 40
     assert all(len(h) == 64 and set(h) <= set("0123456789abcdef") for h in meta["files"].values())
     assert "{name}" in meta["hypothesis"] and meta["window"] == "target"
     assert sorted(meta["logitOrder"]) == [0, 1, 2] and meta["classes"] == ["pos", "neu", "neg"]
@@ -124,28 +129,44 @@ WORDS += ["merz", "spd", "gut", "schlecht", "ist", ".", "[", "]", "die"]
 
 @pytest.fixture
 def tiny_ft(tmp_path, monkeypatch):
-    """A small random BERT classifier published like the real model (nothing is downloaded)."""
+    """A small random BERT classifier as base and a "fine-tuned" copy of it, published like the
+    real model: the base in a local directory, the delta parts in the model cache."""
     monkeypatch.setenv("ANALYSIS_MODEL_DIR", str(tmp_path / "models"))
     monkeypatch.setenv("ANALYSIS_ONNX", "0")
-    d = finetune.model_dir("sentiment-ft-v9")
-    d.mkdir(parents=True)
+    base_dir = tmp_path / "base"
     vocab = tmp_path / "vocab.txt"
     vocab.write_text("\n".join(WORDS), encoding="utf-8")
-    transformers.BertTokenizerFast(vocab_file=str(vocab)).save_pretrained(d)
+    transformers.BertTokenizerFast(vocab_file=str(vocab)).save_pretrained(base_dir)
     cfg = transformers.BertConfig(
         vocab_size=len(WORDS), hidden_size=32, num_hidden_layers=2, num_attention_heads=2, intermediate_size=64
     )
     cfg.num_labels = 3
     torch.manual_seed(0)
-    model = transformers.BertForSequenceClassification(cfg).eval()
-    finetune.round_half(model)
-    reference = {k: v.clone() for k, v in model.state_dict().items()}
-    model.half().save_pretrained(d)
+    base = transformers.BertForSequenceClassification(cfg).eval()
+    base.save_pretrained(base_dir)
+    tuned = transformers.BertForSequenceClassification(cfg).eval()
+    tuned.load_state_dict(base.state_dict())
+    with torch.no_grad():  # "training": the top layer, the head and two embedding rows change
+        for name, p in tuned.named_parameters():
+            if "layer.1." in name or name.startswith("classifier"):
+                p.add_(torch.randn_like(p) * 0.1)
+        tuned.bert.embeddings.word_embeddings.weight[[11, 12]] += 0.5
+    finetune.round_half(tuned)
+    reference = {k: v.clone() for k, v in tuned.state_dict().items()}
+    d = finetune.model_dir("sentiment-ft-v9")
+    d.mkdir(parents=True)
+    from safetensors.torch import save_file
+
+    files = {}
+    for k, part in enumerate(finetune.split(finetune.delta(tuned.state_dict(), base.state_dict()), limit=4_000)):
+        save_file(part, str(d / f"delta-{k}.safetensors"))
+        files[f"delta-{k}.safetensors"] = finetune.sha256(d / f"delta-{k}.safetensors")
     meta = {
         "version": 9,
         "release": "sentiment-ft-v9",
         "url": "https://example.invalid/none",
-        "files": {f.name: finetune.sha256(f) for f in d.iterdir()},
+        "files": files,
+        "baseModel": str(base_dir),
         "hypothesis": "Der Kommentar äußert sich positiv über {name}.",
         "window": "target",
         "maxLength": 32,
@@ -157,16 +178,32 @@ def tiny_ft(tmp_path, monkeypatch):
     return path, reference
 
 
+def test_delta_stores_changed_tensors_and_only_changed_embedding_rows(tiny_ft):
+    from safetensors.torch import load_file
+
+    path, _ = tiny_ft
+    meta = json.loads(path.read_text(encoding="utf-8"))
+    d = finetune.model_dir("sentiment-ft-v9")
+    tensors = {}
+    for name in meta["files"]:
+        tensors.update(load_file(str(d / name)))
+    rows = tensors["bert.embeddings.word_embeddings.weight.rows"]
+    assert rows.tolist() == [11, 12] and tensors["bert.embeddings.word_embeddings.weight"].shape == (2, 32)
+    assert "classifier.weight" in tensors and not any("layer.0." in k for k in tensors)
+    assert all(t.dtype in (torch.float16, torch.int64) for t in tensors.values())
+    assert len(meta["files"]) > 1  # split into parts
+
+
 def test_fine_tuned_model_loads_verified_files_and_maps_the_logits(tiny_ft):
     from analysis.sentiment import FineTunedSentiment, to_label
 
     path, reference = tiny_ft
     model = FineTunedSentiment(batch_size=2, meta=path)
     assert model.version == "sent-ft@9" and model.window_mode == "target"
-    # half precision on disk, single precision in memory, and exactly the rounded weights
+    # half precision on disk, single precision in memory, and exactly the trained (rounded) weights
     state = model.model.state_dict()
     assert all(v.dtype == torch.float32 for v in state.values() if v.is_floating_point())
-    assert all(torch.equal(state[k], v) for k, v in reference.items())
+    assert all(torch.equal(state[k], v) for k, v in reference.items() if k in dict(model.model.named_parameters()))
     items = [("[Merz] ist gut.", "Merz"), ("Die [SPD] ist schlecht. Merz ist gut.", "SPD"), ("", "SPD")]
     probs = model.probs(items)
     assert len(probs) == 3 and all(abs(sum(p) - 1) < 1e-5 for p in probs)
@@ -190,10 +227,10 @@ def test_fine_tuned_model_refuses_changed_weights(tiny_ft, monkeypatch):
 
     monkeypatch.setattr(finetune, "_download", no_network)
     path, _ = tiny_ft
-    weights = finetune.model_dir("sentiment-ft-v9") / "model.safetensors"
+    weights = finetune.model_dir("sentiment-ft-v9") / "delta-0.safetensors"
     weights.write_bytes(weights.read_bytes()[:-1] + b"\x00")
     meta = json.loads(path.read_text(encoding="utf-8"))
-    if finetune.sha256(weights) == meta["files"]["model.safetensors"]:
+    if finetune.sha256(weights) == meta["files"]["delta-0.safetensors"]:
         weights.write_bytes(weights.read_bytes()[:-1] + b"\x01")
     with pytest.raises(RuntimeError):  # the changed file is re-fetched, and the fetch fails here
         FineTunedSentiment(meta=path)

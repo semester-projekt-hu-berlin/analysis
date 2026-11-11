@@ -142,15 +142,16 @@ jobs:
           # Flair and its ~60 dependencies only when its NER is asked for
           if [ "${{ inputs.ner }}" = "flair" ]; then pip install -r requirements-flair.txt; fi
 
-      # Model weights and their ONNX exports (.hf-cache/onnx, written on the first run with a new
-      # key). A cache is immutable per key: bump the key when a model or the export changes.
+      # Model weights (also the fine-tuned sentiment model from its release, .hf-cache/meinungspuls) and
+      # their ONNX exports (.hf-cache/onnx, written on the first run with a new key). A cache is
+      # immutable per key: bump the key when a model or the export changes.
       - name: Cache models (Hugging Face, ONNX exports, Flair)
         uses: actions/cache@v4
         with:
           path: |
             .hf-cache
             .flair-cache
-          key: models-v4-bert-ner-mdeberta-nli-news-sentiment-onnx1
+          key: models-v5-bert-ner-mdeberta-nli-news-sentiment-ft3-onnx1
           restore-keys: models-
 
       - name: Cache Wikidata lookups

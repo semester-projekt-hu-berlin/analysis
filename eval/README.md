@@ -237,26 +237,12 @@ hypotheses, a second classifier and a small generative model all stay within +-0
 stance needs a model that is trained on the task.
 
 **Fine-tuned model `ft`** (`scripts/train_sentiment_finetune.py`, `analysis/sentiment.py`
-`FineTunedSentiment`, not the default): the NLI model reads the mention's sentence +- one
-sentence with the target in [brackets] against "Der Kommentar äußert sich positiv über {Name}.";
-its head (entailment / neutral / contradiction) is trained to mean pos / neu / neg. Settings
-fixed before the run: all weights, 4 epochs, learning rate 3e-5, batch 16, class weights^0.5.
-One fold takes about 14 minutes on 4 CPUs. Result so far: two of the five folds (182 pairs; the run was then killed for lack of memory
-on the shared machine, `cv --resume` continues it):
-
-| on the same 182 pairs | macro-F1 | 95 % CI | F1 pos / neu / neg | accuracy | r of score with gold |
-|---|---|---|---|---|---|
-| `cal` | 0.497 | 0.413 to 0.577 | 0.38 / 0.49 / 0.62 | 0.538 | 0.29 |
-| `ft` | 0.548 | 0.454 to 0.628 | 0.47 / 0.49 / 0.69 | 0.593 | 0.43 |
-
-Difference +0.051 (paired 95 % CI -0.048 to +0.147, 16 % of the draws at or below 0): promising,
-not shown. The mean score of `ft` (-0.43) is close to the gold mean (-0.39). `ft` is therefore
-**not the default**. It ships only if all five folds show at least +0.03 with a paired interval
-above 0 and no class losing more than 0.03 (`scripts/eval_sentiment_cv.py` prints exactly
-that); its weights (about 560 MB in half precision) then become assets of a GitHub release,
-verified by hash (`analysis/finetune.py`). With 455 pairs a true gain of +0.05 is detected in
-about half of the cases; about 1,000 gold pairs (roughly 130 pos, 360 neu, 510 neg) would make
-+0.03 to +0.05 reliably visible.
+`FineTunedSentiment`): the NLI model reads the mention's sentence +- one sentence with the
+target in [brackets] against "Der Kommentar äußert sich positiv über {Name}."; its head
+(entailment / neutral / contradiction) is trained to mean pos / neu / neg. Settings fixed before
+the first run: all weights, 4 epochs, learning rate 3e-5, batch 16, class weights^0.5. On the
+455 pairs only two folds finished (+0.051, paired interval -0.048 to +0.147: not shown); the
+result on all 1,021 pairs is in the last section.
 
 ## Larger gold set and sent-cal@3 (11 Nov 2026)
 
@@ -285,7 +271,7 @@ F1 pos 0.40 / neu 0.50 / neg 0.59. The interval is now about +-0.04 instead of +
 sent-cal@2, scored on the 566 new pairs it never saw, reaches 0.481 (0.437 to 0.526), mean score
 -0.12 against a gold mean of -0.43.
 
-**sent-cal@3: unbiased score.** The calibration is refitted on all 1,021 pairs with the same
+**sent-cal@3: unbiased score** (the current version of `cal`; production uses `ft` below). The calibration is refitted on all 1,021 pairs with the same
 settings; the label is the strongest of the weighted logits as before, and the score and
 confidence come from the same logits with the class weights and the neutral bias subtracted
 (`scoreCorrection` = log class weight + bias; a model fitted with class weight w_k estimates
@@ -302,8 +288,53 @@ probabilities proportional to w_k p_k). Cross-validated, 10 fold seeds:
 
 The change of the source-level r (-0.012) is within its noise (bootstrap over comments of the
 difference: -0.13 to +0.10; entity level -0.08 to +0.07). The absolute averages drop by about
-0.25, including `baseline7d`; `relative7d` (entity minus baseline) changes much less. Existing
-mentions are rescored by the `rescore` job, newest day first (README).
+0.25, including `baseline7d`; `relative7d` (entity minus baseline) changes much less.
+
+## sent-ft@3: the fine-tuned model (11 Nov 2026, new default)
+
+The fine-tuned model `ft`, cross-validated on all 1,021 pairs (5 folds over comments, fold seed
+0, the same folds for both models; every pair is tested once by a model that did not see its
+comment; settings unchanged from the first run; `scripts/train_sentiment_finetune.py cv`, then
+`scripts/eval_sentiment_cv.py`):
+
+| | `cal` (sent-cal@3) | **`ft` (sent-ft@3)** |
+|---|---|---|
+| macro-F1 (95 % CI) | 0.487 (0.449 to 0.522) | **0.557 (0.517 to 0.597)** |
+| difference, paired bootstrap | | **+0.070 (+0.032 to +0.110)**, no draw at or below 0 |
+| F1 pos / neu / neg | 0.38 / 0.49 / 0.59 | 0.41 / 0.57 / 0.69 (+0.03 / +0.07 / +0.11) |
+| accuracy | 0.525 | 0.620 |
+| bias of the mean score | -0.007 | -0.034 |
+| r of the score per mention | 0.30 | 0.40 |
+| entity means, 54 entities: r / MAE | 0.650 / 0.265 | **0.856 / 0.164** |
+| source means, 11 sources: r / MAE | 0.725 / 0.103 | 0.558 / 0.124 |
+| entity type means: r / MAE | 0.828 / 0.074 | 0.985 / 0.054 |
+| model passes per window | 4 (clause window) | 1 (sentence +- 1) |
+| CPU per 1,000 windows (4 threads, ONNX Runtime) | 154 s | 55 s |
+
+Per fold: 0.565, 0.597, 0.523, 0.560, 0.523. The source-level agreement is the one check that
+does not improve: with 11 sources the correlation rests on a few points (a bootstrap of such a
+difference spans about +-0.12, see sent-cal@3 above), and the mean absolute error stays small.
+
+The production model is trained on all 1,021 pairs with the same settings
+(`scripts/train_sentiment_finetune.py fit`; in-sample macro-F1 0.93, which says nothing about
+new comments: the cross-validation above does). It is stored as what training changed against
+the base model in half precision: all encoder and head tensors and 7,050 of the 251,000 rows of
+the embedding matrix, 183 MB in three parts below GitHub's 100 MB limit, on the branch `models`
+(no shared history with `main`). `data/sentiment_ft.json` pins the commit and the SHA-256 of
+every part; the pipeline downloads and verifies them once into the model cache, loads the base
+model at the pinned revision, rounds it to half precision and puts the stored tensors over it
+(`analysis/finetune.py`; the rebuilt model is identical, tensor for tensor, to the trained one; a
+file with a different hash is fetched again and never loaded). It runs in single precision,
+through ONNX Runtime when the session reproduces PyTorch (the same self-check as for the other
+models: largest logit difference 1.6e-5). Measured on 4 threads with ONNX Runtime: 55 s per
+1,000 windows (62 s per 1,000 pairs), against 154 s for `cal`; results do not depend on batch
+order.
+
+**Rollout.** New mentions are scored by `ft` from the first run with this version. That run
+records sent-ft@3 in `meta/analysis.sentiment` and queues a `rescore` of the existing mentions
+(about 116,000), which the regular runs continue day by day, newest first, within the daily
+Firestore budget (README). Until it is done, days not yet rescored keep their sent-cal@2 scores,
+which are about 0.25 more positive; the 7-day windows are converted first.
 
 ## Limitations
 

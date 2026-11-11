@@ -5,16 +5,17 @@ entailment / neutral / contradiction. Here it is fine-tuned on the hand-labelled
 that as positive / neutral / negative toward the entity. One model pass per window; the window
 is the mention's sentence +- one sentence with the target in [brackets].
 
-Training pairs: eval/labels.csv (gold) and eval/labels_extra.csv (further pairs of the same
-comments; used for training only, never for testing). Comment texts are read from the
-git-ignored cache eval/texts.local.json (fetched from Firestore if missing), never written to git.
+Training pairs: every labelled pair (eval/labels.csv, labels_extra.csv, labels_extra2.csv; see
+scripts/eval_sentiment_cv.py). Comment texts are read from the git-ignored cache
+eval/texts.local.json (fetched from Firestore if missing), never written to git.
 
     python scripts/train_sentiment_finetune.py cv    # grouped 5-fold CV -> eval/ft_cv.local.json
-    python scripts/train_sentiment_finetune.py fit   # train on all pairs -> model files + data/sentiment_ft.json
+    python scripts/train_sentiment_finetune.py fit   # train on all pairs -> delta parts + data/sentiment_ft.json
 
-`fit` writes the model (half precision, about 560 MB) into the local model cache and its file
-hashes into data/sentiment_ft.json; the files are then published as assets of a GitHub release,
-from where the pipeline downloads and verifies them (analysis/finetune.py).
+`fit` stores what training changed against the base model (analysis/finetune.py: about 180 MB
+in parts below 100 MB) in the model cache; the parts are committed to the branch `models`, and
+the commit goes into the url of data/sentiment_ft.json, from where the pipeline downloads and
+verifies them.
 
 Evaluate with scripts/eval_sentiment_cv.py (same folds for the baseline, paired bootstrap).
 """
@@ -37,7 +38,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from eval_protocol import CLASSES, grouped_folds, macro_f1  # noqa: E402
 
 from analysis.analyze import MAX_WINDOWS_PER_MENTION, mention_window  # noqa: E402
-from analysis.finetune import model_dir, round_half, sha256  # noqa: E402
+from analysis.finetune import delta, model_dir, round_half, sha256, split  # noqa: E402
 from analysis.linker import Match, Registry  # noqa: E402
 from analysis.sentiment import FT_META, NLI_MODELS, combine, to_label  # noqa: E402
 from analysis.textutil import clean_text, split_sentences  # noqa: E402
@@ -47,7 +48,7 @@ EXTRA = ROOT / "eval" / "labels_extra.csv"
 TEXTS = ROOT / "eval" / "texts.local.json"
 CV_FILE = ROOT / "eval" / "ft_cv.local.json"
 COUNTRY = {"derstandard": "AT", "blick": "CH", "taz": "DE"}
-RELEASES = "https://github.com/semester-projekt-hu-berlin/analysis/releases/download"
+MODELS_URL = "https://raw.githubusercontent.com/semester-projekt-hu-berlin/analysis"
 
 # Fixed before the cross-validation was run; nothing here was tuned on the test folds.
 CONFIG = {
@@ -180,9 +181,17 @@ class Trainer:
             rng.shuffle(batches)
             total = 0.0
             for b in batches:
-                logits = model(**self.encode([(w, n) for w, n, _ in b])).logits[:, order]
-                loss = torch.nn.functional.cross_entropy(logits, torch.tensor([y for _, _, y in b]), weight=weight)
-                loss.backward()
+                # in slices of at most 8 windows (memory); the step is taken over the whole batch
+                loss = 0.0
+                for i in range(0, len(b), 8):
+                    part = b[i : i + 8]
+                    logits = model(**self.encode([(w, n) for w, n, _ in part])).logits[:, order]
+                    target = torch.tensor([y for _, _, y in part])
+                    # weighted mean over the batch, as one pass over the whole batch would give
+                    part_loss = torch.nn.functional.cross_entropy(logits, target, weight=weight, reduction="sum")
+                    part_loss = part_loss / float(sum(weight[y] for _, _, y in b))
+                    part_loss.backward()
+                    loss = loss + part_loss.detach()
                 torch.nn.utils.clip_grad_norm_(params, 1.0)
                 opt.step()
                 sched.step()
@@ -225,9 +234,11 @@ def examples(pairs: list[dict]) -> list[tuple[str, str, int]]:
 
 
 def cmd_cv(args) -> None:
-    gold, extra = load_pairs(LABELS), load_pairs(EXTRA)
+    from eval_sentiment_cv import load_gold
+
+    gold, extra = load_gold(), []  # every labelled pair is tested once (grouped folds)
     y = [CLASSES.index(p["gold"]) for p in gold]
-    print(f"{len(gold)} gold pairs {dict(Counter(p['gold'] for p in gold))}, {len(extra)} extra training pairs")
+    print(f"{len(gold)} gold pairs {dict(Counter(p['gold'] for p in gold))}")
     trainer = Trainer()
     folds = grouped_folds(y, [p["comment"] for p in gold], FOLDS, FOLD_SEED)
     try:
@@ -267,8 +278,11 @@ def cmd_cv(args) -> None:
 
 
 def cmd_fit(args) -> None:
-    gold, extra = load_pairs(LABELS), load_pairs(EXTRA)
-    pairs = gold + extra
+    from eval_sentiment_cv import load_gold
+    from safetensors.torch import save_file
+
+    gold = load_gold()
+    pairs = gold
     trainer = Trainer()
     t = time.time()
     model, order = trainer.fit(
@@ -279,27 +293,31 @@ def cmd_fit(args) -> None:
     release = f"sentiment-ft-v{CONFIG['version']}"
     out = model_dir(release)
     out.mkdir(parents=True, exist_ok=True)
-    model.half().save_pretrained(out)  # the weights were rounded to half precision after training
-    trainer.tok.save_pretrained(out)
-    files = {f.name: sha256(f) for f in sorted(out.iterdir()) if f.is_file() and not f.name.endswith(".part")}
+    base_model, _order = trainer.new_model()  # the untouched base, same revision
+    parts = split(delta(model.state_dict(), base_model.state_dict()))
+    files = {}
+    for k, part in enumerate(parts):
+        name = f"delta-{k}.safetensors"
+        save_file(part, str(out / name))
+        files[name] = sha256(out / name)
     meta = {
         "version": CONFIG["version"],
         "release": release,
-        "url": f"{RELEASES}/{release}",
+        "url": f"{MODELS_URL}/COMMIT/{release}",
         "files": files,
         **{k: CONFIG[k] for k in ("baseModel", "hypothesis", "window", "maxLength")},
         "baseRevision": trainer.revision,
         "classes": list(CLASSES),
         "logitOrder": order,
         "training": {k: CONFIG[k] for k in ("lr", "epochs", "batchSize", "classWeightPower", "seed")},
-        "trainedOn": {"gold": len(gold), "extra": len(extra)},
+        "trainedOn": len(gold),
         "fitMacroF1": round(fit_f1, 3),
     }
     FT_META.write_text(json.dumps(meta, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
-    size = sum(f.stat().st_size for f in out.iterdir() if f.is_file()) / 1e6
+    size = sum((out / f).stat().st_size for f in files) / 1e6
     print(f"trained on {len(pairs)} pairs in {time.time() - t:.0f}s; in-sample macro-F1 {fit_f1:.3f}")
-    print(f"saved {len(files)} files ({size:.0f} MB) to {out} and {FT_META.name}")
-    print(f"publish them as assets of the release {release}:  gh release create {release} {out}/*")
+    print(f"saved {len(files)} parts ({size:.0f} MB) to {out} and {FT_META.name}")
+    print(f"commit them to the branch `models` under {release}/ and put that commit into the url of {FT_META.name}")
 
 
 def main() -> None:
