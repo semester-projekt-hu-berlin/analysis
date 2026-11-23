@@ -384,7 +384,7 @@ These are documented in `infrastructure/SCHEMA.md`, which also lists the composi
 ## Evaluation and limitations
 
 [`eval/README.md`](eval/README.md) has the protocol and all numbers. In short: 480
-hand-labelled (comment, entity) pairs from all major sources. Linking precision is 93.6 %.
+hand-labelled (comment, entity) pairs from all major sources. Linking precision is 98.6 % (93.6 % before the context rules of November 2026).
 For sentiment, 1,021 labelled pairs from 686 comments: the 455 usable pairs of the original set
 plus 566 pairs labelled in November 2026 by an automated annotator (see eval/README.md).
 Sentiment toward the entity reaches macro-F1 0.56 with the fine-tuned model (grouped 5-fold
