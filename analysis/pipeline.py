@@ -13,8 +13,9 @@ from urllib.parse import unquote
 import yaml
 
 from . import aggregate as agg
+from . import implicit as imp
 from . import textindex, timebudget
-from .analyze import Stats, analyze_comments
+from .analyze import ImplicitInput, Stats, analyze_comments
 from .budget import Budget
 from .firestore import Doc, Firestore, Write
 from .linker import DATA_DIR, Entity, Registry
@@ -37,6 +38,7 @@ COMMENT_FIELDS = [
     "articleId",
     "sourceId",
     "sourceType",
+    "parentId",
     "text",
     "publishedAt",
     "crawledAt",
@@ -115,28 +117,58 @@ def load_entity_docs(fs: Firestore) -> dict[str, dict]:
     return {d.id: d.data for d in fs.query("entities", select=ENTITY_READ_FIELDS)}
 
 
-def source_countries(fs: Firestore) -> dict[str, str]:
+def source_countries(fs: Firestore, social: set[str] | None = None) -> dict[str, str]:
+    """Country per source; `social` (if given) receives the ids of social sources (same reads)."""
     try:
-        return {d.id: d.data.get("country") or "" for d in fs.query("sources", select=["country"])}
+        docs = list(fs.query("sources", select=["country", "sourceType"]))
     except RuntimeError as e:
         log.warning("could not read sources: %s", e)
         return {}
+    if social is not None:
+        social.update(d.id for d in docs if d.data.get("sourceType") == "social")
+    return {d.id: d.data.get("country") or "" for d in docs}
 
 
-def article_context(fs: Firestore, article_ids: set[str], cache: dict[str, str] | None = None) -> dict[str, str]:
+def article_context(
+    fs: Firestore,
+    article_ids: set[str],
+    cache: dict[str, str] | None = None,
+    titles: dict[str, str] | None = None,
+) -> dict[str, str]:
     """Title and topics of the articles (context for contextual aliases), 1 read per article.
 
     `cache` (article id -> context, "" for a missing article) is kept by the caller for the whole
-    run, so an article whose comments span several batches is read once."""
+    run, so an article whose comments span several batches is read once. `titles` (also kept for
+    the run) receives the headline of every real article, i.e. not of the daily pseudo-articles
+    of social sources (`sourceType: "social"`), for implicit mentions; it is read in the same request."""
     cache = {} if cache is None else cache
     missing = sorted(a for a in article_ids if a and a not in cache)
     if missing:
-        docs = fs.batch_get([f"articles/{a}" for a in missing], mask=["title", "topics"])
+        docs = fs.batch_get([f"articles/{a}" for a in missing], mask=["title", "topics", "sourceType"])
         for path, d in docs.items():
             topics = (d.data.get("topics") or []) if d else []
             title = (d.data.get("title") or "") if d else ""
-            cache[path.split("/", 1)[1]] = " ".join([title, *[str(t) for t in topics]]) if d else ""
+            aid = path.split("/", 1)[1]
+            cache[aid] = " ".join([title, *[str(t) for t in topics]]) if d else ""
+            if titles is not None and d is not None and title.strip() and d.data.get("sourceType") != "social":
+                titles[aid] = title
     return {a: cache[a] for a in article_ids if cache.get(a)}
+
+
+def implicit_parents(fs: Firestore, chunk: list[dict], known: dict[str, str], cache: dict[str, str]) -> dict[str, str]:
+    """Texts of the parent comments that the reply rule needs: replies under real articles whose text
+    has a referring expression. Parents fetched in this run cost nothing, others 1 read each (text
+    only, cached for the run; the text stays in memory)."""
+    want = set()
+    for c in chunk:
+        pid = c.get("parentId")
+        if pid and imp.may_refer(clean_text(c.get("text") or "")):
+            want.add(pid)
+    missing = sorted(p for p in want if p not in known and p not in cache)
+    if missing:
+        for path, d in fs.batch_get([f"comments/{p}" for p in missing], mask=["text"]).items():
+            cache[path.rsplit("/", 1)[1]] = (d.data.get("text") or "") if d else ""
+    return {p: known.get(p) or cache.get(p) or "" for p in want if known.get(p) or cache.get(p)}
 
 
 def new_entity_write(e: Entity) -> Write:
@@ -482,8 +514,14 @@ def _run(fs, budget, limit, batch, ner_backend, sentiment_key, use_wikidata, max
         from .wikidata import WikidataLinker
 
         wd = WikidataLinker(max_lookups=max_wikidata_lookups)
-    countries = source_countries(fs)
+    social: set[str] = set()
+    countries = source_countries(fs, social)
     stats = Stats()
+    # implicit mentions (analysis/implicit.py): headlines come with the article reads, parent comments
+    # of replies are read only when the reply rule is on (1 read per parent outside this run)
+    implicit = ImplicitInput() if imp.enabled() and imp.ACCEPTED else None
+    run_texts = {c["id"]: c.get("text") or "" for c in comments} if implicit and imp.uses("B") else {}
+    parent_cache: dict[str, str] = {}
     # Comment index for later relinks. `indexSince` is the first day all of whose analysed comments
     # are in the index: two days after the first run that writes it (a comment published "tomorrow"
     # by a source's clock may have been analysed before).
@@ -522,9 +560,26 @@ def _run(fs, budget, limit, batch, ner_backend, sentiment_key, use_wikidata, max
             stopped = f"daily Firestore budget reached after {i} comments"
             log.warning("%s; the remaining %d wait for the next run", stopped, len(comments) - i)
             break
-        ctx = article_context(fs, {c.get("articleId") for c in chunk if c.get("articleId")}, ctx_cache)
+        titles = implicit.titles if implicit else None
+        ctx = article_context(fs, {c.get("articleId") for c in chunk if c.get("articleId")}, ctx_cache, titles)
+        if implicit is not None:
+            for sid in social:  # a social source whose pseudo-articles lack the sourceType field
+                for c in chunk:
+                    if c.get("sourceId") == sid:
+                        implicit.titles.pop(c.get("articleId") or "", None)
+            if imp.uses("B"):
+                real = [c for c in chunk if (c.get("articleId") or "") in implicit.titles]
+                implicit.parents = implicit_parents(fs, real, run_texts, parent_cache)
         result = analyze_comments(
-            chunk, registry, ner, sentiment, source_country=countries, article_context=ctx, wikidata=wd, stats=stats
+            chunk,
+            registry,
+            ner,
+            sentiment,
+            source_country=countries,
+            article_context=ctx,
+            wikidata=wd,
+            stats=stats,
+            implicit=implicit,
         )
         # the index of this batch is written before its comments are marked as analysed, so every
         # analysed comment is in it (a batch that is repeated after a crash is simply indexed twice)
@@ -633,6 +688,8 @@ def _run(fs, budget, limit, batch, ner_backend, sentiment_key, use_wikidata, max
         "linkSeconds": round(stats.link_seconds, 1),
         "wikidataLookups": stats.wikidata_lookups,
         "discovered": stats.discovered,
+        "implicitMentions": dict(sorted(stats.implicit.items())),
+        "implicitCandidates": stats.implicit_candidates,
         "days": sorted(all_days),
         "version": version,
         "seconds": round(time.time() - t0, 1),
@@ -1104,6 +1161,7 @@ def _rescore(fs, budget, sentiment_key, batch, model_kw, entity_docs=None, leave
     done, stopped = True, None
     tb = timebudget.get()
     t_step, step_s, worked = time.time(), 0.0, False
+    title_cache: dict[str, str] = {}
 
     def fits(writes: int, reads: int) -> bool:
         return budget.allows(writes=writes + keep_w, reads=reads + keep_r)
@@ -1130,7 +1188,7 @@ def _rescore(fs, budget, sentiment_key, batch, model_kw, entity_docs=None, leave
                 fs.query(
                     "mentions",
                     where=[("day", "EQUAL", day)],
-                    select=["commentId", "entityId", "surface", "label", "score", "confidence", "day"],
+                    select=["commentId", "entityId", "surface", "label", "score", "confidence", "day", "via"],
                     limit=batch,
                     start_after=[job["cursor"]] if job["cursor"] else None,
                 )
@@ -1141,9 +1199,12 @@ def _rescore(fs, budget, sentiment_key, batch, model_kw, entity_docs=None, leave
             by_comment: dict[str, list] = {}
             for d in page:
                 by_comment.setdefault(d.data["commentId"], []).append(d)
-            docs = fs.batch_get([f"comments/{c}" for c in by_comment], mask=["text", "sourceId"])
+            docs = fs.batch_get(
+                [f"comments/{c}" for c in by_comment], mask=["text", "sourceId", "articleId", "parentId"]
+            )
             items: list[tuple[str, str]] = []
             plan: list[tuple[object, list[int]]] = []
+            implicit_ctx = _implicit_context(fs, page, docs, title_cache)
             for cid, mds in by_comment.items():
                 cd = docs.get(f"comments/{cid}")
                 if cd is None:
@@ -1153,6 +1214,11 @@ def _rescore(fs, budget, sentiment_key, batch, model_kw, entity_docs=None, leave
                 matches = registry.gazetteer(text, [], "", countries.get(cd.data.get("sourceId") or ""))
                 for md in mds:
                     eid = md.data["entityId"]
+                    if md.data.get("via"):  # implicit mention: the same premise as when it was found
+                        name = registry.entities[eid].name if eid in registry.entities else eid
+                        items.append((_implicit_premise(text, md.data, cd.data, implicit_ctx), name))
+                        plan.append((md, [len(items) - 1]))
+                        continue
                     mine = [m for m in matches if m.entity_id == eid]
                     if not mine:
                         surf = md.data.get("surface") or ""
@@ -1220,6 +1286,41 @@ def _rescore(fs, budget, sentiment_key, batch, model_kw, entity_docs=None, leave
         "stopped": stopped,
         **info,
     }
+
+
+def _implicit_context(fs: Firestore, page: list, comments: dict, title_cache: dict[str, str]) -> dict[str, str]:
+    """Headlines (cached per job) and parent texts that the implicit mentions of a rescore page need:
+    1 read per new article and per parent of a reply mention ("headline"/"article"/"parent")."""
+    cids = {d.data["commentId"] for d in page if d.data.get("via")}
+    if not cids:
+        return {}
+    got = [comments.get(f"comments/{c}") for c in cids]
+    arts = {d.data.get("articleId") for d in got if d is not None} - set(title_cache) - {None, ""}
+    if arts:
+        for path, d in fs.batch_get([f"articles/{a}" for a in sorted(arts)], mask=["title"]).items():
+            title_cache[path.split("/", 1)[1]] = (d.data.get("title") or "") if d else ""
+    parents = {
+        d.data["commentId"] for d in page if d.data.get("via") == "parent"
+    }  # replies whose parent text is part of the premise
+    pids = sorted(
+        {g.data.get("parentId") for c in parents if (g := comments.get(f"comments/{c}")) is not None} - {None, ""}
+    )
+    out = {f"articles/{a}": t for a, t in title_cache.items()}
+    if pids:
+        for path, d in fs.batch_get([f"comments/{p}" for p in pids], mask=["text"]).items():
+            out[path] = (d.data.get("text") or "") if d else ""
+    return out
+
+
+def _implicit_premise(text: str, mention: dict, comment: dict, ctx: dict[str, str]) -> str:
+    """Sentiment premise of an implicit mention: the comment with its referring span in brackets,
+    the headline and, for a reply, the parent comment (analysis/implicit.py)."""
+    surface = mention.get("surface") or ""
+    m = re.search(rf"(?<![\w-]){re.escape(surface)}(?![\w-])", text) if surface else None
+    a, b = (m.start(), m.end()) if m else (0, 0)
+    title = ctx.get(f"articles/{comment.get('articleId') or ''}", "")
+    parent = ctx.get(f"comments/{comment.get('parentId') or ''}", "") if mention.get("via") == "parent" else ""
+    return imp.premise(imp.window(text, a, b), title, clean_text(parent))
 
 
 def _strip_ts(d: dict) -> dict:
@@ -1716,8 +1817,12 @@ def _prune(fs, budget, entity_ids, add_ids, ner_backend, sentiment_key, entity_d
     mentions: list = []
     for eid in sorted(targets):
         mentions += list(
-            fs.query("mentions", where=[("entityId", "EQUAL", eid)], select=["commentId", "entityId", "day"])
+            fs.query(
+                "mentions", where=[("entityId", "EQUAL", eid)], select=["commentId", "entityId", "day", "implicit"]
+            )
         )
+    # implicit mentions do not depend on the entity's aliases: kept unless the entity is removed
+    mentions = [m for m in mentions if not m.data.get("implicit") or m.data["entityId"] in removed]
     recheck = sorted({m.data["commentId"] for m in mentions if m.data["entityId"] not in removed})
     est = len(mentions) * 3 + len(recheck) * 2
     if not budget.allows(writes=len(mentions) * 2 + 10, reads=est):
