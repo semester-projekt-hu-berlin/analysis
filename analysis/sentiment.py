@@ -31,6 +31,16 @@ MODELS = {
     "guhr-raw": ("oliverguhr/german-sentiment-bert", False),
 }
 
+# Hugging Face commit of each model, so a change on the Hub cannot reach the runs unnoticed. Change on
+# purpose, together with the model cache key in .github/workflows/analyze.yml. The fine-tuned model
+# takes its base revision from data/sentiment_ft.json (baseRevision).
+REVISIONS = {
+    "oliverguhr/german-sentiment-bert": "b1177ff59e305c966836ba2825d3dc2efc53f125",
+    "mdraw/german-news-sentiment-bert": "6e3e756d9242be48e27f6233a6c1e557726c1bfa",
+    "MoritzLaurer/mDeBERTa-v3-base-xnli-multilingual-nli-2mil7": "b5113eb38ab63efdd7f280f8c144ea8b13f978ce",
+    "MoritzLaurer/multilingual-MiniLMv2-L6-mnli-xnli": "0a71e92a985b6e1ad1828cf67ce9c459639c1dca",
+}
+
 _URL = re.compile(r"https?://\S+|www\.\S+")
 _AT = re.compile(r"@\w+")
 _CHARS = re.compile(r"[^a-zA-ZäöüÄÖÜß ]")
@@ -103,8 +113,9 @@ class _Single:
         from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
         name, self.clean = MODELS[key]
-        self.tok = AutoTokenizer.from_pretrained(name)
-        self.model = AutoModelForSequenceClassification.from_pretrained(name).eval()
+        rev = REVISIONS.get(name)
+        self.tok = AutoTokenizer.from_pretrained(name, revision=rev)
+        self.model = AutoModelForSequenceClassification.from_pretrained(name, revision=rev).eval()
         self.forward = _forward(self.model, self.tok, name)
         self.max_length = max_length
         labels = {i: lab.lower() for i, lab in self.model.config.id2label.items()}
@@ -136,8 +147,9 @@ class _Nli:
     def __init__(self, name: str, max_length: int):
         from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
-        self.tok = AutoTokenizer.from_pretrained(name)
-        self.model = AutoModelForSequenceClassification.from_pretrained(name).eval()
+        rev = REVISIONS.get(name)
+        self.tok = AutoTokenizer.from_pretrained(name, revision=rev)
+        self.model = AutoModelForSequenceClassification.from_pretrained(name, revision=rev).eval()
         self.forward = _forward(self.model, self.tok, name, pair=True)
         self.max_length = max_length
         labels = {i: lab.lower() for i, lab in self.model.config.id2label.items()}

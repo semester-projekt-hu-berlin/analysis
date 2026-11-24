@@ -739,7 +739,13 @@ The workflows need the organisation secret `FIREBASE_SERVICE_ACCOUNT` (only `ana
 never run for pull requests). Actions are pinned by commit SHA, checkouts keep no token (`persist-credentials:
 false`), dispatch inputs reach the shell only as environment variables, and Dependabot (`.github/dependabot.yml`)
 opens a grouped update PR per month for the actions and the pip dependencies, except the model stack (torch,
-transformers, onnx, onnxruntime, flair), which changes model outputs and is updated deliberately.
+transformers, onnx, onnxruntime, flair), which changes model outputs and is updated deliberately. `requirements.txt` pins
+exact versions (torch stays the current CPU wheel). The Hugging Face models are loaded at a pinned commit
+(`REVISIONS` in `analysis/ner.py` and `analysis/sentiment.py`, `baseRevision` in `data/sentiment_ft.json`), so a
+change on the Hub cannot reach the runs unnoticed; when changing one, also bump the model cache key in
+`analyze.yml`. The BERT NER repo has moved to `schwimmbeck/bert-base-german-cased-fine-tuned-ner`; the Hub
+redirects the old id, which is kept so the cached weights and ONNX export stay valid. Flair's `flair/ner-german`
+(`--ner flair`, not the default) is still loaded from `main`.
 
 **Triggering.** GitHub's `schedule` started runs 4–6 h late (or not for hours), so `analyze.yml` is started by
 Cloud Scheduler (job `meinungspuls-analyze` in the GCP project `meinungspuls-hu`, 05:30 / 17:30 UTC), which calls the

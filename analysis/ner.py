@@ -54,16 +54,29 @@ class FlairNer:
         return out
 
 
+BERT_NER_MODEL = "domischwimmbeck/bert-base-german-cased-fine-tuned-ner"
+# Hugging Face commit of each model, so a change on the Hub cannot reach the runs unnoticed (the repo is
+# now schwimmbeck/…; the Hub redirects the old name). Change on purpose, together with the model cache
+# key in .github/workflows/analyze.yml.
+REVISIONS = {BERT_NER_MODEL: "754708b8dbd7ce046136cdd7e25796d16778fd93"}
+
+
 class BertNer:
     """Transformer token classifier fine-tuned on GermEval14 (~3x faster than Flair on CPU)."""
 
     name = "bert"
     version = "bert-germeval-ner@1"
 
-    def __init__(self, model: str = "domischwimmbeck/bert-base-german-cased-fine-tuned-ner", batch_size: int = 32):
+    def __init__(self, model: str = BERT_NER_MODEL, batch_size: int = 32):
         from transformers import pipeline
 
-        self.pipe = pipeline("token-classification", model=model, aggregation_strategy="simple", device=-1)
+        self.pipe = pipeline(
+            "token-classification",
+            model=model,
+            revision=REVISIONS.get(model),
+            aggregation_strategy="simple",
+            device=-1,
+        )
         self.batch_size = batch_size
         # same model through ONNX Runtime when it reproduces the PyTorch logits (analysis/onnx_backend.py);
         # the pipeline keeps doing the tokenisation and the grouping of the tags
