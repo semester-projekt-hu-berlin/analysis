@@ -1,0 +1,26 @@
+# Monthly, grouped update PRs (one per ecosystem) so actions pinned by commit SHA and the
+# dependencies stay current. CI runs on every PR; nothing is merged automatically.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      python:
+        patterns: ["*"]
+    # these change the model outputs, which CI (fake models) cannot see: update them on purpose,
+    # with the parity check of analysis/onnx_backend.py and the evaluation in eval/
+    ignore:
+      - dependency-name: transformers
+      - dependency-name: torch
+      - dependency-name: onnx
+      - dependency-name: onnxruntime
+      - dependency-name: flair

@@ -733,9 +733,13 @@ Tests: `tests/test_timebudget.py`.
 |---|---|---|
 | `analyze.yml` | twice a day at 05:30 and 17:30 UTC (`30 5,17 * * *`), about an hour after the crawler (`17 4,16 * * *`), + manual | `python -m analysis run` over the half-day backlog, newest first (about 4k comments; `--limit 9000`, timeout 150 min with a soft time budget of 135 min, one aggregation at the end); CPU-only torch, ONNX Runtime (`ANALYSIS_ONNX=1`), pip cache, model cache (Hugging Face weights and their ONNX exports), Wikidata lookup cache; `concurrency: analysis` prevents overlapping runs |
 | `seed.yml` | push to `data/*.yaml` + manual | `python -m analysis seed` |
-| `ci.yml` | push / PR | ruff + pytest (fake models, no torch needed) |
+| `ci.yml` | push / PR (not for changes to Markdown files only; a newer push cancels the running check) | ruff + pytest (fake models, no torch needed) |
 
-The workflows need the organisation secret `FIREBASE_SERVICE_ACCOUNT`.
+The workflows need the organisation secret `FIREBASE_SERVICE_ACCOUNT` (only `analyze.yml` and `seed.yml`, which
+never run for pull requests). Actions are pinned by commit SHA, checkouts keep no token (`persist-credentials:
+false`), dispatch inputs reach the shell only as environment variables, and Dependabot (`.github/dependabot.yml`)
+opens a grouped update PR per month for the actions and the pip dependencies, except the model stack (torch,
+transformers, onnx, onnxruntime, flair), which changes model outputs and is updated deliberately.
 
 **Triggering.** GitHub's `schedule` started runs 4–6 h late (or not for hours), so `analyze.yml` is started by
 Cloud Scheduler (job `meinungspuls-analyze` in the GCP project `meinungspuls-hu`, 05:30 / 17:30 UTC), which calls the
