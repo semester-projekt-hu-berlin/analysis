@@ -736,7 +736,7 @@ Tests: `tests/test_timebudget.py`.
 | `ci.yml` | push / PR (not for changes to Markdown files only; a newer push cancels the running check) | ruff + pytest (fake models, no torch needed) |
 
 The workflows need the organisation secret `FIREBASE_SERVICE_ACCOUNT` (only `analyze.yml` and `seed.yml`, which
-never run for pull requests). Actions are pinned by commit SHA, checkouts keep no token (`persist-credentials:
+never run for pull requests), or keyless auth (see below). Actions are pinned by commit SHA, checkouts keep no token (`persist-credentials:
 false`), dispatch inputs reach the shell only as environment variables, and Dependabot (`.github/dependabot.yml`)
 opens a grouped update PR per month for the actions and the pip dependencies, except the model stack (torch,
 transformers, onnx, onnxruntime, flair), which changes model outputs and is updated deliberately. `requirements.txt` pins
@@ -753,6 +753,44 @@ API (`GET /internal/cron/dispatch/analyze`, see `deploy/setup-gcp.sh` in the `ap
 `workflow_dispatch` with the input `trigger=vercel-cron` (the value is historical, from when the cron ran on Vercel). The `schedule` stays as a fallback: the `gate` job
 (`actions: read`) skips a scheduled run when a successful or still queued/running analysis was created since one
 hour before its slot, and drops duplicate cron deliveries (another run within 3 h). Manual runs are never skipped.
+
+## Keyless auth (optional)
+
+`analyze.yml` and `seed.yml` can authenticate without the long-lived JSON key: GitHub's OIDC token is exchanged
+through Workload Identity Federation for a short-lived token of a service account that may only use Firestore.
+Until the repository variables `GCP_WIF_PROVIDER` and `GCP_SERVICE_ACCOUNT` are set, nothing changes (the auth step
+is skipped, the secret `FIREBASE_SERVICE_ACCOUNT` is used). Once both are set, the jobs run
+`google-github-actions/auth`, which writes an `external_account` credentials file (`GOOGLE_APPLICATION_CREDENTIALS`,
+read by `load_credentials()` in `analysis/firestore.py`), and the secret is no longer passed. One-time setup
+(project owner; the pool and provider are shared with the crawler repo, create them once, see its README):
+
+```bash
+PROJECT=meinungspuls-hu
+NUMBER=$(gcloud projects describe $PROJECT --format='value(projectNumber)')
+gcloud services enable iamcredentials.googleapis.com sts.googleapis.com --project $PROJECT
+
+# pool + provider (skip if already created for the crawler): only tokens of the two repos, on main
+gcloud iam workload-identity-pools create github --project $PROJECT --location global --display-name "GitHub Actions"
+gcloud iam workload-identity-pools providers create-oidc meinungspuls --project $PROJECT --location global \
+  --workload-identity-pool github --issuer-uri https://token.actions.githubusercontent.com \
+  --attribute-mapping 'google.subject=assertion.sub,attribute.repository=assertion.repository,attribute.repository_owner=assertion.repository_owner,attribute.ref=assertion.ref' \
+  --attribute-condition "assertion.repository_owner == 'semester-projekt-hu-berlin' && assertion.repository in ['semester-projekt-hu-berlin/crawler', 'semester-projekt-hu-berlin/analysis'] && assertion.ref == 'refs/heads/main'"
+
+# a service account for the analysis only, Firestore read/write, usable only from this repo
+gcloud iam service-accounts create analysis-gha --project $PROJECT --display-name "analysis (GitHub Actions)"
+gcloud projects add-iam-policy-binding $PROJECT --condition=None \
+  --member serviceAccount:analysis-gha@$PROJECT.iam.gserviceaccount.com --role roles/datastore.user
+gcloud iam service-accounts add-iam-policy-binding analysis-gha@$PROJECT.iam.gserviceaccount.com --project $PROJECT \
+  --role roles/iam.workloadIdentityUser \
+  --member "principalSet://iam.googleapis.com/projects/$NUMBER/locations/global/workloadIdentityPools/github/attribute.repository/semester-projekt-hu-berlin/analysis"
+
+# switch the workflows over (repository variables, not organisation ones: each repo has its own account)
+gh variable set GCP_WIF_PROVIDER -R semester-projekt-hu-berlin/analysis \
+  --body "projects/$NUMBER/locations/global/workloadIdentityPools/github/providers/meinungspuls"
+gh variable set GCP_SERVICE_ACCOUNT -R semester-projekt-hu-berlin/analysis --body analysis-gha@$PROJECT.iam.gserviceaccount.com
+```
+
+Then dispatch one analysis (e.g. `limit=100`) and check that it writes. To go back, delete the two variables.
 
 ## Events
 

@@ -103,8 +103,12 @@ jobs:
     if: ${{ !cancelled() && needs.gate.outputs.skip != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 150 # ~4k comments per half day take 20-45 min on the 4-vCPU runners; 9000 fit with margin
+    permissions:
+      contents: read
+      id-token: write # GitHub OIDC token, only used for keyless auth (see below)
     env:
-      FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      # the key would take precedence over the keyless credentials, so it is left out when they are set
+      FIREBASE_SERVICE_ACCOUNT: ${{ (vars.GCP_WIF_PROVIDER == '' || vars.GCP_SERVICE_ACCOUNT == '') && secrets.FIREBASE_SERVICE_ACCOUNT || '' }}
       # soft deadline (analysis/timebudget.py): from the job start, 15 min before timeout-minutes, the run
       # saves its cursors, aggregates what it processed, records the budget and exits cleanly
       ANALYSIS_TIME_BUDGET_MIN: "135"
@@ -124,7 +128,19 @@ jobs:
         with:
           persist-credentials: false
 
+      # Keyless auth (optional, see README): once the repository variables GCP_WIF_PROVIDER and
+      # GCP_SERVICE_ACCOUNT are set, the job gets short-lived credentials through Workload Identity
+      # Federation (GOOGLE_APPLICATION_CREDENTIALS) and the JSON key is not passed. Without them,
+      # nothing changes: the step is skipped and the secret FIREBASE_SERVICE_ACCOUNT is used.
+      - name: Authenticate to Google Cloud (Workload Identity Federation)
+        if: vars.GCP_WIF_PROVIDER != '' && vars.GCP_SERVICE_ACCOUNT != ''
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
       - name: Check secret
+        if: vars.GCP_WIF_PROVIDER == '' || vars.GCP_SERVICE_ACCOUNT == ''
         run: |
           if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
             echo "::error::Secret FIREBASE_SERVICE_ACCOUNT is not available to this repository."

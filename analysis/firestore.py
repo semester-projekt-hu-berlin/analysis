@@ -219,6 +219,12 @@ def load_credentials():
             raise RuntimeError("Set FIREBASE_SERVICE_ACCOUNT (JSON) or GOOGLE_APPLICATION_CREDENTIALS (path).")
         with open(path, encoding="utf-8") as f:
             info = json.load(f)
+        if info.get("type") == "external_account":
+            # Workload Identity Federation: the file google-github-actions/auth writes (GitHub OIDC token ->
+            # STS -> service account impersonation), see "Keyless auth (optional)" in the README
+            from google.auth import identity_pool
+
+            return identity_pool.Credentials.from_info(info, scopes=SCOPES)
     if isinstance(info.get("private_key"), str):
         info["private_key"] = info["private_key"].replace("\\n", "\n")
     return service_account.Credentials.from_service_account_info(info, scopes=SCOPES)
