@@ -299,6 +299,41 @@ The default pipeline is entirely open-source and free. The HU LLM offer is not u
   keyed by **SHA-1 of the surface form**, so names typed by commenters are never stored in
   clear text. On Wikidata rate limiting the fallback is switched off for the rest of the run.
 
+## Context: implicit mentions
+
+**Status: built, not active.** Under the article "Merz kündigt Rücktritt an" a comment like
+"Endlich tritt er zurück" names no entity, so it gets no mention. [`analysis/implicit.py`](analysis/implicit.py)
+finds such references from the comment's context. Only comments under real articles (news and
+forum threads) are considered. Social sources (`sourceType: "social"`: Bluesky, Mastodon, feddit
+pseudo-articles per day) are left as they are.
+
+| rule | `via` | when |
+|---|---|---|
+| A | `headline` | no entity linked in the comment; a referring expression (er/ihn/sein…, sie/ihre…, sentence-initial "Der muss weg", "der Mann", a role word of the entity's description such as "der Kanzler" for "Bundeskanzler", "die Partei", "der Verein", "die App"; for top-level comments of ≤ 10 words also no cue at all); exactly one compatible PER/PARTY/ORG/PRODUCT entity linked in the headline (gender from the description) |
+| A | `article` | the same, but the headline has no target: the dominant entity among the article's other comments in the run (≥ 3 mentions, ≥ 50 %) |
+| B | `parent` | a reply with no linked entity whose parent comment names exactly one compatible entity |
+| C | `role` | "der Kanzler", "der Vizekanzler", "der Bundespräsident" (per source country), "der US-Präsident", only during the holder's term and not followed by a name or after "nächste/frühere…" |
+
+A mention found this way gets `implicit: true` and `via`; `surface` is the referring span (or
+`""`). Its sentiment premise is the comment (capped at 600 characters, the referring span in
+[brackets]) after `Artikel: {headline} |` and, for B, `Antwort auf: {parent} |`, the same form as
+the headline experiment of the sentiment model.
+
+**Why not active.** A rule becomes a mention only if its (rule, cue) pair is in `ACCEPTED`, and
+that set stays empty until each rule is measured on a hand-labelled sample (precision ≥ 90 %,
+lower 95 % bound ≥ 85 %). The sample is exported by `scripts/export_implicit_sample.py`, which
+must run in the private infrastructure repository (workflow `export-implicit-sample.yml`): its
+output holds comment texts. That workflow cannot read the Firestore secret yet.
+
+**Privacy.** Headlines and parent comments are held in memory only; mentions keep the referring
+span; logs and the run summary (`implicitMentions`, `implicitCandidates`) hold counts.
+
+**Cost when active.** Headlines come with the article reads the run already does (field mask
+`title, topics, sourceType`). Rule B reads the parent of a reply only when the reply has a
+referring expression and the parent is not in the run: 1 read each, cached per run. No backfill.
+`prune` keeps implicit mentions (they do not depend on aliases); `rescore` rebuilds their premise
+(1 read per new article and per parent).
+
 ## Privacy rules
 
 * Only entities from the curated seed list or Wikidata items that pass the public-figure
