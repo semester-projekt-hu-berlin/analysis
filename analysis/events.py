@@ -538,9 +538,14 @@ class ChatProvider:
                 continue
             if status == 200:
                 try:
-                    return json.loads(text)["choices"][0]["message"]["content"] or ""
+                    return _content(text)
                 except (ValueError, KeyError, IndexError, TypeError) as e:
-                    raise ProviderError(f"unexpected response ({type(e).__name__})") from None
+                    ctype = next((v for k, v in (rh or {}).items() if k.lower() == "content-type"), "?")
+                    # the body of a model endpoint, never our request: safe to show its start
+                    head = " ".join(text[:100].split())
+                    raise ProviderError(
+                        f"unexpected response ({type(e).__name__}, {ctype}, {len(text)} bytes: {head!r})"
+                    ) from None
             last = f"HTTP {status}: {_error_text(text)}"
             if status in (401, 403, 404):
                 raise ProviderError(last, fatal=True)
@@ -555,6 +560,21 @@ class ChatProvider:
                 continue
             raise ProviderError(last)
         raise ProviderError(f"gave up after {self.retries} attempts ({last})")
+
+
+def _content(text: str) -> str:
+    """The message of a chat completion; also accepts a server-sent event stream of chunks."""
+    text = text.lstrip("\ufeff").strip()
+    if text.startswith("data:"):
+        parts = []
+        for line in text.splitlines():
+            line = line.strip()
+            if line.startswith("data:") and line[5:].strip() not in ("", "[DONE]"):
+                ch = json.loads(line[5:])["choices"]
+                if ch:
+                    parts.append((ch[0].get("delta") or ch[0].get("message") or {}).get("content") or "")
+        return "".join(parts)
+    return json.loads(text)["choices"][0]["message"]["content"] or ""
 
 
 def _retry_after(headers: dict) -> float:

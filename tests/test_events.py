@@ -392,3 +392,13 @@ def test_backfill_reads_older_day_docs(world, monkeypatch):
 def test_run_reports_events(fs):
     out = pipeline.run(fs, limit=100, use_wikidata=False)
     assert out["events"]["candidates"] == 0  # a handful of mentions is never an event
+
+
+def test_stream_and_unexpected_responses():
+    chunks = [{"choices": [{"delta": {"content": '{"results": '}}]}, {"choices": [{"delta": {"content": "[]}"}}]}]
+    sse = "".join(f"data: {json.dumps(c)}\n\n" for c in chunks) + "data: [DONE]\n"
+    assert ev._content(sse) == '{"results": []}'
+    plain = (200, {"Content-Type": "text/plain"}, "OK")
+    p = ev.ChatProvider("x", "https://m.example", "tok", "m", transport=lambda *a: plain)
+    with pytest.raises(ev.ProviderError, match="text/plain, 2 bytes: 'OK'"):
+        p.complete([])
