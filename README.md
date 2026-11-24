@@ -308,6 +308,7 @@ The default pipeline is entirely open-source and free. The HU LLM offer is not u
 * Commenter user names are never read: comments are fetched with a field mask
   (`articleId, sourceId, text, publishedAt, crawledAt, day, analysisVersion`); the crawler does
   not store author fields at all.
+* Automatic events are explained from public headlines only; no comment text is sent to an LLM.
 * Comment text stays inside the pipeline process. `mentions` store only the matched surface
   span (≤ 80 chars, e.g. "Kanzler Merz"); logs contain counts only. The evaluation gold file
   stores mention ids + labels, never text (`eval/sample.local.jsonl` with text is git-ignored).
@@ -418,6 +419,7 @@ python -m analysis relink --days 14     # add mentions of new (generated) entiti
 python -m analysis prune --ids-file ids.txt --add rewe   # re-check mentions of these entities after an alias change
 python -m analysis prune --queue --ids meta-platforms --add facebook   # same, continued by `run` within the budget
 python -m analysis reaggregate --since 2026-10-20   # recompute only pairs from that day on (cheap)
+python -m analysis events --since 2026-10-20 --dry-run   # automatic events for a range (see "Automatic events")
 python -m analysis reaggregate          # full rebuild from all mentions (full scan, use rarely)
 python scripts/eval_sentiment.py score  # sentiment evaluation (see eval/README.md)
 python scripts/bench_firestore_ops.py   # reads/writes per 1000 comments
@@ -733,6 +735,7 @@ Tests: `tests/test_timebudget.py`.
 |---|---|---|
 | `analyze.yml` | twice a day at 05:30 and 17:30 UTC (`30 5,17 * * *`), about an hour after the crawler (`17 4,16 * * *`), + manual | `python -m analysis run` over the half-day backlog, newest first (about 4k comments; `--limit 9000`, timeout 150 min with a soft time budget of 135 min, one aggregation at the end); CPU-only torch, ONNX Runtime (`ANALYSIS_ONNX=1`), pip cache, model cache (Hugging Face weights and their ONNX exports), Wikidata lookup cache; `concurrency: analysis` prevents overlapping runs |
 | `seed.yml` | push to `data/*.yaml` + manual | `python -m analysis seed` |
+| `events.yml` | manual (`since`, `until`, `dry_run`) | `python -m analysis events`: backfill of automatic events |
 | `ci.yml` | push / PR (not for changes to Markdown files only; a newer push cancels the running check) | ruff + pytest (fake models, no torch needed) |
 
 The workflows need the organisation secret `FIREBASE_SERVICE_ACCOUNT` (only `analyze.yml` and `seed.yml`, which
@@ -792,7 +795,83 @@ gh variable set GCP_SERVICE_ACCOUNT -R semester-projekt-hu-berlin/analysis --bod
 
 Then dispatch one analysis (e.g. `limit=100`) and check that it writes. To go back, delete the two variables.
 
-## Events
+## Automatic events
+
+Charts explain their jumps: on the day mentions of GTA 6 spike, the dashboard shows "Release von GTA 6"
+with the headline it comes from. [`analysis/events.py`](analysis/events.py), contract in `infrastructure/SCHEMA.md`
+(`events/{eventId}`, `source: "auto"`).
+
+**Detection** (end of every `run`, for yesterday and today, Berlin; `python -m analysis events` for a range).
+For every active, allowlisted entity the daily series comes from `recentDays` (main aggregates only,
+community texts are never part of it), so detection costs no reads. The baseline is the 14 days before the
+day (only days since data collection started, `EVENTS_DATA_SINCE=2026-10-21`, at least 7 of them):
+
+| kind | condition (env, default) |
+|---|---|
+| `spike` | mentions(day) ≥ max(`EVENTS_SPIKE_MIN`=25, `EVENTS_SPIKE_FACTOR`=3 × mean mentions per day before) |
+| `rise` / `fall` | mentions(day) ≥ `EVENTS_SHIFT_MIN`=20, ≥ `EVENTS_SHIFT_BEFORE_MIN`=30 mentions before, and the day's mean score differs from the mention-weighted mean before by ≥ `EVENTS_SHIFT_DELTA`=0.25 |
+
+Candidates are ranked by strength (multiple of the threshold, capped at 4, × log10 mentions). Curated events
+win (no auto event for an entity on a day with a curated one), at most one auto event per entity within
+`EVENTS_GAP_DAYS`=3 days (the earliest day of a surge gets it), at most `EVENTS_MAX_PER_DAY`=6 per day and
+`EVENTS_MAX_PER_RUN`=12 per run.
+
+**Why these thresholds.** Measured on the daily series of 21 Oct – 24 Nov 2026 (first full day of data
+collection 21 Oct, so the first day with a baseline is 28 Oct). On the 59 entities of `meta/trending`
+(public timelines) the defaults give 44 candidates in 27 days, 1.6 a day (spike ×4: 36, spike min 40: 37,
+delta 0.20: 54, delta 0.30: 38), e.g. GTA 6 on 28 Oct (27 vs 2.7 a day), Nvidia 9 Nov (165 vs 13), Xi Jinping
+19 Nov (121 vs 9.9), Tino Chrupalla 21 Nov (56 vs 5.2), Katherina Reiche falling on 22 Nov (−0.31). A delta of
+0.25 is about 3 standard errors of a day's mean at 20 mentions (scores have an SD of ~0.45 per day).
+
+**Evidence: headlines only.** For each candidate the day doc's `topArticles` (by mentions) is read, then the
+top articles (`url`, `title`, `sourceId`) and the source names. Social pseudo-articles (Mastodon, Bluesky day
+timelines) are skipped, a trailing "| Source" is removed, up to 5 headlines remain. Candidates of one day
+that share their top headline become **one** event (GTA 6, Rockstar Games, Take-Two), with the id
+`auto-{day}-{strongest entity}`. Comment text is never read for events and never sent anywhere; requests
+contain entity names, counts and headlines only (`tests/test_events.py` checks it).
+
+**Explanation.** A provider chain (`EVENTS_LLM_PROVIDERS`, default `github,openai`; `none` = extractive only):
+
+1. **GitHub Models** (free, no secret): inside Actions `https://models.github.ai/inference/chat/completions`
+   with the job token (`GITHUB_TOKEN`, `permissions: models: read` in `analyze.yml` and `events.yml`), model
+   `EVENTS_GITHUB_MODEL` (repository variable, default `openai/gpt-4.1-mini`). Free tier limits (low tier
+   models): about 15 requests a minute and 150 a day, 8k input tokens per request. 6 candidates go into one
+   request, requests are 4.5 s apart, so a run needs 1–2 requests and the backfill below ~20.
+2. **Any OpenAI-compatible endpoint** (optional): repository variables `EVENTS_LLM_BASE_URL` (e.g.
+   `https://generativelanguage.googleapis.com/v1beta/openai`, `https://api.groq.com/openai/v1`) and
+   `EVENTS_LLM_MODEL`, secret `EVENTS_LLM_API_KEY`.
+3. **Extractive** (`generator.model = "extractive"`): spikes only, from the first headline that names the
+   entity (name or alias): title = the headline (shortened to 80 chars), description = "Viele Erwähnungen am
+   18. November rund um: „…“ (ComputerBase)."
+
+The prompt (German) asks for JSON only: per case the index of the headline that explains the jump or
+`null`, a title (≤ 8 words, neutral, no judgement) and one neutral sentence, using only facts from the
+headlines. The answer is validated strictly: known case id, index within the given headlines, title ≤ 80
+chars and ≤ 10 words that shares a word with the headlines or entity names, description 15–220 chars, no URLs
+(the event's `url` is always the chosen article's). Invalid or declined: a spike falls back to the extractive
+text (if a headline names the entity), a `rise`/`fall` gets no event. HTTP 401/403/404 or a daily quota
+(429 with a long `Retry-After`) drop the provider for the run; 429/5xx/timeouts are retried 3× with backoff,
+then the next provider is asked. All LLM calls of a run share `EVENTS_LLM_SECONDS`=240 s. Nothing in this step
+can fail the analysis run (errors are caught and logged as counts; `EVENTS=0` switches it off).
+
+**Writing.** Idempotent: an auto event of the same day that covers one of the entities keeps its id and is
+updated (only when its content changed); a model-written text whose headline is still among the evidence is
+kept without asking the model again, and an extractive text never replaces a model-written one. Events are
+not withdrawn when a later run no longer sees the jump.
+
+**Cost.** Detection: 0 reads. Per run with candidates: 1 query of the events around the days (~1 read per
+event), per candidate 1 day doc and up to 8 articles, new sources once: about 10 reads per candidate, ≤ 150
+reads and ≤ 12 writes per run (checked against the daily budget). The backfill reads the day docs that are
+no longer in `recentDays` for the entities that can have a candidate (estimate logged before).
+
+```bash
+python -m analysis events --since 2026-10-20 --dry-run   # log candidates, headlines, titles; threshold grid
+python -m analysis events --since 2026-10-20 [--until 2026-11-24]   # backfill
+```
+
+`events.yml` runs the same by hand (inputs `since`, `until`, `dry_run`; no models installed, ~1 min).
+
+## Curated events
 
 `data/events.yaml` (written by `seed`): 3 Nov 2026 US midterms; 30 Jan 2027 Bundesversammlung
 (date set by Bundestagspräsidentin Klöckner); 18 Apr 2027 Landtagswahlen Saarland and
@@ -815,6 +894,7 @@ analysis/
   analyze.py     comments → mentions (pure, no I/O)
   aggregate.py   day docs, deltas, rolling windows, trending (pure)
   budget.py      daily Firestore budget (meta/budget)
+  events.py      automatic events: detection, headline evidence, LLM explanation, writing
   pipeline.py    Firestore orchestration: run, relink, rescore, reaggregate, seed (resumable jobs)
 data/            entities.yaml (curated), entities_generated.yaml (Wikidata), wikidata_cache/, events.yaml
 scripts/         generate_entities.py, eval_linking.py, resolve_wikidata.py, eval_sentiment.py

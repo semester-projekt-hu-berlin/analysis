@@ -1,4 +1,4 @@
-"""CLI: python -m analysis {run,reaggregate,seed}."""
+"""CLI: python -m analysis {run,reaggregate,seed,events,...}."""
 
 from __future__ import annotations
 
@@ -9,6 +9,15 @@ import os
 import sys
 
 from .sentiment import DEFAULT_SENTIMENT
+
+
+def _day(s: str) -> str:
+    from datetime import date
+
+    try:
+        return date.fromisoformat(s).isoformat()
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"not a day (YYYY-MM-DD): {s!r}") from None
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -49,6 +58,10 @@ def main(argv: list[str] | None = None) -> int:
     pr.add_argument("--ids-file", help="file with one entity id per line")
     pr.add_argument("--add", default="", help="comma-separated entity ids whose mentions may be added")
     pr.add_argument("--queue", action="store_true", help="only register the job; `run` continues it")
+    ev = sub.add_parser("events", help="detect automatic events for a range of days (backfill)")
+    ev.add_argument("--since", type=_day, help="first day (YYYY-MM-DD); default: yesterday")
+    ev.add_argument("--until", type=_day, help="last day (YYYY-MM-DD); default: today")
+    ev.add_argument("--dry-run", action="store_true", help="detect and explain, but write no events")
     sub.add_parser("seed-requests", help="validate accepted entity_requests via Wikidata and seed them")
     s = sub.add_parser("seed", help="write curated entities and events")
     s.add_argument("--no-images", action="store_true")
@@ -114,6 +127,14 @@ def main(argv: list[str] | None = None) -> int:
             out = prune(fs, ids, add_ids=add)
     elif args.cmd == "rescore":
         out = rescore(fs, sentiment_key=args.sentiment)
+    elif args.cmd == "events":
+        from datetime import date, timedelta
+
+        from .events import backfill
+        from .textutil import today_berlin
+
+        since = args.since or (date.fromisoformat(today_berlin()) - timedelta(days=1)).isoformat()
+        out = backfill(fs, since, args.until, dry_run=args.dry_run)
     elif args.cmd == "reaggregate":
         out = reaggregate_since(fs, args.since) if args.since else reaggregate(fs)
     else:

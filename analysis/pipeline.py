@@ -374,6 +374,11 @@ def run(
         out, entity_docs = _run(
             fs, budget, limit, batch, ner_backend, sentiment_key, use_wikidata, max_wikidata_lookups, agg_every
         )
+        if entity_docs is not None:
+            # automatic events of yesterday and today from the aggregates in memory (never raises)
+            from .events import run_events
+
+            out["events"] = run_events(fs, entity_docs, budget)
         if out.get("backlogDone") and not out.get("stopped"):
             # backlog cleared: spend what is left of today's budget on unfinished one-off jobs
             out["jobs"] = continue_jobs(
