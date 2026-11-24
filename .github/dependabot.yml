@@ -13,6 +13,8 @@ updates:
     directory: /
     schedule:
       interval: monthly
+    # bump exact pins (==) only; lower bounds (>=) stay as they are
+    versioning-strategy: increase-if-necessary
     groups:
       python:
         patterns: ["*"]
