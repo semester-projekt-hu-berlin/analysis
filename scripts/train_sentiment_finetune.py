@@ -40,7 +40,7 @@ from eval_protocol import CLASSES, grouped_folds, macro_f1  # noqa: E402
 from analysis.analyze import MAX_WINDOWS_PER_MENTION, mention_window  # noqa: E402
 from analysis.finetune import delta, model_dir, round_half, sha256, split  # noqa: E402
 from analysis.linker import Match, Registry  # noqa: E402
-from analysis.sentiment import FT_META, NLI_MODELS, combine, to_label  # noqa: E402
+from analysis.sentiment import FT_META, NLI_MODELS, REVISIONS, combine, to_label  # noqa: E402
 from analysis.textutil import clean_text, split_sentences  # noqa: E402
 
 LABELS = ROOT / "eval" / "labels.csv"
@@ -54,6 +54,7 @@ MODELS_URL = "https://raw.githubusercontent.com/semester-projekt-hu-berlin/analy
 CONFIG = {
     "version": 3,
     "baseModel": NLI_MODELS["nli"],
+    "baseRevision": REVISIONS[NLI_MODELS["nli"]],
     "hypothesis": "Der Kommentar äußert sich positiv über {name}.",
     "window": "target",
     "maxLength": 192,
@@ -83,11 +84,13 @@ def load_texts(comment_ids: set[str]) -> dict:
     return texts
 
 
-def load_pairs(path: Path = LABELS, reg: Registry | None = None) -> list[dict]:
+def load_pairs(path: Path = LABELS, reg: Registry | None = None, texts: dict | None = None) -> list[dict]:
     """Labelled (comment, entity) pairs with the windows the pipeline would build for them:
-    `clause` (calibrated model) and `windows` (fine-tuned model, up to 3 per pair)."""
+    `clause` (calibrated model) and `windows` (fine-tuned model, up to 3 per pair). `texts`
+    (comment id -> {"text", "source"}) is read from the local cache when not given."""
     rows = [r for r in csv.DictReader(path.open(encoding="utf-8")) if r.get("linkOk", "1") != "0"]
-    texts = load_texts({r["mentionId"].rsplit("_", 1)[0] for r in rows})
+    if texts is None:
+        texts = load_texts({r["mentionId"].rsplit("_", 1)[0] for r in rows})
     reg = reg or Registry.from_yaml()
     out = []
     for r in rows:
@@ -133,7 +136,7 @@ class Trainer:
         from transformers import AutoTokenizer
 
         self.torch, self.cfg = torch, cfg
-        self.tok = AutoTokenizer.from_pretrained(cfg["baseModel"])
+        self.tok = AutoTokenizer.from_pretrained(cfg["baseModel"], revision=cfg.get("baseRevision"))
 
     def encode(self, batch: list[tuple[str, str]]):
         return self.tok(
@@ -148,7 +151,9 @@ class Trainer:
     def new_model(self):
         from transformers import AutoModelForSequenceClassification
 
-        model = AutoModelForSequenceClassification.from_pretrained(self.cfg["baseModel"])
+        model = AutoModelForSequenceClassification.from_pretrained(
+            self.cfg["baseModel"], revision=self.cfg.get("baseRevision")
+        )
         self.revision = getattr(model.config, "_commit_hash", None)
         labels = {i: lab.lower() for i, lab in model.config.id2label.items()}
         ent = next(i for i, lab in labels.items() if lab.startswith("entail"))
