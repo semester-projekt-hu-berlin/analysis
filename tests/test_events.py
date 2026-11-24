@@ -364,12 +364,13 @@ def test_run_events_never_raises(world, monkeypatch):
 
 def test_providers_from_env(monkeypatch):
     assert ev.providers_from_env() == []
-    monkeypatch.setenv("GITHUB_TOKEN", "t")
+    monkeypatch.setenv("GITHUB_TOKEN", "t")  # GitHub Models is retired: the job token is never used
+    assert ev.providers_from_env() == []
     monkeypatch.setenv("EVENTS_LLM_BASE_URL", "https://llm.example/v1")
     monkeypatch.setenv("EVENTS_LLM_API_KEY", "k")
     ps = ev.providers_from_env()
-    assert [(p.name, p.model) for p in ps] == [("github", "openai/gpt-4.1-mini"), ("openai", "gpt-4o-mini")]
-    assert "api_key" not in repr(ps[0])  # the token never ends up in a log line
+    assert [(p.name, p.model) for p in ps] == [("openai", "gpt-4o-mini")]
+    assert "api_key" not in repr(ps[0])  # the key never ends up in a log line
     monkeypatch.setenv("EVENTS_LLM_PROVIDERS", "none")
     assert ev.providers_from_env() == []
 

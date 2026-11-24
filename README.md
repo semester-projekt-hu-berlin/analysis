@@ -308,7 +308,7 @@ The default pipeline is entirely open-source and free. The HU LLM offer is not u
 * Commenter user names are never read: comments are fetched with a field mask
   (`articleId, sourceId, text, publishedAt, crawledAt, day, analysisVersion`); the crawler does
   not store author fields at all.
-* Automatic events are explained from public headlines only; no comment text is sent to an LLM.
+* Automatic events are explained from public headlines only; no comment text is sent to an LLM or logged.
 * Comment text stays inside the pipeline process. `mentions` store only the matched surface
   span (≤ 80 chars, e.g. "Kanzler Merz"); logs contain counts only. The evaluation gold file
   stores mention ids + labels, never text (`eval/sample.local.jsonl` with text is git-ignored).
@@ -837,19 +837,20 @@ that share their top headline become **one** event (GTA 6, Rockstar Games, Take-
 `auto-{day}-{strongest entity}`. Comment text is never read for events and never sent anywhere; requests
 contain entity names, counts and headlines only (`tests/test_events.py` checks it).
 
-**Explanation.** A provider chain (`EVENTS_LLM_PROVIDERS`, default `github,openai`; `none` = extractive only):
+**Explanation.** Two ways, chosen by env:
 
-1. **GitHub Models** (free, no secret): inside Actions `https://models.github.ai/inference/chat/completions`
-   with the job token (`GITHUB_TOKEN`, `permissions: models: read` in `analyze.yml` and `events.yml`), model
-   `EVENTS_GITHUB_MODEL` (repository variable, default `openai/gpt-4.1-mini`). Free tier limits (low tier
-   models): about 15 requests a minute and 150 a day, 8k input tokens per request. 6 candidates go into one
-   request, requests are 4.5 s apart, so a run needs 1–2 requests and the backfill below ~20.
-2. **Any OpenAI-compatible endpoint** (optional): repository variables `EVENTS_LLM_BASE_URL` (e.g.
-   `https://generativelanguage.googleapis.com/v1beta/openai`, `https://api.groq.com/openai/v1`) and
-   `EVENTS_LLM_MODEL`, secret `EVENTS_LLM_API_KEY`.
-3. **Extractive** (`generator.model = "extractive"`): spikes only, from the first headline that names the
-   entity (name or alias): title = the headline (shortened to 80 chars), description = "Viele Erwähnungen am
-   18. November rund um: „…“ (ComputerBase)."
+* **An LLM** behind any OpenAI-compatible chat completions endpoint: repository variables
+  `EVENTS_LLM_BASE_URL` and `EVENTS_LLM_MODEL`, secret `EVENTS_LLM_API_KEY` (passed to `analyze.yml` and
+  `events.yml`). Free options: Google Gemini (`https://generativelanguage.googleapis.com/v1beta/openai`,
+  model e.g. `gemini-2.5-flash-lite`, key from AI Studio), Groq (`https://api.groq.com/openai/v1`, e.g.
+  `llama-3.3-70b-versatile`), or the HU's LLM service if it offers an OpenAI-compatible API. 6 candidates go
+  into one request, 2 s apart: a run needs 1–2 requests, the backfill below ~15. `EVENTS_LLM_PROVIDERS=none`
+  switches it off. GitHub Models, the free endpoint with the job token that this was first built for, was
+  retired on 30 Jul 2026 (it answers every request with a plain `OK`; seen in the runs of 24 Nov), so
+  nothing is configured by default.
+* **Extractive** (`generator.model = "extractive"`): spikes only, from the first headline that names the
+  entity (name or alias): title = the headline (shortened to 80 chars), description = "Viele Erwähnungen am
+  18. November rund um: „…“ (ComputerBase)."
 
 The prompt (German) asks for JSON only: per case the index of the headline that explains the jump or
 `null`, a title (≤ 8 words, neutral, no judgement) and one neutral sentence, using only facts from the
@@ -857,8 +858,8 @@ headlines. The answer is validated strictly: known case id, index within the giv
 chars and ≤ 10 words that shares a word with the headlines or entity names, description 15–220 chars, no URLs
 (the event's `url` is always the chosen article's). Invalid or declined: a spike falls back to the extractive
 text (if a headline names the entity), a `rise`/`fall` gets no event. HTTP 401/403/404 or a daily quota
-(429 with a long `Retry-After`) drop the provider for the run; 429/5xx/timeouts are retried 3× with backoff,
-then the next provider is asked. All LLM calls of a run share `EVENTS_LLM_SECONDS`=240 s. Nothing in this step
+(429 with a long `Retry-After`) drop the provider for the run; 429/5xx/timeouts are retried 3× with backoff
+(two failed requests in a row also drop it), and the batch falls back as above. All LLM calls of a run share `EVENTS_LLM_SECONDS`=240 s. Nothing in this step
 can fail the analysis run (errors are caught and logged as counts; `EVENTS=0` switches it off).
 
 **Writing.** Idempotent: an auto event of the same day that covers one of the entities keeps its id and is

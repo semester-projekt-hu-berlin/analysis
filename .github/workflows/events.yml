@@ -32,11 +32,10 @@ jobs:
     permissions:
       contents: read
       id-token: write # GitHub OIDC token, only used for keyless auth (see analyze.yml and the README)
-      models: read # GitHub Models
     env:
       FIREBASE_SERVICE_ACCOUNT: ${{ (vars.GCP_WIF_PROVIDER == '' || vars.GCP_SERVICE_ACCOUNT == '') && secrets.FIREBASE_SERVICE_ACCOUNT || '' }}
       ANALYSIS_TIME_BUDGET_MIN: "25"
-      EVENTS_LLM_SECONDS: "900" # a backfill needs more LLM requests than a run (free tier: 15 a minute)
+      EVENTS_LLM_SECONDS: "900" # a backfill needs more LLM requests than a run
       PYTHONUNBUFFERED: "1"
     steps:
       - name: Record the job start (time budget)
@@ -74,8 +73,6 @@ jobs:
           SINCE: ${{ inputs.since }}
           UNTIL: ${{ inputs.until }}
           DRY_RUN: ${{ inputs.dry_run }}
-          GITHUB_TOKEN: ${{ github.token }}
-          EVENTS_GITHUB_MODEL: ${{ vars.EVENTS_GITHUB_MODEL }}
           EVENTS_LLM_BASE_URL: ${{ vars.EVENTS_LLM_BASE_URL }}
           EVENTS_LLM_MODEL: ${{ vars.EVENTS_LLM_MODEL }}
           EVENTS_LLM_API_KEY: ${{ secrets.EVENTS_LLM_API_KEY }}

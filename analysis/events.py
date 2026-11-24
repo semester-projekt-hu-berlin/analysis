@@ -12,8 +12,8 @@ community texts) is checked for
 
 The evidence of a candidate are the **headlines** of the articles with the most mentions that
 day (`entities/{id}/days/{day}.topArticles` -> `articles/{id}` title, url, source). Comment text is
-never read here and never leaves the process. A free LLM (GitHub Models inside Actions, or any
-OpenAI-compatible endpoint) picks the headline that explains the jump and writes a short neutral
+never read here and never leaves the process. An LLM (any OpenAI-compatible
+endpoint with a free key, e.g. Gemini or Groq) picks the headline that explains the jump and writes a short neutral
 German title and sentence from it; without one (or when it declines) a spike gets an extractive
 title, the headline itself. Candidates of one day that share their top headline become one event.
 
@@ -47,7 +47,6 @@ TITLE_MAX = 80
 DESCRIPTION_MAX = 220
 ENTITY_FIELDS = ["name", "type", "description", "aliases", "allowlisted", "recentDays", "mentions"]
 ARTICLE_FIELDS = ["url", "title", "sourceId", "sourceType"]
-GITHUB_MODELS_URL = "https://models.github.ai/inference"
 MONTHS = (
     "Januar",
     "Februar",
@@ -501,7 +500,7 @@ def requests_transport(url: str, headers: dict, body: dict, timeout: float) -> t
 
 @dataclass
 class ChatProvider:
-    """An OpenAI-compatible chat completions endpoint (GitHub Models is one)."""
+    """An OpenAI-compatible chat completions endpoint."""
 
     name: str
     base_url: str
@@ -518,9 +517,6 @@ class ChatProvider:
     def complete(self, messages: list[dict], max_tokens: int = 1500) -> str:
         url = self.base_url.rstrip("/") + "/chat/completions"
         headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
-        if self.name == "github":
-            headers["Accept"] = "application/vnd.github+json"
-            headers["X-GitHub-Api-Version"] = "2022-11-28"
         last = "no attempt"
         for attempt in range(self.retries):
             body: dict = {"model": self.model, "messages": messages, "temperature": 0.1, "max_tokens": max_tokens}
@@ -597,37 +593,18 @@ def _error_text(text: str) -> str:
 
 
 def providers_from_env(transport: Transport | None = None) -> list[ChatProvider]:
-    """Provider chain from env: EVENTS_LLM_PROVIDERS (default "github,openai"; "none" = extractive only).
+    """The LLM from env: any OpenAI-compatible chat completions endpoint, EVENTS_LLM_BASE_URL +
+    EVENTS_LLM_API_KEY (+ EVENTS_LLM_MODEL). None configured (or EVENTS_LLM_PROVIDERS=none): extractive only.
 
-    * github: GitHub Models with GITHUB_TOKEN (Actions: `permissions: models: read`), model
-      EVENTS_GITHUB_MODEL (default openai/gpt-4.1-mini);
-    * openai: any OpenAI-compatible endpoint, EVENTS_LLM_BASE_URL + EVENTS_LLM_API_KEY + EVENTS_LLM_MODEL."""
-    out: list[ChatProvider] = []
+    (GitHub Models, the free endpoint inside Actions, was retired on 30 Jul 2026 and now answers
+    every request with a plain "OK".)"""
+    if _env("EVENTS_LLM_PROVIDERS", "openai").strip().lower() in ("none", "off", "0"):
+        return []
+    url, key = os.environ.get("EVENTS_LLM_BASE_URL"), os.environ.get("EVENTS_LLM_API_KEY")
+    if not (url and key):
+        return []
     kw = {"transport": transport} if transport else {}
-    for name in _env("EVENTS_LLM_PROVIDERS", "github,openai").split(","):
-        name = name.strip().lower()
-        if name == "github" and os.environ.get("GITHUB_TOKEN"):
-            out.append(
-                ChatProvider(
-                    "github",
-                    _env("EVENTS_GITHUB_MODELS_URL", GITHUB_MODELS_URL),
-                    os.environ["GITHUB_TOKEN"],
-                    _env("EVENTS_GITHUB_MODEL", "openai/gpt-4.1-mini"),
-                    min_interval=4.5,  # free tier: 15 requests per minute
-                    **kw,
-                )
-            )
-        elif name == "openai" and os.environ.get("EVENTS_LLM_BASE_URL") and os.environ.get("EVENTS_LLM_API_KEY"):
-            out.append(
-                ChatProvider(
-                    "openai",
-                    os.environ["EVENTS_LLM_BASE_URL"],
-                    os.environ["EVENTS_LLM_API_KEY"],
-                    _env("EVENTS_LLM_MODEL", "gpt-4o-mini"),
-                    **kw,
-                )
-            )
-    return out
+    return [ChatProvider("openai", url, key, _env("EVENTS_LLM_MODEL", "gpt-4o-mini"), min_interval=2.0, **kw)]
 
 
 SYSTEM_PROMPT = """Du erklärst auffällige Ausschläge in einer Statistik: wie oft Personen, Parteien, \

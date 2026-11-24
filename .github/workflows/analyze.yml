@@ -106,7 +106,6 @@ jobs:
     permissions:
       contents: read
       id-token: write # GitHub OIDC token, only used for keyless auth (see below)
-      models: read # GitHub Models: short explanations of automatic events (analysis/events.py)
     env:
       # the key would take precedence over the keyless credentials, so it is left out when they are set
       FIREBASE_SERVICE_ACCOUNT: ${{ (vars.GCP_WIF_PROVIDER == '' || vars.GCP_SERVICE_ACCOUNT == '') && secrets.FIREBASE_SERVICE_ACCOUNT || '' }}
@@ -183,14 +182,12 @@ jobs:
           key: wikidata-${{ github.run_id }}
           restore-keys: wikidata-
 
-      # the run ends with the automatic events of yesterday and today (README, "Automatic events"):
-      # GitHub Models with the job token (models: read), optionally another OpenAI-compatible endpoint
+      # the run ends with the automatic events of yesterday and today (README, "Automatic events"),
+      # explained by an OpenAI-compatible LLM when the variables and the secret below are set
       - name: Analyze
         env:
           LIMIT: ${{ inputs.limit || '9000' }}
           NER: ${{ inputs.ner || 'bert' }}
-          GITHUB_TOKEN: ${{ github.token }}
-          EVENTS_GITHUB_MODEL: ${{ vars.EVENTS_GITHUB_MODEL }}
           EVENTS_LLM_BASE_URL: ${{ vars.EVENTS_LLM_BASE_URL }}
           EVENTS_LLM_MODEL: ${{ vars.EVENTS_LLM_MODEL }}
           EVENTS_LLM_API_KEY: ${{ secrets.EVENTS_LLM_API_KEY }}
