@@ -428,6 +428,8 @@ cross-validation over comments, 95 % CI 0.52–0.60; per class F1 pos 0.41, neu 
 against 0.49 for the calibrated model before it. The mean score matches the mean of the labels
 (bias −0.03); the model before (sent-cal@2) was +0.25 too positive, so absolute averages and
 `baseline7d` drop by about that much after the switch.
+The article headline as extra input (24 Nov 2026) did not measurably help (+0.011, paired CI
+−0.02 to +0.04) and is not used.
 
 **Limitations.** A single label is often wrong; only aggregates over many mentions are
 meaningful. Neutral mentions are under-detected and often scored as negative, and sarcasm is

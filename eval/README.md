@@ -336,6 +336,67 @@ records sent-ft@3 in `meta/analysis.sentiment` and queues a `rescore` of the exi
 Firestore budget (README). Until it is done, days not yet rescored keep their sent-cal@2 scores,
 which are about 0.25 more positive; the 7-day windows are converted first.
 
+## Headline as context (24 Nov 2026): not better, not shipped
+
+**Question.** Does the fine-tuned model judge the stance better when it also reads the
+article's headline? Expected gain: short comments that refer to the article ("Endlich!") and
+irony; risk: the model copies the headline's tone instead of the commenter's stance.
+
+**Protocol** (`scripts/eval_sentiment_context.py`, workflow `eval-context.yml`, manual): exactly
+that of sent-ft@3 above: all 1,021 pairs, 5 folds over comments with fold seed 0, the same
+settings (4 epochs, lr 3e-5, batch 16, class weights^0.5, max. 192 tokens) and the same seed
+per fold, base model at the pinned revision, 95 % cluster bootstrap over comments and paired
+bootstrap against `base`. Only the premise changes; one GitHub Actions job per fold trains all
+variants (about 35–40 min per variant and fold on 4 vCPUs). Texts and headlines are read into
+memory only (1,022 reads per fold job, recorded in `meta/budget`); the logs hold aggregates
+only, and the per-pair fold results passed to the report job are encrypted.
+
+* `base`: the window as in sent-ft@3 (sanity check)
+* `title`: "Artikel: {headline} | Kommentar: {window}" (headline cut at 200 characters)
+* `title-short`: the same, only for windows of fewer than 12 words (95 of the 1,021 pairs)
+
+1,014 of the 1,021 pairs have a headline. With the headline, 19 windows (instead of 14) reach
+the 192-token limit and lose their end.
+
+| variant | macro-F1 (95 % CI) | difference to `base` (paired 95 % CI; draws <= 0) | F1 pos / neu / neg | accuracy |
+|---|---|---|---|---|
+| `base` (sent-ft@3) | 0.554 (0.515 to 0.592) | – | 0.400 / 0.570 / 0.692 | 0.619 |
+| `title` | 0.565 (0.524 to 0.602) | +0.011 (-0.021 to +0.041; 24 %) | 0.427 / 0.572 / 0.696 | 0.624 |
+| `title-short` | 0.552 (0.512 to 0.589) | -0.003 (-0.032 to +0.025; 58 %) | 0.413 / 0.556 / 0.685 | 0.610 |
+
+`base` reproduces sent-ft@3 (0.557 then; per fold 0.570 / 0.586 / 0.527 / 0.560 / 0.512 against
+0.565 / 0.597 / 0.523 / 0.560 / 0.523: other CPU and library versions).
+
+| | `base` | `title` | `title-short` |
+|---|---|---|---|
+| per fold | 0.570, 0.586, 0.527, 0.560, 0.512 | 0.554, 0.621, 0.484, 0.594, 0.566 | 0.567, 0.595, 0.507, 0.570, 0.511 |
+| labels changed against `base` (now right / now wrong / wrong both) | | 180 (79 / 74 / 27) | 151 (62 / 71 / 18) |
+| short windows (< 12 words, n = 95) | 0.429 | 0.441 | 0.391 |
+| long windows (n = 926) | 0.567 | 0.578 | 0.568 |
+| bias of the mean score | -0.033 | +0.002 | -0.010 |
+| r of the score per mention | 0.398 | 0.390 | 0.390 |
+| entity means, 54 entities: r / MAE | 0.860 / 0.161 | 0.858 / 0.145 | 0.826 / 0.175 |
+| entity-level r, difference to `base` (paired 95 % CI) | | -0.094 to +0.085 | -0.106 to +0.064 |
+| source means, 11 sources: r / MAE | 0.552 / 0.126 | 0.535 / 0.118 | 0.600 / 0.115 |
+
+By source (macro-F1 `base` / `title`): derstandard (351) 0.601 / 0.608, blick (160) 0.548 /
+0.502, taz (145) 0.409 / 0.462, Bluesky (106) 0.636 / 0.569, Tichys Einblick (52) 0.392 /
+0.376, mastodon (36) 0.410 / 0.444. (The labelled comments carry no `sourceType`; the run grouped
+them all as "unknown", so the source rows stand in for news vs. social: the two social sources
+together do not improve.)
+
+**Decision: production stays on sent-ft@3.** The rule was: ship only if macro-F1 improves with a
+paired 95 % interval above 0, or, if marginal, clearly better per class and at the entity level
+without a regression beyond noise. `title` gains +0.011, well inside the noise (interval -0.021
+to +0.041, a quarter of the draws at or below 0); per class only pos improves (+0.027, the
+smallest class: 109 pairs), the entity-level correlation does not (0.858 vs. 0.860), two of
+five folds get worse (-0.016, -0.043), the labels it changes are right and wrong about equally
+often (79 vs. 74), and the short comments it was meant to help move by +0.012 on 95 pairs.
+`title-short` is no better than `base`. The headline would also cost about 18 % more
+training and inference time and one article read per article in the rescore. A larger gold
+set (especially positive pairs and short comments) would be needed to measure an effect of
+this size.
+
 ## Limitations
 
 * The best free CPU method reaches only **≈ 0.49 macro-F1** on stance toward the entity. Single labels are often wrong. The aggregates over many mentions (daily

@@ -56,6 +56,8 @@ SHORT_WORDS = 12  # a window of fewer words is "short"
 TITLE_CHARS = 200
 POLARITY = {"pos": 1.0, "neu": 0.0, "neg": -1.0}
 KEY_INFO = b"meinungspuls eval-context v1"
+# the labelled comments carry no sourceType: social posts are told apart by their source
+SOCIAL = {"bluesky", "bluesky_jetstream", "mastodon"}
 
 
 def premise(window: str, title: str, variant: str) -> str:
@@ -166,7 +168,7 @@ def cmd_fold(args) -> None:
     for p in gold:
         t = texts[p["comment"]]
         p["title"] = titles.get(t["article"], "")
-        p["sourceType"] = t["sourceType"] or "unknown"
+        p["sourceType"] = t["sourceType"] or ("social" if p["source"] in SOCIAL else "news")
     with_title = sum(1 for p in gold if p["title"])
     short = sum(1 for p in gold if len(p["windows"][0].split()) < SHORT_WORDS)
     print(
