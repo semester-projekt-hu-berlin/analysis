@@ -822,6 +822,13 @@ collection 21 Oct, so the first day with a baseline is 28 Oct). On the 59 entiti
 delta 0.20: 54, delta 0.30: 38), e.g. GTA 6 on 28 Oct (27 vs 2.7 a day), Nvidia 9 Nov (165 vs 13), Xi Jinping
 19 Nov (121 vs 9.9), Tino Chrupalla 21 Nov (56 vs 5.2), Katherina Reiche falling on 22 Nov (−0.31). A delta of
 0.25 is about 3 standard errors of a day's mean at 20 mentions (scores have an SD of ~0.45 per day).
+Dry run over all 2,200 active entities (`events.yml`, 24 Nov, 28 days with a baseline): 122 candidates
+(101 spikes, 9 rises, 12 falls), 4.4 a day; variants: spike ×4 → 101, spike min 40 → 83, delta 0.20 → 139
+(38 shifts), delta 0.30 → 111 (10 shifts), shift min 30 → 109. The 3-day rule removes 28, the daily cap 3,
+shared headlines merge 11 more: 80 events to explain, about 3 a day. The weaker spikes are still real news
+(AMD 25 vs 6.0 a day: "AMD Radeon werden im November erneut teurer"; Borussia Dortmund 26 vs 5.1), so the
+defaults stay; fewer shifts would drop the cases this is most interesting for. The dry run cost 4,497 reads
+(2,200 active entity docs, ~1,000 older day docs, ~1,000 for the evidence) and no writes.
 
 **Evidence: headlines only.** For each candidate the day doc's `topArticles` (by mentions) is read, then the
 top articles (`url`, `title`, `sourceId`) and the source names. Social pseudo-articles (Mastodon, Bluesky day

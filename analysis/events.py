@@ -687,6 +687,7 @@ def explain(groups: list[Group], providers: list[ChatProvider], names: dict[str,
     stats = {"llmRequests": 0, "llmErrors": 0, "llm": 0, "declined": 0, "invalid": 0, "extractive": 0, "none": 0}
     deadline = time.time() + cfg.llm_seconds
     alive = list(providers)
+    failures: dict[str, int] = {}  # consecutive failed requests per provider
     todo = [g for g in groups if g.explanation is None]
     for i in range(0, len(todo), max(1, cfg.llm_batch)):
         batch = todo[i : i + cfg.llm_batch]
@@ -700,11 +701,13 @@ def explain(groups: list[Group], providers: list[ChatProvider], names: dict[str,
             try:
                 text = p.complete(build_request(batch, {k: v[0] for k, v in names.items() if v}))
                 answers, used = parse_results(text), p
+                failures[p.name] = 0
                 break
             except ProviderError as e:
                 stats["llmErrors"] += 1
+                failures[p.name] = failures.get(p.name, 0) + 1
                 log.warning("events: LLM provider %s failed: %s", p.name, e)
-                if e.fatal:
+                if e.fatal or failures[p.name] >= 2:  # do not ask a broken provider for every batch
                     alive.remove(p)
         for k, g in enumerate(batch):
             lead_names = [n for c in g.members for n in names.get(c.entity_id, [c.name])]
