@@ -8,7 +8,7 @@ protobuf==7.36.2
 segtok==1.5.11  # sentence splitting
 onnxruntime==1.32.0  # optional: the same models through ONNX Runtime (analysis/onnx_backend.py)
 onnx==1.23.2  # export of the models for ONNX Runtime
-google-auth==2.62.0
+google-auth==2.63.1
 requests==2.34.2
 PyYAML==6.0.4
 anthropic==2.14.0  # event explanations (analysis/events.py)
