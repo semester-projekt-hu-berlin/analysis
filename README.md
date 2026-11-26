@@ -878,7 +878,7 @@ contain entity names, counts and headlines only (`tests/test_events.py` checks i
 
 * **Claude** through the official Anthropic SDK (`anthropic` in `requirements.txt`): secret
   `EVENTS_LLM_API_KEY` = an Anthropic API key (passed to `analyze.yml` and `events.yml`), model
-  `claude-haiku-5-5` (repository variable `EVENTS_LLM_MODEL` overrides it). The request uses effort `low` and
+  `claude-haiku-5-5` (repository variable `EVENTS_LLM_MODEL` overrides it). The request uses effort `medium` (`low` picked a wrong headline now and then) and
   structured outputs (`output_config.format`, schema `RESULTS_SCHEMA`), so the answer is always parseable
   JSON of the right shape; no `temperature` (current models reject it). 6 candidates go into one request: a
   run needs 1–2 requests, the backfill of a month ~15, a few cents in all; `EVENTS_LLM_MAX_REQUESTS`=40 caps

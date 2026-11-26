@@ -523,7 +523,7 @@ class ClaudeProvider:
     name: str
     model: str
     client: Any = field(repr=False)  # anthropic.Anthropic, holds the key
-    effort: str = "low"  # choosing a headline and writing one sentence needs little thinking
+    effort: str = "medium"  # picking the right headline among five: low picked a wrong one now and then
     max_tokens: int = 8000  # adaptive thinking counts against it
     tokens: list[int] = field(default_factory=lambda: [0, 0])  # billed input, output tokens so far
 
@@ -875,6 +875,9 @@ def process(
                 "entityIds": g.entity_ids,
                 "kind": g.kind,
                 "title": doc["title"],
+                "headline": g.headlines[g.explanation["headline"]].title
+                if doc["url"] == g.headlines[g.explanation["headline"]].url
+                else None,
                 "model": doc["generator"]["model"],
                 "headlines": len(g.headlines),
                 "mentions": g.lead.mentions,
@@ -891,7 +894,7 @@ def process(
     writes += [Write(f"events/{i}", None) for i in [*deletes, *(g.event_id for g in withdrawn)]]
     for e in events:
         log.info(
-            "event %s %s %s (%d vs %.1f/day, %d headlines, %s): %s",
+            "event %s %s %s (%d vs %.1f/day, %d headlines, %s): %s <- %s",
             e["day"],
             ",".join(e["entityIds"]),
             e["kind"],
@@ -900,6 +903,7 @@ def process(
             e["headlines"],
             e["model"],
             e["title"],
+            e["headline"],
         )
     if dry_run:
         out["wouldWrite"] = len(writes)

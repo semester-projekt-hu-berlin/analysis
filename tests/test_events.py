@@ -442,7 +442,7 @@ def test_request_shape_and_unusable_answers():
     body = llm.requests[0]["body"]
     assert llm.requests[0]["url"].endswith("/v1/messages")
     assert body["model"] == "claude-haiku-5-5" and body["system"] == ev.SYSTEM_PROMPT and body["messages"] == user
-    assert body["output_config"] == {"effort": "low", "format": {"type": "json_schema", "schema": ev.RESULTS_SCHEMA}}
+    assert body["output_config"] == {"effort": "medium", "format": {"type": "json_schema", "schema": ev.RESULTS_SCHEMA}}
     assert "temperature" not in body  # rejected by current models
     for stop, msg in (("refusal", "declined"), ("max_tokens", "cut off")):
         with pytest.raises(ev.ProviderError, match=msg) as e:
