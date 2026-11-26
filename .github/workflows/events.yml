@@ -73,8 +73,8 @@ jobs:
           SINCE: ${{ inputs.since }}
           UNTIL: ${{ inputs.until }}
           DRY_RUN: ${{ inputs.dry_run }}
-          EVENTS_LLM_BASE_URL: ${{ vars.EVENTS_LLM_BASE_URL }}
-          EVENTS_LLM_MODEL: ${{ vars.EVENTS_LLM_MODEL }}
+          EVENTS_LLM_BASE_URL: ${{ vars.EVENTS_LLM_BASE_URL || (secrets.EVENTS_LLM_API_KEY && 'https://generativelanguage.googleapis.com/v1beta/openai' || '') }}
+          EVENTS_LLM_MODEL: ${{ vars.EVENTS_LLM_MODEL || 'gemini-2.5-flash-lite' }}
           EVENTS_LLM_API_KEY: ${{ secrets.EVENTS_LLM_API_KEY }}
         run: |
           args=(events --since "$SINCE")
