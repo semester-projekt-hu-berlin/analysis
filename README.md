@@ -881,8 +881,9 @@ contain entity names, counts and headlines only (`tests/test_events.py` checks i
   `claude-haiku-5-5` (repository variable `EVENTS_LLM_MODEL` overrides it). The request uses effort `low` and
   structured outputs (`output_config.format`, schema `RESULTS_SCHEMA`), so the answer is always parseable
   JSON of the right shape; no `temperature` (current models reject it). 6 candidates go into one request: a
-  run needs 1–2 requests, the backfill below ~15, a few cents in all. `EVENTS_LLM_PROVIDERS=none` switches it
-  off; without the secret nothing is asked. Before: GitHub Models (retired 30 Jul 2026, answers every
+  run needs 1–2 requests, the backfill of a month ~15, a few cents in all; `EVENTS_LLM_MAX_REQUESTS`=40 caps
+  the requests of one run, and the run log reports `inputTokens`/`outputTokens`. `EVENTS_LLM_PROVIDERS=none`
+  switches it off; without the secret nothing is asked. Before: GitHub Models (retired 30 Jul 2026, answers every
   request with a plain `OK`), then Gemini through its OpenAI-compatible endpoint (prepaid credit used up,
   HTTP 402, 26 Nov 2026).
 * **Extractive** (`generator.model = "extractive"`): spikes only, from the first headline that names the
@@ -891,10 +892,14 @@ contain entity names, counts and headlines only (`tests/test_events.py` checks i
 
 The prompt (German) asks for JSON only: per case the index of the headline that explains the jump or
 `null`, a title (≤ 8 words, neutral, no judgement) and one neutral sentence, using only facts from the
-headlines. The answer is validated strictly: known case id, index within the given headlines, title ≤ 80
+headlines. Only a concrete event explains a jump (something happened or became known: a decision, election,
+announcement, release, resignation, ruling, attack, outage, meeting, statement); headlines with background,
+advice, opinion, a portrait or a general debate only get `null` (`GENERATOR_VERSION` 2). The answer is validated strictly: known case id, index within the given headlines, title ≤ 80
 chars and ≤ 10 words that shares a word with the headlines or entity names, description 15–220 chars, no URLs
-(the event's `url` is always the chosen article's). Invalid or declined: a spike falls back to the extractive
-text (if a headline names the entity), a `rise`/`fall` gets no event. HTTP 400/401/402/403/404 (bad request,
+(the event's `url` is always the chosen article's). Declined: no event, not even an extractive one, and an
+auto event of that day that the model re-checked is withdrawn (deleted). Invalid, or no model answer at all
+(outage, cap): a spike falls back to the extractive text (if a headline names the entity), a `rise`/`fall`
+gets no event. HTTP 400/401/402/403/404 (bad request,
 key, credit, access, model) drop the provider for the run; 429/5xx/timeouts are retried 3× by the SDK with
 backoff (two failed requests in a row also drop it), a refusal or an answer cut off at `max_tokens` counts as a
 failed request, and the batch falls back as above. All LLM calls of a run share `EVENTS_LLM_SECONDS`=240 s. Nothing in this step
@@ -902,8 +907,9 @@ can fail the analysis run (errors are caught and logged as counts; `EVENTS=0` sw
 
 **Writing.** Idempotent: an auto event of the same day that covers one of the entities keeps its id and is
 updated (only when its content changed); a model-written text whose headline is still among the evidence is
-kept without asking the model again, and an extractive text never replaces a model-written one. Events are
-not withdrawn when a later run no longer sees the jump.
+kept without asking the model again (unless it was written under an older `GENERATOR_VERSION`), and an
+extractive text never replaces a model-written one. Events are not withdrawn when a later run no longer sees
+the jump, only when the model re-checks one and declines it (above).
 
 **Cost.** Detection: 0 reads. Per run with candidates: 1 query of the events around the days (~1 read per
 event), per candidate 1 day doc and up to 8 articles, new sources once: about 10 reads per candidate, ≤ 150

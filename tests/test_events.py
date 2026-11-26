@@ -349,6 +349,30 @@ def test_a_failing_provider_hands_over_to_the_next(world):
     assert fs.docs[f"events/auto-{TODAY}-gta-vi"]["title"] == "Release von GTA 6"
 
 
+def test_a_declined_event_is_withdrawn_and_gets_no_extractive_text(world):
+    fs, entity_docs = world
+    ev.process(fs, entity_docs, day(1), TODAY, cfg=CFG, providers=[provider(FakeLLM(gta_answer))])
+    key = f"events/auto-{TODAY}-gta-vi"
+    assert key in fs.docs
+    fs.docs[key]["generator"]["version"] = ev.GENERATOR_VERSION - 1  # written by an older prompt: asked again
+    decline = FakeLLM(lambda c: {"id": c["id"], "headline": None})
+    out = ev.process(fs, entity_docs, day(1), TODAY, cfg=CFG, providers=[provider(decline)])
+    # the headline names GTA 6, but the model found no event in it: no extractive text, the old one is gone
+    assert out["withdrawn"] == 1 and key not in fs.docs
+    assert not [k for k in fs.docs if k.startswith("events/auto-")]
+    assert "events/2000-curated" in fs.docs  # curated events are never touched
+
+
+def test_request_cap_and_token_counts(world):
+    fs, entity_docs = world
+    llm = FakeLLM(gta_answer)
+    cfg = replace(CFG, llm_batch=1, llm_max_requests=1)
+    out = ev.process(fs, entity_docs, day(1), TODAY, cfg=cfg, providers=[provider(llm)])
+    assert len(llm.requests) == 1 and out["llm"]["llmRequests"] == 1
+    assert out["llm"]["inputTokens"] == 1 and out["llm"]["outputTokens"] == 1
+    assert ev.Config().llm_max_requests >= 20  # a month of backfill fits, a runaway loop does not
+
+
 def test_spike_declined_without_entity_in_headline_gives_no_event(world):
     fs, entity_docs = world
     fs.docs["articles/a1"]["title"] = "Agenturmeldung zum Wochenende ohne Namen"

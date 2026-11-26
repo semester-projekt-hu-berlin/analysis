@@ -40,7 +40,7 @@ from .textutil import today_berlin
 
 log = logging.getLogger(__name__)
 
-GENERATOR_VERSION = 1
+GENERATOR_VERSION = 2
 EXTRACTIVE = "extractive"
 KINDS = ("spike", "rise", "fall")
 TITLE_MAX = 80
@@ -92,6 +92,7 @@ class Config:
     headlines: int = 5
     llm_batch: int = 6  # candidates per LLM request
     llm_seconds: float = 240.0  # all LLM calls of one run together
+    llm_max_requests: int = 40  # hard cap per run (cost); a run needs 1-2, the backfill of a month ~15
 
     @classmethod
     def from_env(cls) -> Config:
@@ -110,6 +111,7 @@ class Config:
             ("headlines", int),
             ("llm_batch", int),
             ("llm_seconds", float),
+            ("llm_max_requests", int),
         ):
             setattr(c, f, typ(_env_num(f"EVENTS_{f.upper()}", getattr(c, f))))
         c.data_since = _env("EVENTS_DATA_SINCE", c.data_since)
@@ -523,6 +525,7 @@ class ClaudeProvider:
     client: Any = field(repr=False)  # anthropic.Anthropic, holds the key
     effort: str = "low"  # choosing a headline and writing one sentence needs little thinking
     max_tokens: int = 8000  # adaptive thinking counts against it
+    tokens: list[int] = field(default_factory=lambda: [0, 0])  # billed input, output tokens so far
 
     def complete(self, system: str, messages: list[dict]) -> str:
         import anthropic
@@ -548,6 +551,8 @@ class ClaudeProvider:
             raise ProviderError(f"HTTP {e.status_code}: {_error_text(e)}") from None
         except anthropic.APIConnectionError as e:  # timeouts included
             raise ProviderError(type(e).__name__) from None
+        self.tokens[0] += r.usage.input_tokens
+        self.tokens[1] += r.usage.output_tokens
         if r.stop_reason == "refusal":
             raise ProviderError("the model declined the request")
         if r.stop_reason == "max_tokens":
@@ -591,9 +596,13 @@ meistkommentierten Artikel zu dieser Entität.
 Regeln:
 - Wähle die Schlagzeile, die den Ausschlag erklärt, und gib ihren Index an. Betrifft keine \
 Schlagzeile die Entität erkennbar, gib "headline": null und leere title und description.
+- Erkläre nur mit einem konkreten Ereignis: etwas, das an diesem Tag oder kurz davor passiert oder \
+bekannt geworden ist (z. B. Entscheidung, Wahl, Ankündigung, Veröffentlichung, Rücktritt, Urteil, \
+Anschlag, Störung, Treffen, Äußerung). Beschreiben die Schlagzeilen zur Entität nur Hintergrund, \
+Ratgeber, Meinung, Kommentar, Porträt oder eine allgemeine Diskussion, gib ebenfalls "headline": null.
 - Verwende ausschließlich Fakten aus den Schlagzeilen, kein eigenes Wissen, keine Vermutungen.
-- title: Deutsch, höchstens 8 Wörter, sachlich und neutral, ohne Wertung, ohne Datum, ohne \
-Anführungszeichen, z. B. "Release von GTA 6".
+- title: Deutsch, höchstens 8 Wörter, nennt das Ereignis (was ist passiert), sachlich und neutral, \
+ohne Wertung, ohne Datum, ohne Anführungszeichen, z. B. "Release von GTA 6".
 - description: genau ein neutraler deutscher Satz, höchstens 200 Zeichen, ohne Wertung, ohne URL; \
 bei rise/fall beschreibe nur das Ereignis, nicht die Stimmung der Kommentare.
 - Antworte nur mit JSON: {"results": [{"id": "...", "headline": 0, "title": "...", "description": "..."}]}"""
@@ -636,6 +645,7 @@ def parse_results(text: str) -> dict[str, dict]:
 def explain(groups: list[Group], providers: list[ClaudeProvider], names: dict[str, list[str]], cfg: Config) -> dict:
     """Fill `g.explanation` ({title, description, headline, model}) for each group; returns counts."""
     stats = {"llmRequests": 0, "llmErrors": 0, "llm": 0, "declined": 0, "invalid": 0, "extractive": 0, "none": 0}
+    tokens0 = [list(p.tokens) for p in providers]
     deadline = time.time() + cfg.llm_seconds
     alive = list(providers)
     failures: dict[str, int] = {}  # consecutive failed requests per provider
@@ -647,6 +657,9 @@ def explain(groups: list[Group], providers: list[ClaudeProvider], names: dict[st
         for p in list(alive):
             if time.time() > deadline:
                 log.warning("events: LLM time budget used up, the rest is extractive")
+                break
+            if stats["llmRequests"] >= cfg.llm_max_requests:
+                log.warning("events: %d LLM requests in this run (cap), the rest is extractive", cfg.llm_max_requests)
                 break
             stats["llmRequests"] += 1
             try:
@@ -667,8 +680,12 @@ def explain(groups: list[Group], providers: list[ClaudeProvider], names: dict[st
                 item = answers.get(f"c{k}")
                 res = validate(item, [h.title for h in g.headlines], lead_names) if item is not None else None
                 if res == "decline":
+                    # the model read the headlines and found no event: no extractive text either, and an
+                    # existing auto event of this day is withdrawn (process)
                     stats["declined"] += 1
-                elif res is None:
+                    g.status = "declined"
+                    continue
+                if res is None:
                     stats["invalid"] += 1
                 else:
                     idx, title, desc = res
@@ -676,8 +693,8 @@ def explain(groups: list[Group], providers: list[ClaudeProvider], names: dict[st
                     g.status = "llm"
                     stats["llm"] += 1
                     continue
-            # extractive fallback: spikes only, and only from a headline that names the entity; a
-            # sentiment shift is never explained without a model, nor when the model declined it
+            # extractive fallback (no model answer, or an invalid one): spikes only, and only from a headline
+            # that names the entity; a sentiment shift is never explained without a model
             if g.kind == "spike":
                 ex = extractive(g, lead_names)
                 if ex is not None:
@@ -686,6 +703,8 @@ def explain(groups: list[Group], providers: list[ClaudeProvider], names: dict[st
                     continue
             g.status = "none"
             stats["none"] += 1
+    stats["inputTokens"] = sum(p.tokens[0] - t[0] for p, t in zip(providers, tokens0, strict=True))
+    stats["outputTokens"] = sum(p.tokens[1] - t[1] for p, t in zip(providers, tokens0, strict=True))
     return stats
 
 
@@ -864,7 +883,12 @@ def process(
         )
         if not _same(g.existing, doc):
             writes.append(Write(f"events/{g.event_id}", doc))
-    writes += [Write(f"events/{i}", None) for i in deletes]
+    # an auto event the model re-checked and declined is withdrawn (never a curated one: those are not matched)
+    withdrawn = [g for g in groups if g.status == "declined" and g.existing is not None]
+    for g in withdrawn:
+        log.info("event withdrawn %s %s: the model found no event in the headlines", g.day, g.event_id)
+    out["withdrawn"] = len(withdrawn)
+    writes += [Write(f"events/{i}", None) for i in [*deletes, *(g.event_id for g in withdrawn)]]
     for e in events:
         log.info(
             "event %s %s %s (%d vs %.1f/day, %d headlines, %s): %s",
