@@ -4,6 +4,8 @@ import json
 from dataclasses import replace
 from datetime import date, timedelta
 
+import anthropic
+import httpx2
 import pytest
 
 from analysis import events as ev
@@ -142,20 +144,34 @@ def test_clean_and_shorten_headlines():
 
 
 class FakeLLM:
-    """Records the requests; answers with `answer(cases)` or an HTTP status."""
+    """The Messages API behind the real SDK client: records the requests, answers with `answer(case)`, an
+    HTTP status or another stop reason."""
 
-    def __init__(self, answer=None, status=200):
+    def __init__(self, answer=None, status=200, stop_reason="end_turn"):
         self.requests: list[dict] = []
         self.answer = answer
         self.status = status
+        self.stop_reason = stop_reason
 
-    def __call__(self, url, headers, body, timeout):
-        self.requests.append({"url": url, "headers": headers, "body": json.loads(json.dumps(body))})
+    def __call__(self, request: httpx2.Request) -> httpx2.Response:
+        body = json.loads(request.content)
+        self.requests.append({"url": str(request.url), "headers": dict(request.headers), "body": body})
         if self.status != 200:
-            return self.status, {}, json.dumps({"error": {"message": "models permission required"}})
-        cases = json.loads(body["messages"][1]["content"])["cases"]
-        content = json.dumps({"results": [self.answer(c) for c in cases]}, ensure_ascii=False)
-        return 200, {}, json.dumps({"choices": [{"message": {"content": content}}]})
+            err = {"type": "error", "error": {"type": "permission_error", "message": "no access to this model"}}
+            return httpx2.Response(self.status, json=err, headers={"retry-after-ms": "1"})
+        cases = json.loads(body["messages"][0]["content"])["cases"]
+        text = json.dumps({"results": [self.answer(c) for c in cases]}, ensure_ascii=False)
+        msg = {
+            "id": "msg_test",
+            "type": "message",
+            "role": "assistant",
+            "model": body["model"],
+            "content": [{"type": "text", "text": text}],
+            "stop_reason": self.stop_reason,
+            "stop_sequence": None,
+            "usage": {"input_tokens": 1, "output_tokens": 1},
+        }
+        return httpx2.Response(200, json=msg)
 
 
 def gta_answer(case):
@@ -170,10 +186,9 @@ def gta_answer(case):
     }
 
 
-def provider(llm, name="github"):
-    return ev.ChatProvider(
-        name, "https://models.example/inference", "tok", "openai/gpt-4.1-mini", transport=llm, sleep=lambda s: None
-    )
+def provider(llm, name="claude"):
+    http = anthropic.DefaultHttpxClient(transport=httpx2.MockTransport(llm))
+    return ev.ClaudeProvider(name, ev.DEFAULT_MODEL, anthropic.Anthropic(api_key="tok", http_client=http))
 
 
 @pytest.fixture
@@ -239,7 +254,7 @@ def test_events_end_to_end(world):
     assert e["source"] == "auto" and e["kind"] == "spike"
     assert e["title"] == "Release von GTA 6" and e["description"] == "Laut ComputerBase ist GTA 6 erschienen."
     assert e["url"] == "https://cb.example/gta6" and e["sourceName"] == "ComputerBase"
-    assert e["generator"] == {"model": "openai/gpt-4.1-mini", "version": ev.GENERATOR_VERSION}
+    assert e["generator"] == {"model": "claude-haiku-5-5", "version": ev.GENERATOR_VERSION}
     assert e["stats"]["gta-vi"] == {
         "mentions": 80,
         "mentionsBefore": 5.0,
@@ -250,7 +265,7 @@ def test_events_end_to_end(world):
     assert e["createdAt"] == e["updatedAt"]
     assert out["skipped"]["curated"] == 1 and out["llm"]["declined"] == 1
     # the social pseudo-article is never a headline; the suffix of the source is removed
-    cases = json.loads(llm.requests[0]["body"]["messages"][1]["content"])["cases"]
+    cases = json.loads(llm.requests[0]["body"]["messages"][0]["content"])["cases"]
     gta = next(c for c in cases if c["entities"][0] == "GTA 6")
     assert [h["title"] for h in gta["headlines"]] == [
         "GTA 6 ist da: Rockstar startet den Verkauf",
@@ -278,13 +293,13 @@ def test_rerun_is_idempotent_and_keeps_the_explanation(world):
     assert {k: v for k, v in fs.docs.items() if k.startswith("events/")} == before
     assert fs.writes == w0 and out["llm"]["kept"] == 1
     # only the declined Merz case is asked again, the GTA explanation is kept
-    cases = [c for r in llm.requests[n_req:] for c in json.loads(r["body"]["messages"][1]["content"])["cases"]]
+    cases = [c for r in llm.requests[n_req:] for c in json.loads(r["body"]["messages"][0]["content"])["cases"]]
     assert [c["entities"] for c in cases] == [["Friedrich Merz"]]
     # an extractive run (no LLM) never overwrites the model's text, but updates the numbers
     entity_docs["gta-vi"]["recentDays"][TODAY]["mentions"] = 90
     ev.process(fs, entity_docs, day(1), TODAY, cfg=CFG, providers=[])
     e = fs.docs[f"events/auto-{TODAY}-gta-vi"]
-    assert e["title"] == "Release von GTA 6" and e["generator"]["model"] == "openai/gpt-4.1-mini"
+    assert e["title"] == "Release von GTA 6" and e["generator"]["model"] == "claude-haiku-5-5"
     assert (
         e["stats"]["gta-vi"]["mentions"] == 90 and e["createdAt"] == before[f"events/auto-{TODAY}-gta-vi"]["createdAt"]
     )
@@ -329,7 +344,7 @@ def test_invalid_llm_output_falls_back_and_chain_continues(world):
 def test_a_failing_provider_hands_over_to_the_next(world):
     fs, entity_docs = world
     first, second = FakeLLM(status=500), FakeLLM(gta_answer)
-    ev.process(fs, entity_docs, day(1), TODAY, cfg=CFG, providers=[provider(first), provider(second, "openai")])
+    ev.process(fs, entity_docs, day(1), TODAY, cfg=CFG, providers=[provider(first), provider(second, "second")])
     assert len(first.requests) == 3 and second.requests  # 3 attempts with backoff, then the next provider
     assert fs.docs[f"events/auto-{TODAY}-gta-vi"]["title"] == "Release von GTA 6"
 
@@ -366,11 +381,12 @@ def test_providers_from_env(monkeypatch):
     assert ev.providers_from_env() == []
     monkeypatch.setenv("GITHUB_TOKEN", "t")  # GitHub Models is retired: the job token is never used
     assert ev.providers_from_env() == []
-    monkeypatch.setenv("EVENTS_LLM_BASE_URL", "https://llm.example/v1")
-    monkeypatch.setenv("EVENTS_LLM_API_KEY", "k")
+    monkeypatch.setenv("EVENTS_LLM_API_KEY", "sk-ant-test-key")
     ps = ev.providers_from_env()
-    assert [(p.name, p.model) for p in ps] == [("openai", "gpt-4o-mini")]
-    assert "api_key" not in repr(ps[0])  # the key never ends up in a log line
+    assert [(p.name, p.model) for p in ps] == [("claude", "claude-haiku-5-5")]
+    assert "sk-ant-test-key" not in repr(ps[0])  # the key never ends up in a log line
+    monkeypatch.setenv("EVENTS_LLM_MODEL", "claude-sonnet-5-5")
+    assert ev.providers_from_env()[0].model == "claude-sonnet-5-5"
     monkeypatch.setenv("EVENTS_LLM_PROVIDERS", "none")
     assert ev.providers_from_env() == []
 
@@ -395,11 +411,19 @@ def test_run_reports_events(fs):
     assert out["events"]["candidates"] == 0  # a handful of mentions is never an event
 
 
-def test_stream_and_unexpected_responses():
-    chunks = [{"choices": [{"delta": {"content": '{"results": '}}]}, {"choices": [{"delta": {"content": "[]}"}}]}]
-    sse = "".join(f"data: {json.dumps(c)}\n\n" for c in chunks) + "data: [DONE]\n"
-    assert ev._content(sse) == '{"results": []}'
-    plain = (200, {"Content-Type": "text/plain"}, "OK")
-    p = ev.ChatProvider("x", "https://m.example", "tok", "m", transport=lambda *a: plain)
-    with pytest.raises(ev.ProviderError, match="text/plain, 2 bytes: 'OK'"):
-        p.complete([])
+def test_request_shape_and_unusable_answers():
+    llm = FakeLLM(gta_answer)
+    user = [{"role": "user", "content": json.dumps({"cases": []})}]
+    assert json.loads(provider(llm).complete(ev.SYSTEM_PROMPT, user)) == {"results": []}
+    body = llm.requests[0]["body"]
+    assert llm.requests[0]["url"].endswith("/v1/messages")
+    assert body["model"] == "claude-haiku-5-5" and body["system"] == ev.SYSTEM_PROMPT and body["messages"] == user
+    assert body["output_config"] == {"effort": "low", "format": {"type": "json_schema", "schema": ev.RESULTS_SCHEMA}}
+    assert "temperature" not in body  # rejected by current models
+    for stop, msg in (("refusal", "declined"), ("max_tokens", "cut off")):
+        with pytest.raises(ev.ProviderError, match=msg) as e:
+            provider(FakeLLM(gta_answer, stop_reason=stop)).complete(ev.SYSTEM_PROMPT, user)
+        assert not e.value.fatal
+    with pytest.raises(ev.ProviderError, match="HTTP 402: no access to this model") as e:
+        provider(FakeLLM(status=402)).complete(ev.SYSTEM_PROMPT, user)
+    assert e.value.fatal  # no credit left: not asked again in this run

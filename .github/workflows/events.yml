@@ -64,8 +64,8 @@ jobs:
         with:
           python-version: "3.12"
 
-      # no models needed: only the Firestore client
-      - run: pip install google-auth requests PyYAML
+      # no models needed: only the Firestore client and the Anthropic SDK
+      - run: pip install google-auth requests PyYAML anthropic
 
       # dispatch inputs reach the shell as environment variables, never as interpolated script text
       - name: Events
@@ -73,9 +73,8 @@ jobs:
           SINCE: ${{ inputs.since }}
           UNTIL: ${{ inputs.until }}
           DRY_RUN: ${{ inputs.dry_run }}
-          EVENTS_LLM_BASE_URL: ${{ vars.EVENTS_LLM_BASE_URL || (secrets.EVENTS_LLM_API_KEY && 'https://generativelanguage.googleapis.com/v1beta/openai' || '') }}
-          EVENTS_LLM_MODEL: ${{ vars.EVENTS_LLM_MODEL || 'gemini-2.5-flash-lite' }}
-          EVENTS_LLM_API_KEY: ${{ secrets.EVENTS_LLM_API_KEY }}
+          EVENTS_LLM_MODEL: ${{ vars.EVENTS_LLM_MODEL }} # empty: claude-haiku-5-5
+          EVENTS_LLM_API_KEY: ${{ secrets.EVENTS_LLM_API_KEY }} # Anthropic API key
         run: |
           args=(events --since "$SINCE")
           if [ -n "$UNTIL" ]; then args+=(--until "$UNTIL"); fi

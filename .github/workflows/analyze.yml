@@ -183,14 +183,13 @@ jobs:
           restore-keys: wikidata-
 
       # the run ends with the automatic events of yesterday and today (README, "Automatic events"),
-      # explained by an OpenAI-compatible LLM when the variables and the secret below are set
+      # explained by Claude when the secret EVENTS_LLM_API_KEY is set
       - name: Analyze
         env:
           LIMIT: ${{ inputs.limit || '9000' }}
           NER: ${{ inputs.ner || 'bert' }}
-          EVENTS_LLM_BASE_URL: ${{ vars.EVENTS_LLM_BASE_URL || (secrets.EVENTS_LLM_API_KEY && 'https://generativelanguage.googleapis.com/v1beta/openai' || '') }}
-          EVENTS_LLM_MODEL: ${{ vars.EVENTS_LLM_MODEL || 'gemini-2.5-flash-lite' }}
-          EVENTS_LLM_API_KEY: ${{ secrets.EVENTS_LLM_API_KEY }}
+          EVENTS_LLM_MODEL: ${{ vars.EVENTS_LLM_MODEL }} # empty: claude-haiku-5-5
+          EVENTS_LLM_API_KEY: ${{ secrets.EVENTS_LLM_API_KEY }} # Anthropic API key
         run: python -m analysis run --limit "$LIMIT" --ner "$NER"
 
       - name: Reaggregate

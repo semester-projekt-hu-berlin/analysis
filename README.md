@@ -876,15 +876,15 @@ contain entity names, counts and headlines only (`tests/test_events.py` checks i
 
 **Explanation.** Two ways, chosen by env:
 
-* **An LLM** behind any OpenAI-compatible chat completions endpoint: repository variables
-  `EVENTS_LLM_BASE_URL` and `EVENTS_LLM_MODEL`, secret `EVENTS_LLM_API_KEY` (passed to `analyze.yml` and
-  `events.yml`). Free options: Google Gemini (`https://generativelanguage.googleapis.com/v1beta/openai`,
-  model e.g. `gemini-2.5-flash-lite`, key from AI Studio), Groq (`https://api.groq.com/openai/v1`, e.g.
-  `llama-3.3-70b-versatile`), or the HU's LLM service if it offers an OpenAI-compatible API. 6 candidates go
-  into one request, 2 s apart: a run needs 1–2 requests, the backfill below ~15. `EVENTS_LLM_PROVIDERS=none`
-  switches it off. GitHub Models, the free endpoint with the job token that this was first built for, was
-  retired on 30 Jul 2026 (it answers every request with a plain `OK`; seen in the runs of 24 Nov), so
-  nothing is configured by default.
+* **Claude** through the official Anthropic SDK (`anthropic` in `requirements.txt`): secret
+  `EVENTS_LLM_API_KEY` = an Anthropic API key (passed to `analyze.yml` and `events.yml`), model
+  `claude-haiku-5-5` (repository variable `EVENTS_LLM_MODEL` overrides it). The request uses effort `low` and
+  structured outputs (`output_config.format`, schema `RESULTS_SCHEMA`), so the answer is always parseable
+  JSON of the right shape; no `temperature` (current models reject it). 6 candidates go into one request: a
+  run needs 1–2 requests, the backfill below ~15, a few cents in all. `EVENTS_LLM_PROVIDERS=none` switches it
+  off; without the secret nothing is asked. Before: GitHub Models (retired 30 Jul 2026, answers every
+  request with a plain `OK`), then Gemini through its OpenAI-compatible endpoint (prepaid credit used up,
+  HTTP 402, 26 Nov 2026).
 * **Extractive** (`generator.model = "extractive"`): spikes only, from the first headline that names the
   entity (name or alias): title = the headline (shortened to 80 chars), description = "Viele Erwähnungen am
   18. November rund um: „…“ (ComputerBase)."
@@ -894,9 +894,10 @@ The prompt (German) asks for JSON only: per case the index of the headline that 
 headlines. The answer is validated strictly: known case id, index within the given headlines, title ≤ 80
 chars and ≤ 10 words that shares a word with the headlines or entity names, description 15–220 chars, no URLs
 (the event's `url` is always the chosen article's). Invalid or declined: a spike falls back to the extractive
-text (if a headline names the entity), a `rise`/`fall` gets no event. HTTP 401/403/404 or a daily quota
-(429 with a long `Retry-After`) drop the provider for the run; 429/5xx/timeouts are retried 3× with backoff
-(two failed requests in a row also drop it), and the batch falls back as above. All LLM calls of a run share `EVENTS_LLM_SECONDS`=240 s. Nothing in this step
+text (if a headline names the entity), a `rise`/`fall` gets no event. HTTP 400/401/402/403/404 (bad request,
+key, credit, access, model) drop the provider for the run; 429/5xx/timeouts are retried 3× by the SDK with
+backoff (two failed requests in a row also drop it), a refusal or an answer cut off at `max_tokens` counts as a
+failed request, and the batch falls back as above. All LLM calls of a run share `EVENTS_LLM_SECONDS`=240 s. Nothing in this step
 can fail the analysis run (errors are caught and logged as counts; `EVENTS=0` switches it off).
 
 **Writing.** Idempotent: an auto event of the same day that covers one of the entities keeps its id and is

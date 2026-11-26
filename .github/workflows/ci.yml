@@ -29,7 +29,7 @@ jobs:
           cache: pip
           cache-dependency-path: requirements-dev.txt
       # Tests use fake NER/sentiment models, so torch/flair are not needed here.
-      - run: pip install -r requirements-dev.txt google-auth requests PyYAML segtok
+      - run: pip install -r requirements-dev.txt google-auth requests PyYAML segtok anthropic
       - run: ruff check .
       - run: ruff format --check .
       - run: pytest -q

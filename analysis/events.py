@@ -12,8 +12,8 @@ community texts) is checked for
 
 The evidence of a candidate are the **headlines** of the articles with the most mentions that
 day (`entities/{id}/days/{day}.topArticles` -> `articles/{id}` title, url, source). Comment text is
-never read here and never leaves the process. An LLM (any OpenAI-compatible
-endpoint with a free key, e.g. Gemini or Groq) picks the headline that explains the jump and writes a short neutral
+never read here and never leaves the process. Claude (Haiku 5.5 through the Anthropic SDK, key in
+EVENTS_LLM_API_KEY) picks the headline that explains the jump and writes a short neutral
 German title and sentence from it; without one (or when it declines) a spike gets an extractive
 title, the headline itself. Candidates of one day that share their top headline become one event.
 
@@ -30,9 +30,9 @@ import math
 import os
 import re
 import time
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
+from typing import Any
 
 from . import timebudget
 from .firestore import Write
@@ -488,123 +488,97 @@ class ProviderError(Exception):
         self.fatal = fatal  # do not use this provider again in this run
 
 
-Transport = Callable[[str, dict, dict, float], tuple[int, dict, str]]
+DEFAULT_MODEL = "claude-haiku-5-5"
 
-
-def requests_transport(url: str, headers: dict, body: dict, timeout: float) -> tuple[int, dict, str]:
-    import requests
-
-    r = requests.post(url, headers=headers, json=body, timeout=timeout)
-    return r.status_code, dict(r.headers), r.text
+# The shape of the answer, enforced by the API (structured outputs); validate() still checks every item.
+RESULTS_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "results": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string"},
+                    "headline": {"anyOf": [{"type": "integer"}, {"type": "null"}]},
+                    "title": {"type": "string"},
+                    "description": {"type": "string"},
+                },
+                "required": ["id", "headline", "title", "description"],
+                "additionalProperties": False,
+            },
+        }
+    },
+    "required": ["results"],
+    "additionalProperties": False,
+}
 
 
 @dataclass
-class ChatProvider:
-    """An OpenAI-compatible chat completions endpoint."""
+class ClaudeProvider:
+    """Claude through the Anthropic SDK, which itself retries 429, 5xx and connection errors."""
 
     name: str
-    base_url: str
-    api_key: str = field(repr=False)
     model: str
-    transport: Transport = requests_transport
-    timeout: float = 45.0
-    retries: int = 3
-    json_mode: bool = True
-    sleep: Callable[[float], None] = time.sleep
-    min_interval: float = 0.0  # seconds between requests (rate limits)
-    _last: float = 0.0
+    client: Any = field(repr=False)  # anthropic.Anthropic, holds the key
+    effort: str = "low"  # choosing a headline and writing one sentence needs little thinking
+    max_tokens: int = 8000  # adaptive thinking counts against it
 
-    def complete(self, messages: list[dict], max_tokens: int = 1500) -> str:
-        url = self.base_url.rstrip("/") + "/chat/completions"
-        headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
-        last = "no attempt"
-        for attempt in range(self.retries):
-            body: dict = {"model": self.model, "messages": messages, "temperature": 0.1, "max_tokens": max_tokens}
-            if self.json_mode:
-                body["response_format"] = {"type": "json_object"}
-            wait = self.min_interval - (time.time() - self._last)
-            if wait > 0:
-                self.sleep(wait)
-            self._last = time.time()
-            try:
-                status, rh, text = self.transport(url, headers, body, self.timeout)
-            except Exception as e:  # timeouts, connection errors
-                last = type(e).__name__
-                self.sleep(2.0 * 2**attempt)
-                continue
-            if status == 200:
-                try:
-                    return _content(text)
-                except (ValueError, KeyError, IndexError, TypeError) as e:
-                    ctype = next((v for k, v in (rh or {}).items() if k.lower() == "content-type"), "?")
-                    # the body of a model endpoint, never our request: safe to show its start
-                    head = " ".join(text[:100].split())
-                    raise ProviderError(
-                        f"unexpected response ({type(e).__name__}, {ctype}, {len(text)} bytes: {head!r})"
-                    ) from None
-            last = f"HTTP {status}: {_error_text(text)}"
-            if status in (401, 403, 404):
-                raise ProviderError(last, fatal=True)
-            if status == 400 and self.json_mode and "response_format" in text:
-                self.json_mode = False  # model without JSON mode: the prompt asks for JSON anyway
-                continue
-            if status == 429 or status >= 500:
-                retry_after = _retry_after(rh)
-                if status == 429 and retry_after > 90:  # daily quota: give up for this run
-                    raise ProviderError(f"{last} (retry after {retry_after:.0f} s)", fatal=True)
-                self.sleep(retry_after or 3.0 * 2**attempt)
-                continue
-            raise ProviderError(last)
-        raise ProviderError(f"gave up after {self.retries} attempts ({last})")
+    def complete(self, system: str, messages: list[dict]) -> str:
+        import anthropic
+
+        try:
+            r = self.client.messages.create(
+                model=self.model,
+                max_tokens=self.max_tokens,
+                system=system,
+                messages=messages,
+                output_config={"effort": self.effort, "format": {"type": "json_schema", "schema": RESULTS_SCHEMA}},
+            )
+        except (
+            anthropic.AuthenticationError,
+            anthropic.PermissionDeniedError,
+            anthropic.PaymentRequiredError,
+            anthropic.NotFoundError,
+            anthropic.BadRequestError,
+        ) as e:
+            # wrong key, no access to the model, no credit left, a request the API rejects: same for every batch
+            raise ProviderError(f"HTTP {e.status_code}: {_error_text(e)}", fatal=True) from None
+        except anthropic.APIStatusError as e:  # 429, 5xx: still failing after the SDK's retries
+            raise ProviderError(f"HTTP {e.status_code}: {_error_text(e)}") from None
+        except anthropic.APIConnectionError as e:  # timeouts included
+            raise ProviderError(type(e).__name__) from None
+        if r.stop_reason == "refusal":
+            raise ProviderError("the model declined the request")
+        if r.stop_reason == "max_tokens":
+            raise ProviderError(f"answer cut off at max_tokens={self.max_tokens}")
+        return "".join(b.text for b in r.content if b.type == "text")
 
 
-def _content(text: str) -> str:
-    """The message of a chat completion; also accepts a server-sent event stream of chunks."""
-    text = text.lstrip("\ufeff").strip()
-    if text.startswith("data:"):
-        parts = []
-        for line in text.splitlines():
-            line = line.strip()
-            if line.startswith("data:") and line[5:].strip() not in ("", "[DONE]"):
-                ch = json.loads(line[5:])["choices"]
-                if ch:
-                    parts.append((ch[0].get("delta") or ch[0].get("message") or {}).get("content") or "")
-        return "".join(parts)
-    return json.loads(text)["choices"][0]["message"]["content"] or ""
-
-
-def _retry_after(headers: dict) -> float:
-    for k, v in (headers or {}).items():
-        if k.lower() in ("retry-after", "x-ratelimit-reset-after"):
-            try:
-                return float(v)
-            except (TypeError, ValueError):
-                return 0.0
-    return 0.0
-
-
-def _error_text(text: str) -> str:
-    try:
-        err = json.loads(text).get("error")
-        msg = err.get("message") if isinstance(err, dict) else err
-    except (ValueError, AttributeError):
-        msg = text
+def _error_text(e: Exception) -> str:
+    """The API's error message (never our request)."""
+    body = getattr(e, "body", None)
+    err = body.get("error") if isinstance(body, dict) else None
+    msg = err.get("message") if isinstance(err, dict) else getattr(e, "message", str(e))
     return " ".join(str(msg or "").split())[:160]
 
 
-def providers_from_env(transport: Transport | None = None) -> list[ChatProvider]:
-    """The LLM from env: any OpenAI-compatible chat completions endpoint, EVENTS_LLM_BASE_URL +
-    EVENTS_LLM_API_KEY (+ EVENTS_LLM_MODEL). None configured (or EVENTS_LLM_PROVIDERS=none): extractive only.
+def providers_from_env(client: Any = None) -> list[ClaudeProvider]:
+    """The LLM from env: Claude with the key in EVENTS_LLM_API_KEY, model EVENTS_LLM_MODEL (default
+    claude-haiku-5-5). No key (or EVENTS_LLM_PROVIDERS=none): extractive only.
 
     (GitHub Models, the free endpoint inside Actions, was retired on 30 Jul 2026 and now answers
-    every request with a plain "OK".)"""
-    if _env("EVENTS_LLM_PROVIDERS", "openai").strip().lower() in ("none", "off", "0"):
+    every request with a plain "OK"; the Gemini endpoint after it ran out of prepaid credit.)"""
+    if _env("EVENTS_LLM_PROVIDERS", "claude").strip().lower() in ("none", "off", "0"):
         return []
-    url, key = os.environ.get("EVENTS_LLM_BASE_URL"), os.environ.get("EVENTS_LLM_API_KEY")
-    if not (url and key):
+    key = _env("EVENTS_LLM_API_KEY", "")
+    if not key:
         return []
-    kw = {"transport": transport} if transport else {}
-    return [ChatProvider("openai", url, key, _env("EVENTS_LLM_MODEL", "gpt-4o-mini"), min_interval=2.0, **kw)]
+    if client is None:
+        import anthropic
+
+        client = anthropic.Anthropic(api_key=key, timeout=60.0, max_retries=3)
+    return [ClaudeProvider("claude", _env("EVENTS_LLM_MODEL", DEFAULT_MODEL), client)]
 
 
 SYSTEM_PROMPT = """Du erklärst auffällige Ausschläge in einer Statistik: wie oft Personen, Parteien, \
@@ -616,7 +590,7 @@ meistkommentierten Artikel zu dieser Entität.
 
 Regeln:
 - Wähle die Schlagzeile, die den Ausschlag erklärt, und gib ihren Index an. Betrifft keine \
-Schlagzeile die Entität erkennbar, gib "headline": null.
+Schlagzeile die Entität erkennbar, gib "headline": null und leere title und description.
 - Verwende ausschließlich Fakten aus den Schlagzeilen, kein eigenes Wissen, keine Vermutungen.
 - title: Deutsch, höchstens 8 Wörter, sachlich und neutral, ohne Wertung, ohne Datum, ohne \
 Anführungszeichen, z. B. "Release von GTA 6".
@@ -626,7 +600,8 @@ bei rise/fall beschreibe nur das Ereignis, nicht die Stimmung der Kommentare.
 
 
 def build_request(groups: list[Group], names: dict[str, str]) -> list[dict]:
-    """Chat messages for a batch of groups. Contains entity names, numbers and headlines only."""
+    """The user message for a batch of groups (SYSTEM_PROMPT is the system prompt). Contains entity names,
+    numbers and headlines only."""
     cases = []
     for i, g in enumerate(groups):
         lead = g.lead
@@ -641,8 +616,7 @@ def build_request(groups: list[Group], names: dict[str, str]) -> list[dict]:
                 "headlines": [{"i": k, "title": h.title, "source": h.source_name} for k, h in enumerate(g.headlines)],
             }
         )
-    user = json.dumps({"cases": cases}, ensure_ascii=False)
-    return [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": user}]
+    return [{"role": "user", "content": json.dumps({"cases": cases}, ensure_ascii=False)}]
 
 
 def parse_results(text: str) -> dict[str, dict]:
@@ -659,7 +633,7 @@ def parse_results(text: str) -> dict[str, dict]:
     return {str(x.get("id")): x for x in items if isinstance(x, dict)}
 
 
-def explain(groups: list[Group], providers: list[ChatProvider], names: dict[str, list[str]], cfg: Config) -> dict:
+def explain(groups: list[Group], providers: list[ClaudeProvider], names: dict[str, list[str]], cfg: Config) -> dict:
     """Fill `g.explanation` ({title, description, headline, model}) for each group; returns counts."""
     stats = {"llmRequests": 0, "llmErrors": 0, "llm": 0, "declined": 0, "invalid": 0, "extractive": 0, "none": 0}
     deadline = time.time() + cfg.llm_seconds
@@ -676,7 +650,7 @@ def explain(groups: list[Group], providers: list[ChatProvider], names: dict[str,
                 break
             stats["llmRequests"] += 1
             try:
-                text = p.complete(build_request(batch, {k: v[0] for k, v in names.items() if v}))
+                text = p.complete(SYSTEM_PROMPT, build_request(batch, {k: v[0] for k, v in names.items() if v}))
                 answers, used = parse_results(text), p
                 failures[p.name] = 0
                 break
@@ -837,7 +811,7 @@ def process(
     cfg: Config | None = None,
     budget=None,
     dry_run: bool = False,
-    providers: list[ChatProvider] | None = None,
+    providers: list[ClaudeProvider] | None = None,
     older_days: dict[str, dict[str, dict]] | None = None,
     source_names: dict[str, str | None] | None = None,
     max_events: int | None = None,
