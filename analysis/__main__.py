@@ -58,6 +58,10 @@ def main(argv: list[str] | None = None) -> int:
     pr.add_argument("--ids-file", help="file with one entity id per line")
     pr.add_argument("--add", default="", help="comma-separated entity ids whose mentions may be added")
     pr.add_argument("--queue", action="store_true", help="only register the job; `run` continues it")
+    tb = sub.add_parser("topics-backfill", help="topic words for mentions analysed before they were extracted")
+    tb.add_argument("--days", type=int, default=7)
+    tb.add_argument("--ner", choices=["flair", "bert", "none"], default=os.environ.get("ANALYSIS_NER", "bert"))
+    tb.add_argument("--queue", action="store_true", help="only register the job; `run` continues it")
     ev = sub.add_parser("events", help="detect automatic events for a range of days (backfill)")
     ev.add_argument("--since", type=_day, help="first day (YYYY-MM-DD); default: yesterday")
     ev.add_argument("--until", type=_day, help="last day (YYYY-MM-DD); default: today")
@@ -127,6 +131,13 @@ def main(argv: list[str] | None = None) -> int:
             out = prune(fs, ids, add_ids=add)
     elif args.cmd == "rescore":
         out = rescore(fs, sentiment_key=args.sentiment)
+    elif args.cmd == "topics-backfill":
+        from .pipeline import queue_job, topics_backfill
+
+        if args.queue:
+            out = queue_job(fs, "topics", {"days": args.days})
+        else:
+            out = topics_backfill(fs, days=args.days, ner_backend=args.ner)
     elif args.cmd == "events":
         from datetime import date, timedelta
 

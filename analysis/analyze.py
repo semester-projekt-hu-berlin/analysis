@@ -1,7 +1,8 @@
 """Turn comments into (comment, entity) mentions: NER -> linking -> target sentiment.
 
 Pure with respect to Firestore: takes comment dicts, returns mention dicts. Comment
-text is only held in memory; mentions keep nothing but the matched surface span.
+text is only held in memory; mentions keep nothing but the matched surface span and single
+topic words (`terms`, analysis/topics.py).
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 
 from . import implicit as imp
+from . import topics as tp
 from .linker import Match, Registry, strip_titles
 from .sentiment import combine, target_window
 from .textutil import clean_text, day_key, split_sentences
@@ -97,6 +99,16 @@ def link_comment(
             matches.append(Match(a, b, strip_titles(surface), eid, via))
     matches.sort(key=lambda m: m.start)
     return matches
+
+
+def person_spans(sents: list[tuple[int, int]], ner_per_sentence: list[list]) -> list[tuple[int, int]]:
+    """Person spans of the NER (any score) in comment coordinates."""
+    return [
+        (s0 + a, s0 + b)
+        for (s0, _s1), spans in zip(sents, ner_per_sentence, strict=False)
+        for a, b, tag, _score in spans
+        if tag == "PER"
+    ]
 
 
 def mention_window(
@@ -261,7 +273,9 @@ def analyze_comments(
 
     windows: list[tuple[str, str]] = []  # (window text, target entity name)
     window_index: dict[tuple[str, str], int] = {}
-    drafts: list[tuple[dict, str, str, list[int], str | None]] = []  # comment, entity, surface, windows, via
+    # comment, entity, surface, windows, via, topic words
+    drafts: list[tuple[dict, str, str, list[int], str | None, list[str]]] = []
+    is_name = tp.name_check(registry)
 
     def add_window(w: tuple[str, str], idxs: list[int]) -> None:
         if w not in window_index:
@@ -270,23 +284,26 @@ def analyze_comments(
         if window_index[w] not in idxs:
             idxs.append(window_index[w])
 
-    for (c, text, sents, _o), matches in zip(prepared, linked, strict=True):
+    for (c, text, sents, offset), matches in zip(prepared, linked, strict=True):
         by_entity: dict[str, list[Match]] = {}
         for m in matches:
             by_entity.setdefault(m.entity_id, []).append(m)
+        # topic words never overlap a linked entity or a person name found by NER
+        exclude = [(m.start, m.end) for m in matches] + person_spans(sents, ner_out[offset : offset + len(sents)])
         for eid, ms in by_entity.items():
             idxs: list[int] = []
             for m in ms[:MAX_WINDOWS_PER_MENTION]:
                 w = mention_window(text, sents, m, matches, mode=getattr(sentiment, "window_mode", "clause"))
                 add_window((w, registry.entities[eid].name), idxs)
-            drafts.append((c, eid, ms[0].surface, idxs, None))
+            targets = [(m.start, m.end) for m in ms[:MAX_WINDOWS_PER_MENTION]]
+            drafts.append((c, eid, ms[0].surface, idxs, None, tp.mention_terms(text, sents, targets, exclude, is_name)))
         for x in implicit_of.get(c["id"], []):
             idxs = []
             parent = (implicit.parents.get(c.get("parentId") or "", "") if x.rule == "B" else "") if implicit else ""
             title = implicit.titles.get(c.get("articleId") or "", "") if implicit else ""
             premise = imp.premise(imp.window(text, x.start, x.end), title, clean_text(parent))
             add_window((premise, registry.entities[x.entity_id].name), idxs)
-            drafts.append((c, x.entity_id, text[x.start : x.end], idxs, x.via))
+            drafts.append((c, x.entity_id, text[x.start : x.end], idxs, x.via, []))
             stats.implicit[f"{x.rule}/{x.cue}"] += 1
     stats.link_seconds += time.time() - t
 
@@ -298,7 +315,7 @@ def analyze_comments(
     for c, eid, *_ in drafts:
         ents_of.setdefault(c["id"], set()).add(eid)
     out: dict[str, list[dict]] = {c["id"]: [] for c in comments}
-    for c, eid, surface, idxs, via in drafts:
+    for c, eid, surface, idxs, via, terms in drafts:
         label, score, conf = combine([scored[i] for i in idxs])
         published = c.get("publishedAt")
         day = c.get("day") or (day_key(published) if published else None)
@@ -317,6 +334,7 @@ def analyze_comments(
                 "score": max(-1.0, min(1.0, float(score))),
                 "confidence": max(0.0, min(1.0, float(conf))),
                 "coEntityIds": sorted(ents_of[c["id"]] - {eid}),
+                "terms": terms,
             }
         )
         if via:

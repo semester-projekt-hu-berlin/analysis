@@ -1,5 +1,6 @@
 """End-to-end pipeline on an in-memory Firestore: idempotency and privacy."""
 
+import re
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -92,14 +93,20 @@ def test_privacy_mentions_store_only_surface(fs):
                 "score",
                 "confidence",
                 "coEntityIds",
+                "terms",
             }
             assert len(d["surface"]) <= 40
-    # the private person never becomes an entity
+            # topic words: single words, never text (analysis/topics.py)
+            assert all(re.fullmatch(r"[^\W\d_]+(?:-[^\W\d_]+)*", t) and len(t) <= 40 for t in d["terms"])
+    # the private person never becomes an entity, nor a topic word
     assert not any("moesenbacher" in p for p in fs.docs)
     for p, d in fs.docs.items():
+        assert "Mösenbacher" not in str(d) or p.startswith("comments/")
         if p.startswith(("entities/", "meta/")):
-            assert "Mösenbacher" not in str(d)
-            assert "Katastrophe" not in str(d)
+            # single words of one comment stay in the internal per-day counts (`terms`, `recentTerms`);
+            # nothing below the publication thresholds reaches topics7d
+            public = {k: v for k, v in d.items() if k not in ("terms", "recentTerms")}
+            assert "Katastrophe" not in str(public)
 
 
 def test_rerun_is_idempotent(fs):

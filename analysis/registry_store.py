@@ -132,6 +132,8 @@ def needs_upkeep(d: dict) -> bool:
         or d.get("mentionsPrev7d")
         or d.get("communityRecentDays")
         or d.get("communityText7d")
+        or d.get("recentTerms")
+        or d.get("topics7d")
         or d.get("relative7d") is not None
         or any(d.get(k) is not None for k in PEER_FIELDS)
     )

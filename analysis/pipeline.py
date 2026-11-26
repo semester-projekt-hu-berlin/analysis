@@ -15,6 +15,7 @@ import yaml
 from . import aggregate as agg
 from . import implicit as imp
 from . import textindex, timebudget
+from . import topics as tp
 from .analyze import ImplicitInput, Stats, analyze_comments
 from .budget import Budget
 from .firestore import Doc, Firestore, Write
@@ -57,6 +58,7 @@ MENTION_FIELDS = [
     "score",
     "publishedAt",
     "coEntityIds",
+    "terms",
 ]
 PEER_FIELDS = ["rankInType", "peersInType", "percentileInType", "rankAll", "peersAll", "percentileAll"]
 ENTITY_STAT_FIELDS = [
@@ -72,6 +74,7 @@ ENTITY_STAT_FIELDS = [
     "avgSentimentPrev7d",
     "lastMentionAt",
     "recentDays",
+    "recentTerms",
     "updatedAt",
 ]
 ENTITY_READ_FIELDS = [
@@ -87,6 +90,7 @@ ENTITY_READ_FIELDS = [
     "relative7d",
     "communityRecentDays",
     "communityText7d",
+    "topics7d",
     *PEER_FIELDS,
 ]
 STATE_DOC = "meta/analysis"  # internal: (entity, day) pairs still to aggregate after an interrupted run
@@ -103,6 +107,7 @@ ZERO_STATS = {
     "avgSentimentPrev7d": None,
     "lastMentionAt": None,
     "recentDays": {},
+    "recentTerms": {},
 }
 
 
@@ -509,6 +514,7 @@ def _run(fs, budget, limit, batch, ner_backend, sentiment_key, use_wikidata, max
     sentiment = load_sentiment(sentiment_key)
     version = f"{ner.version}+{sentiment.version}+link@1"
     _note_sentiment(fs, state, sentiment_key, sentiment.version)
+    _note_topics(fs, state)
     wd = None
     if use_wikidata:
         from .wikidata import WikidataLinker
@@ -713,14 +719,19 @@ def _refreshed_today(fs: Firestore) -> bool:
 
 
 def aggregate_pairs(
-    fs: Firestore, pairs: set[tuple[str, str]], entity_docs: dict[str, dict], refresh: bool = True
+    fs: Firestore,
+    pairs: set[tuple[str, str]],
+    entity_docs: dict[str, dict],
+    refresh: bool = True,
+    preloaded: dict[tuple[str, str], list[dict]] | None = None,
 ) -> dict:
     """Recompute the day docs of the affected (entity, day) pairs from their mentions.
 
     Reads only the mentions of those pairs (query entityId == X AND day == D) and the old day
     docs; entity totals change by (new - old) in the same atomic commit as the day docs.
     Then slide rolling windows, rewrite trending and stats (skipped with refresh=False, for the
-    intermediate steps of long jobs).
+    intermediate steps of long jobs). `preloaded`: all mentions of some pairs, which the caller
+    has just read (with MENTION_FIELDS), so they are not queried again.
     """
     today = today_berlin()
     ensure_docs(fs, entity_docs, {e for e, _ in pairs}, ENTITY_READ_FIELDS)
@@ -730,12 +741,15 @@ def aggregate_pairs(
     new_docs: dict[tuple[str, str], dict] = {}
     community: dict[tuple[str, str], list[dict]] = {}
     for e, day in sorted(pairs):
-        mentions = [
-            x.data
-            for x in fs.query(
-                "mentions", where=[("entityId", "EQUAL", e), ("day", "EQUAL", day)], select=MENTION_FIELDS
-            )
-        ]
+        if preloaded is not None and (e, day) in preloaded:
+            mentions = list(preloaded[(e, day)])
+        else:
+            mentions = [
+                x.data
+                for x in fs.query(
+                    "mentions", where=[("entityId", "EQUAL", e), ("day", "EQUAL", day)], select=MENTION_FIELDS
+                )
+            ]
         comm = [m for m in mentions if agg.is_community(m)]
         if comm or _may_have_community_doc(entity_docs[e], day, today):
             community[(e, day)] = comm
@@ -877,6 +891,10 @@ def refresh_rolling(
         if cur != win or recent != (d.get("recentDays") or {}):
             d.update({**win, "recentDays": recent})
             pending.setdefault(eid, set()).update([*win, "recentDays"])
+        terms = tp.prune_terms(d.get("recentTerms") or {}, today)
+        if terms != (d.get("recentTerms") or {}):
+            d["recentTerms"] = terms
+            pending.setdefault(eid, set()).add("recentTerms")
     for eid, d in entity_docs.items():
         if d.get("communityRecentDays") or d.get("communityText7d"):
             rec = agg.prune_recent(d.get("communityRecentDays") or {}, today)
@@ -898,6 +916,14 @@ def refresh_rolling(
         if any(d.get(k) != want[k] for k in PEER_FIELDS) and (eid in ranks or any(k in d for k in PEER_FIELDS)):
             d.update(want)
             pending.setdefault(eid, set()).update(PEER_FIELDS)
+    # 4. topics of the last 7 days (analysis/topics.py), lift against all entities in memory
+    gcounts, gtotal = tp.global_terms(entity_docs, today)
+    canon = tp.canonical_map(gcounts)
+    for eid, d in entity_docs.items():
+        top = tp.topics(d, gcounts, gtotal, today, canon) if d.get("allowlisted") else []
+        if top != (d.get("topics7d") or []) and (top or "topics7d" in d):
+            d["topics7d"] = top
+            pending.setdefault(eid, set()).add("topics7d")
     for eid, fields in pending.items():
         upd = {f: entity_docs[eid].get(f) for f in fields}
         upd["updatedAt"] = ts
@@ -944,7 +970,7 @@ def refresh_rolling(
 
 JOB_AGG_PAIRS = 400  # long jobs aggregate their (entity, day) pairs in steps of this size
 # order matters: prune and relink need the entities that a queued seed creates
-JOB_NAMES = ("seed", "prune", "relink", "rescore", "reaggregate_since", "reaggregate")
+JOB_NAMES = ("seed", "prune", "relink", "rescore", "topics", "reaggregate_since", "reaggregate")
 
 
 def _jobs(fs: Firestore) -> dict:
@@ -1054,6 +1080,10 @@ def continue_jobs(
                 entity_docs=entity_docs,
                 leave_for_runs=True,
             )
+        elif name == "topics":
+            out[name] = topics_backfill(
+                fs, ner_backend=ner_backend, budget=budget, entity_docs=entity_docs, leave_for_runs=True
+            )
         elif name == "reaggregate_since":
             out[name] = reaggregate_since(fs, job["since"], budget=budget, entity_docs=entity_docs)
         else:
@@ -1082,6 +1112,224 @@ def _note_sentiment(fs: Firestore, state: Doc | None, key: str, version: str) ->
     log.warning("sentiment model changed from %s to %s: rescore of the existing mentions queued", cur, version)
     queue_job(fs, "rescore", {"sentiment": key, "from": today_berlin(), "replaces": cur})
     return True
+
+
+def _note_topics(fs: Firestore, state: Doc | None) -> bool:
+    """The first run that extracts topic words (meta/analysis.topics missing) queues a backfill of
+    the mentions of the last TOPICS_BACKFILL_DAYS days, so `topics7d` does not stay empty for a
+    week. A fresh database (no state doc) has no old mentions. Returns whether it queued one."""
+    if state is not None and state.data.get("topics"):
+        return False
+    mark = {"since": now(), "backfill": state is not None}
+    fs.commit([Write(STATE_DOC, {"topics": mark}, mask=["topics"])])
+    if state is None:
+        return False
+    log.warning("topic words: backfill of the last %d days queued", TOPICS_BACKFILL_DAYS)
+    queue_job(fs, "topics", {"days": TOPICS_BACKFILL_DAYS})
+    return True
+
+
+TOPICS_BACKFILL_DAYS = 7
+TOPICS_SAVE_EVERY = 10  # (entity, day) steps between two saves of the backfill cursor
+
+
+def _commit_terms(fs: Firestore, groups: list[list[Write]]) -> int:
+    """Commit the `terms` of mentions (each write requires the mention to exist). If a batch fails
+    (a mention deleted meanwhile, e.g. a stale coEntityIds entry), the writes are committed one by
+    one and the failing ones are skipped. Returns the number of writes committed."""
+    try:
+        fs.commit_groups(groups)
+        return sum(len(g) for g in groups)
+    except RuntimeError:
+        n = 0
+        for g in groups:
+            try:
+                fs.commit_atomic(g)
+                n += len(g)
+            except RuntimeError as e:
+                log.warning("topics backfill: %s not written: %s", g[0].path, str(e)[:200])
+        return n
+
+
+def topics_backfill(
+    fs: Firestore,
+    days: int = TOPICS_BACKFILL_DAYS,
+    ner_backend: str = "bert",
+    budget: Budget | None = None,
+    entity_docs: dict[str, dict] | None = None,
+    leave_for_runs: bool = False,
+) -> dict:
+    """Topic words (analysis/topics.py) for the mentions analysed before they were extracted.
+
+    Entity by entity, most mentions in the last `days` days first (only entities that can reach
+    topics.MIN_MENTIONS), and day by day: the mentions of one (entity, day) are read (query
+    entityId == X AND day == D), the comments of those without `terms` are read once, NER and the
+    gazetteer find the spans to leave out, and `terms` is written to the mention (masked, only
+    where there are terms) and to the mentions of the same comment for entities still to come,
+    so their comment is not read again. The day doc is then rebuilt from the mentions already in
+    memory. Mentions that have `terms` (also `[]`) are skipped, so a repeated step costs reads
+    only. Resumable (meta/analysis.jobs.topics: entity order, entity and day cursor); continued by
+    the regular run within the budget it leaves for the later runs of the day (`leave_for_runs`).
+    """
+    return _budgeted(fs, budget, _topics_backfill, days, ner_backend, entity_docs, leave_for_runs)
+
+
+def _topics_backfill(fs, budget, days, ner_backend, entity_docs=None, leave_for_runs=False) -> dict:
+    from .analyze import MIN_NER_CHARS, link_comment, person_spans
+    from .ner import load_ner
+    from .textutil import split_sentences
+
+    t0 = time.time()
+    today = today_berlin()
+    entity_docs = _entity_docs(fs, entity_docs)
+    job = dict(_jobs(fs).get("topics") or {})
+    if not job.get("order"):
+        days = int(job.get("days") or days)
+        cutoff = (date.fromisoformat(today) - timedelta(days=days - 1)).isoformat()
+        n7 = {
+            eid: sum(int(v.get("mentions") or 0) for d, v in (e.get("recentDays") or {}).items() if cutoff <= d)
+            for eid, e in entity_docs.items()
+            if e.get("allowlisted")
+        }
+        order = sorted((e for e, n in n7.items() if n >= tp.MIN_MENTIONS), key=lambda e: (-n7[e], e))
+        job = {"days": days, "cutoff": cutoff, "until": today, "order": order, "next": 0, "day": "", "startedAt": now()}
+        job.update(mentions=0, comments=0, written=0)
+        _save_job(fs, "topics", job)
+        log.info("topics backfill: %d entities, days %s to %s", len(order), cutoff, today)
+    order: list[str] = job["order"]
+    keep_w, keep_r = _keep_for_later_runs(budget) if leave_for_runs else (0, 0)
+    registry = load_registry(fs)
+    is_name = tp.name_check(registry)
+    countries = source_countries(fs)
+    ner = None
+    cache: dict[str, dict[str, list[str]]] = {}  # commentId -> {entityId: terms}: derived words, no text
+    tb = timebudget.get()
+    done, stopped, steps = False, None, 0
+    t_step, step_s = time.time(), 0.0
+    fields = [*MENTION_FIELDS, "surface", "via", "implicit"]
+
+    def comments_terms(items: list[tuple[str, dict, set[str], str, str]]) -> None:
+        """Topic words of (commentId, comment data, entity ids, main entity, its stored surface) into
+        `cache`; NER runs once over the sentences of all these comments (batched, as in `run`)."""
+        nonlocal ner
+        prepared = []
+        sentences: list[str] = []
+        for cid, data, eids, main, surface in items:
+            text = clean_text(data.get("text") or "")
+            sents = split_sentences(text) if text else []
+            prepared.append((cid, data, eids, main, surface, text, sents, len(sentences)))
+            sentences += [text[a:b] for a, b in sents]
+        todo = [i for i, x in enumerate(sentences) if len(x) >= MIN_NER_CHARS and any(ch.isupper() for ch in x)]
+        ner_out: list[list] = [[] for _ in sentences]
+        if todo:
+            if ner is None:
+                ner = load_ner(ner_backend)
+            for i, spans in zip(todo, ner.predict([sentences[i] for i in todo]), strict=True):
+                ner_out[i] = spans
+        for cid, data, eids, main, surface, text, sents, offset in prepared:
+            spans = ner_out[offset : offset + len(sents)]
+            country = countries.get(data.get("sourceId") or "")
+            matches = link_comment(text, sents, spans, registry, country=country) if sents else []
+            exclude = [(m.start, m.end) for m in matches] + person_spans(sents, spans)
+            out = {}
+            for e in eids:
+                mine = [(m.start, m.end) for m in matches if m.entity_id == e][:3]
+                if not mine and e == main and surface:
+                    # linked with context the backfill does not read (article title): the stored surface
+                    j = text.casefold().find(surface.casefold())
+                    if j >= 0:
+                        mine = [(j, j + len(surface))]
+                        exclude.append(mine[0])
+                out[e] = tp.mention_terms(text, sents, mine, exclude, is_name)
+            cache[cid] = out
+
+    while job["next"] < len(order):
+        eid = order[job["next"]]
+        recent = entity_docs.get(eid, {}).get("recentDays") or {}
+        e_days = [d for d in sorted(recent) if max(job["cutoff"], job.get("day") or "") <= d <= job["until"]]
+        e_days = [d for d in e_days if d != job.get("day")]
+        if not e_days:  # the entity is done: the next one
+            job.update(next=job["next"] + 1, day="")
+            continue
+        day = e_days[0]
+        if steps:
+            step_s, t_step = time.time() - t_step, time.time()
+        # one step = one (entity, day): reads its mentions, about one comment each and the day doc;
+        # writes about one mention or co-mention each, the day doc and the entity doc
+        n = int(recent[day].get("mentions") or 0)
+        if not budget.allows(writes=int(1.5 * n) + 5 + keep_w, reads=2 * n + 5 + keep_r):
+            stopped = f"daily Firestore budget reached at {eid} {day} ({job['next']} of {len(order)} entities)"
+            break
+        if tb.reached("topics backfill", reserve=1.2 * step_s):
+            stopped = f"time budget reached at {eid} {day} ({job['next']} of {len(order)} entities)"
+            break
+        later = set(order[job["next"] + 1 :])
+        mds = list(fs.query("mentions", where=[("entityId", "EQUAL", eid), ("day", "EQUAL", day)], select=fields))
+        todo = [
+            d
+            for d in mds
+            if "terms" not in d.data
+            and not (d.data.get("via") or d.data.get("implicit"))  # implicit mentions have no topic words
+            and not agg.is_community(d.data)
+        ]
+        need = sorted({d.data["commentId"] for d in todo} - set(cache))
+        surfaces = {d.data["commentId"]: d.data.get("surface") or "" for d in todo}
+        co_of = {d.data["commentId"]: set(d.data.get("coEntityIds") or []) & later for d in todo}
+        for i in range(0, len(need), 250):
+            chunk = need[i : i + 250]
+            docs = fs.batch_get([f"comments/{c}" for c in chunk], mask=["text", "sourceId"])
+            cache.update({c: {} for c in chunk if docs.get(f"comments/{c}") is None})  # deleted comment
+            comments_terms(
+                [
+                    (c, docs[f"comments/{c}"].data, {eid} | co_of[c], eid, surfaces[c])
+                    for c in chunk
+                    if docs.get(f"comments/{c}") is not None
+                ]
+            )
+            job["comments"] += len(chunk)
+        groups: list[list[Write]] = []
+        for d in todo:
+            cid = d.data["commentId"]
+            got = cache.get(cid) or {}
+            if eid not in got:
+                continue
+            d.data["terms"] = got[eid]
+            job["mentions"] += 1
+            if got[eid]:
+                groups.append([Write(d.path, {"terms": got[eid]}, mask=["terms"], exists=True)])
+            # the comment's mentions of entities still to come: their comment need not be read again
+            groups += [
+                [Write(f"mentions/{cid}_{co}", {"terms": got[co]}, mask=["terms"], exists=True)]
+                for co in sorted(co_of.get(cid, set()))
+                if got.get(co)
+            ]
+        job["written"] += _commit_terms(fs, groups)
+        aggregate_pairs(fs, {(eid, day)}, entity_docs, refresh=False, preloaded={(eid, day): [d.data for d in mds]})
+        job["day"] = day
+        steps += 1
+        if steps % TOPICS_SAVE_EVERY == 0:
+            _save_job(fs, "topics", job)
+    else:
+        done = True
+    if stopped:
+        log.warning("topics backfill: %s; continuing on the next run", stopped)
+    if steps:
+        refresh_rolling(fs, entity_docs, set())  # topics7d of every entity, with the new day docs
+    if done:
+        _save_job(fs, "topics", None)
+        fs.commit([Write(STATE_DOC, {"topics": {"backfilledAt": now()}}, mask=["topics.backfilledAt"])])
+    elif steps:
+        _save_job(fs, "topics", job)
+    return {
+        "entities": len(order),
+        "next": job["next"],
+        "mentions": job["mentions"],
+        "comments": job["comments"],
+        "written": job["written"],
+        "seconds": round(time.time() - t0, 1),
+        "done": done,
+        "stopped": stopped,
+    }
 
 
 def rescore(

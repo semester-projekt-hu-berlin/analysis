@@ -40,7 +40,7 @@ The data contract is [`infrastructure/SCHEMA.md`](https://github.com/semester-pr
         │             "Der Kommentar äußert sich positiv über {Entity}." as pos / neu / neg
         │             (1 pass; entailment = pos, neutral = neu, contradiction = neg)
         ▼
- mentions/{commentId}_{entityId}  (surface span only, never the comment text)
+ mentions/{commentId}_{entityId}  (surface span and ≤ 6 topic words, never the comment text)
  comments/{id}: analyzed=true, analyzedAt, analysisVersion
         │
         ▼
@@ -48,7 +48,8 @@ The data contract is [`infrastructure/SCHEMA.md`](https://github.com/semester-pr
    for every affected (entity, day) pair: recompute entities/{id}/days/{day} from the mentions
      of that pair (query entityId == X AND day == D; coMentions from mentions.coEntityIds)
    entity totals += (new day doc − old day doc), committed atomically with the day docs
-   rolling mentions7d / avgSentiment7d / mentionsPrev7d / avgSentimentPrev7d from recentDays
+   rolling mentions7d / avgSentiment7d / mentionsPrev7d / avgSentimentPrev7d from recentDays,
+   topics7d (what the comments about the entity talk about) from recentTerms
    meta/trending (top 50 with 30-day sparkline, risers / fallers ≥ 20 mentions in both windows),
    meta/stats
 ```
@@ -334,6 +335,65 @@ referring expression and the parent is not in the run: 1 read each, cached per r
 `prune` keeps implicit mentions (they do not depend on aliases); `rescore` rebuilds their premise
 (1 read per new article and per parent).
 
+## Worüber gesprochen wird: topics per entity
+
+"Merz −70" says how, not why. `entities/{id}.topics7d` lists the words that dominate the comments
+about an entity in the last 7 days, each with its own tone ("Rente −0.85, Ukraine −0.40"). Code
+and constants: [`analysis/topics.py`](analysis/topics.py).
+
+**Extraction** (in `analyze_comments`, while the text is in memory). The window the sentiment
+model reads (the mention's sentence ± one sentence) gives the mention's topic words, by a cheap
+German noun heuristic (no tagger): capitalised words that do not start a sentence (or follow a
+colon), ≥ 4 letters, letters and inner hyphens only ("Verbrenner-Aus"; nothing with digits,
+URLs and @handles are removed by cleaning, hashtags arrive as words), not all-caps, not one of
+~200 stopwords (forms of address, greetings, time words, comment-section words, idioms, insults:
+"Herr", "Leute", "Jahr", "Artikel", "Deutschland", "Quatsch"…). Never a name: no word inside a
+linked entity or an NER person span, no alias of a known entity (contextual and cue-only aliases
+are words unless linked: "Bayern" the state), no first name of a known person, no word right
+after "Herr"/"Frau"/"Dr." or a known first name ("Herr Müller", "Klaus Meier"). "Renten" next to
+"Rente" in one window counts once. At most 6 per mention (nearest to the mention first), stored
+as `mentions.terms` (sorted, `[]` when none): the mention doc is written anyway, so no extra write.
+
+**Aggregation.** Day docs are still rebuilt from their mentions: `terms` = `{term: [count,
+scoreSum, sourceId, …]}`, the 40 most frequent terms of the (entity, day), each with up to 3
+sources (enough to tell "≥ 2 distinct sources" over several days). The entity doc keeps the day
+terms of the last 14 days in `recentTerms` (internal, like `recentDays`), so the rolling topics
+need no reads. Every aggregation computes, in memory, the term counts of all active entities in
+the 7-day window and per entity:
+
+| field | meaning |
+|---|---|
+| `mentions` | mentions of the entity in the 7 days whose window contains the term |
+| `share` | `mentions / mentions7d` |
+| `avgSentiment` | mean score of those mentions |
+| `lift` | `share` / (the term's mentions over all entities / all mentions in the 7 days) |
+| `prev` | the same count in the 7 days before (0 if none) |
+
+A term is published only with **≥ 5 mentions from ≥ 2 distinct sources** in the 7 days and
+`lift ≥ 1.5`; ranked by `mentions × ln(lift)` (frequent and specific beats frequent, "Menschen"
+or "Politik" have a lift near 1), top 10. Inflected forms of one word ("Rente"/"Renten",
+"Krieg"/"Krieges") are merged under the most frequent spelling. Less data: an empty list.
+`topics7d` changes with the windows, so it is written together with `mentions7d`/`relative7d`
+(entities with topics have ≥ 5 mentions and are rewritten every run anyway).
+
+**Not tuned on production data yet** (no credentials when this was built): the stopwords and
+`MIN_LIFT` should be checked on the first week of `topics7d`.
+
+**Backfill.** Without it `topics7d` stays empty for a week. The first `run` with this code finds
+no `meta/analysis.topics` and queues the job `topics` (7 days); `run` continues it within the
+budget like a rescore (it leaves 1.3 × the run's usage for each later run of the day), and
+`python -m analysis topics-backfill [--days 7] [--queue]` runs or queues it by hand. Entities
+with ≥ 5 mentions in the 7 days, most mentions first, one (entity, day) per step: the pair's
+mentions are read, the comments of those without `terms` once (NER + gazetteer for the spans to
+leave out), `terms` is written to the mention and to the same comment's mentions of entities
+still to come (masked, must exist), then the day doc is rebuilt from the mentions in memory.
+Cursor: `meta/analysis.jobs.topics` (order, entity, day). Cost, estimated from the volumes above
+(~34k mentions in 7 days, ~0.7 comments per mention): about 1.8 reads and 0.8 writes per mention,
+**≈ 55k reads and ≈ 25k writes in all**, more writes than one day leaves after the regular runs
+(~10–12k), so it spreads over **2–3 days**; the most mentioned entities come first and have
+topics after the first run. The 7 days before (`prev`) are not backfilled (`--days 14` would).
+A workflow input is not needed: the job is queued by the first run and continued by every run.
+
 ## Privacy rules
 
 * Only entities from the curated seed list or Wikidata items that pass the public-figure
@@ -345,7 +405,11 @@ referring expression and the parent is not in the run: 1 read each, cached per r
   not store author fields at all.
 * Automatic events are explained from public headlines only; no comment text is sent to an LLM or logged.
 * Comment text stays inside the pipeline process. `mentions` store only the matched surface
-  span (≤ 80 chars, e.g. "Kanzler Merz"); logs contain counts only. The evaluation gold file
+  span (≤ 80 chars, e.g. "Kanzler Merz") and up to 6 single topic words (`terms`, never names,
+  see above); logs contain counts only.
+* Topic words are published (`topics7d`) only with ≥ 5 mentions from ≥ 2 distinct sources in
+  7 days, so one commenter's catchphrase never appears; words of single comments stay in the
+  internal per-day counts (`days.terms`, `recentTerms`, not served by the API). The evaluation gold file
   stores mention ids + labels, never text (`eval/sample.local.jsonl` with text is git-ignored).
 * Service account keys are never committed (`.gitignore`); CI uses the organisation secret.
 
@@ -408,8 +472,13 @@ All optional, no existing field changed:
 | `entities/{id}/days/{day}` | `lastMentionAt` | latest mention timestamp of the day, used for `entities.lastMentionAt` |
 | `entities/{id}/days/{day}` | `scoreSqSum` | sum of squared mention scores, so the API can give the sample SD of a day or week; missing on day docs written before it existed (filled in when the pair is re-aggregated) |
 | `mentions` | `coEntityIds` | other entities of the same comment, so one (entity, day) can be recomputed from its own mentions |
+| `mentions` | `terms` | ≤ 6 topic words of the mention's window (single words, `[]` when none; missing on mentions analysed before 27 Nov 2026 until the backfill reaches them) |
+| `entities/{id}/days/{day}` | `terms` | `{term: [count, scoreSum, sourceId, …]}`, top 40 terms of the day, ≤ 3 sources each; only when there are terms |
+| `entities` | `topics7d` | `[{term, mentions, share, avgSentiment, lift, prev}]`, see "Worüber gesprochen wird" |
+| `entities` | `recentTerms` | internal: day `terms` of the last 14 days, for `topics7d` without reads |
 | `meta/trending` items | `spark` | 30 daily `avgSentiment` values (oldest first, ending on the Berlin day of `updatedAt`, `null` without mentions) |
 | `meta/analysis` | `pendingPairs` | internal crash-recovery state |
+| `meta/analysis` | `topics` | `{since, backfill, backfilledAt}`: topic words extracted since, backfill queued / done |
 | `meta/analysis` | `indexSince` | first day whose analysed comments are all in `comment_index` (relinks scan earlier days) |
 | `meta/stats` | `mentionsCountedAt`, `mentionsUpdatedAt` | internal: last full count of `mentions`, last increment |
 | `comment_index/{day}_{hash}` | `day`, `n`, `v`, `blob`, `createdAt` | internal, new collection: word prefixes of the comments of one batch and day (no text), for relinks; see "Cost and speed" |
@@ -455,6 +524,7 @@ python -m analysis seed-requests        # seed accepted entity_requests (also do
 python -m analysis relink --days 14     # add mentions of new (generated) entities to the last 14 days
 python -m analysis prune --ids-file ids.txt --add rewe   # re-check mentions of these entities after an alias change
 python -m analysis prune --queue --ids meta-platforms --add facebook   # same, continued by `run` within the budget
+python -m analysis topics-backfill      # topic words for mentions of the last 7 days (also continued by `run`)
 python -m analysis reaggregate --since 2026-10-20   # recompute only pairs from that day on (cheap)
 python -m analysis events --since 2026-10-20 --dry-run   # automatic events for a range (see "Automatic events")
 python -m analysis reaggregate          # full rebuild from all mentions (full scan, use rarely)
@@ -719,7 +789,7 @@ To keep the project under about €3.70 a month, every command follows the share
 * **End:** the run's reads and writes go into `meta/budget` in 1 write: an atomic increment on
   the same day, or a reset for a new day (guarded by an `updateTime` precondition and retried,
   so the crawler and the API never overwrite each other).
-* **One-off jobs** (`relink`, `rescore`, `reaggregate [--since]`) check the budget before each
+* **One-off jobs** (`relink`, `rescore`, `topics-backfill`, `reaggregate [--since]`) check the budget before each
   step (a page of comments, a batch, a group of entities). When it runs out they aggregate what
   they did and keep a cursor in `meta/analysis.jobs.<name>`. The next call continues from
   there, and so does the regular `run` once its own backlog is done. A 14-day relink can
@@ -734,7 +804,7 @@ To keep the project under about €3.70 a month, every command follows the share
     from `meta-platforms` to `facebook`): their mentions are re-checked and the new owner takes
     them over (`prune --ids meta-platforms --add facebook`, but within the budget).
 
-  `run` continues the jobs in the order seed → prune → relink → rescore → reaggregate.
+  `run` continues the jobs in the order seed → prune → relink → rescore → topics → reaggregate.
 * **Rescore after a model change.** `run` records the model that scores new mentions in
   `meta/analysis.sentiment`; when it differs from the recorded one (first time: `sent-cal@2`), it
   queues a `rescore`. The job works day by day, newest first: it reads the mentions of one day
@@ -945,6 +1015,7 @@ analysis/
   textindex.py   comment index: word prefixes per comment, so relinks read only candidates
   analyze.py     comments → mentions (pure, no I/O)
   aggregate.py   day docs, deltas, rolling windows, trending (pure)
+  topics.py      topic words per mention, day terms, topics7d with privacy thresholds and lift (pure)
   budget.py      daily Firestore budget (meta/budget)
   events.py      automatic events: detection, headline evidence, LLM explanation, writing
   pipeline.py    Firestore orchestration: run, relink, rescore, reaggregate, seed (resumable jobs)

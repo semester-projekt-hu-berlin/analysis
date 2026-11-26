@@ -12,6 +12,8 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 from datetime import date, datetime, timedelta
 
+from . import topics as tp
+
 LABELS = ("pos", "neu", "neg")
 CO_MENTIONS_TOP = 20
 TOP_ARTICLES = 20
@@ -91,7 +93,14 @@ def build_day_docs(mentions: list[dict]) -> dict[tuple[str, str], dict]:
             for b in ents:
                 if a != b:
                     co[(a, day)][b] += 1
+    by_pair: dict[tuple[str, str], list[dict]] = defaultdict(list)
+    for m in mentions:
+        if m.get("terms"):
+            by_pair[(m["entityId"], m["day"])].append(m)
     for key, doc in by_key.items():
+        terms = tp.day_terms(by_pair.get(key, []))
+        if terms:  # only with topic words (day docs without stay as they were)
+            doc["terms"] = terms
         top = sorted(co.get(key, Counter()).items(), key=lambda kv: (-kv[1], kv[0]))[:CO_MENTIONS_TOP]
         doc["coMentions"] = dict(top)
         arts = sorted(doc["topArticles"].items(), key=lambda kv: (-kv[1]["mentions"], kv[0]))[:TOP_ARTICLES]
@@ -116,7 +125,9 @@ def same_day_doc(a: dict | None, b: dict | None) -> bool:
     # scoreSqSum: a doc written before the field existed differs from its recomputation, so any
     # re-aggregation of that pair fills it in (old docs are never patched with invented zeros).
     keys = ("mentions", "pos", "neu", "neg", "scoreSum", "scoreSqSum", "bySource", "coMentions", "topArticles")
-    return all(_norm(a.get(k)) == _norm(b.get(k)) for k in keys)
+    return all(_norm(a.get(k)) == _norm(b.get(k)) for k in keys) and _norm(a.get("terms") or {}) == _norm(
+        b.get("terms") or {}
+    )
 
 
 def _norm(v):
@@ -126,6 +137,8 @@ def _norm(v):
         return round(float(v), 4)
     if isinstance(v, dict):
         return {k: _norm(x) for k, x in v.items()}
+    if isinstance(v, list):
+        return [_norm(x) for x in v]
     return v
 
 
@@ -139,6 +152,7 @@ def apply_day_changes(entity: dict, changes: list[tuple[str, dict | None, dict |
     if score_sum is None:
         score_sum = (entity.get("avgSentiment") or 0.0) * totals["mentions"]
     recent = {d: dict(v) for d, v in (entity.get("recentDays") or {}).items()}
+    recent_terms = dict(entity.get("recentTerms") or {})
     last = entity.get("lastMentionAt")
     for day, old, new in changes:
         o, n = day_counts(old), day_counts(new)
@@ -155,6 +169,10 @@ def apply_day_changes(entity: dict, changes: list[tuple[str, dict | None, dict |
                 }
         else:
             recent.pop(day, None)
+        if (new or {}).get("terms"):
+            recent_terms[day] = new["terms"]
+        else:
+            recent_terms.pop(day, None)
         ts = (new or {}).get("lastMentionAt")
         if isinstance(ts, datetime) and (not isinstance(last, datetime) or ts > last):
             last = ts
@@ -168,6 +186,7 @@ def apply_day_changes(entity: dict, changes: list[tuple[str, dict | None, dict |
         "avgSentiment": r4(score_sum / totals["mentions"]) if totals["mentions"] else None,
         "lastMentionAt": last,
         "recentDays": prune_recent(recent, today),
+        "recentTerms": tp.prune_terms(recent_terms, today),
     }
     out.update(window_stats(out["recentDays"], today))
     return out
@@ -175,7 +194,16 @@ def apply_day_changes(entity: dict, changes: list[tuple[str, dict | None, dict |
 
 def totals_from_days(day_docs: dict[str, dict], today: str) -> dict:
     """Full recomputation of entity counts from all its day docs (used by reaggregate)."""
-    fake = {"mentions": 0, "pos": 0, "neu": 0, "neg": 0, "scoreSum": 0.0, "recentDays": {}, "lastMentionAt": None}
+    fake = {
+        "mentions": 0,
+        "pos": 0,
+        "neu": 0,
+        "neg": 0,
+        "scoreSum": 0.0,
+        "recentDays": {},
+        "recentTerms": {},
+        "lastMentionAt": None,
+    }
     return apply_day_changes(fake, [(d, None, doc) for d, doc in sorted(day_docs.items())], today)
 
 
