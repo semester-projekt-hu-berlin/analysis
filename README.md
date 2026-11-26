@@ -878,14 +878,14 @@ contain entity names, counts and headlines only (`tests/test_events.py` checks i
 
 * **Claude** through the official Anthropic SDK (`anthropic` in `requirements.txt`): secret
   `EVENTS_LLM_API_KEY` = an Anthropic API key (passed to `analyze.yml` and `events.yml`), model
-  `claude-haiku-5-5` (repository variable `EVENTS_LLM_MODEL` overrides it). The request uses effort `medium` (`low` picked a wrong headline now and then) and
-  structured outputs (`output_config.format`, schema `RESULTS_SCHEMA`), so the answer is always parseable
-  JSON of the right shape; no `temperature` (current models reject it). 6 candidates go into one request: a
-  run needs 1–2 requests, the backfill of a month ~15, a few cents in all; `EVENTS_LLM_MAX_REQUESTS`=40 caps
-  the requests of one run, and the run log reports `inputTokens`/`outputTokens`. `EVENTS_LLM_PROVIDERS=none`
-  switches it off; without the secret nothing is asked. Before: GitHub Models (retired 30 Jul 2026, answers every
-  request with a plain `OK`), then Gemini through its OpenAI-compatible endpoint (prepaid credit used up,
-  HTTP 402, 26 Nov 2026).
+  `claude-haiku-5-5` (repository variable `EVENTS_LLM_MODEL` overrides it). The request uses effort `medium`
+  (`low` picked a wrong headline now and then) and structured outputs (`output_config.format`, schema
+  `RESULTS_SCHEMA`), so the answer is always parseable JSON of the right shape; no `temperature` (current
+  models reject it). 6 candidates go into one request: a run needs 1–2 requests, the backfill of a month ~15,
+  a few cents in all; `EVENTS_LLM_MAX_REQUESTS`=40 caps the requests of one run, and the run log reports
+  `inputTokens`/`outputTokens`. `EVENTS_LLM_PROVIDERS=none` switches it off; without the secret nothing is
+  asked. Before: GitHub Models (retired 30 Jul 2026, answers every request with a plain `OK`), then Gemini
+  through its OpenAI-compatible endpoint (prepaid credit used up, HTTP 402, 26 Nov 2026).
 * **Extractive** (`generator.model = "extractive"`): spikes only, from the first headline that names the
   entity (name or alias): title = the headline (shortened to 80 chars), description = "Viele Erwähnungen am
   18. November rund um: „…“ (ComputerBase)."

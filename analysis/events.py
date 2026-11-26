@@ -875,9 +875,7 @@ def process(
                 "entityIds": g.entity_ids,
                 "kind": g.kind,
                 "title": doc["title"],
-                "headline": g.headlines[g.explanation["headline"]].title
-                if doc["url"] == g.headlines[g.explanation["headline"]].url
-                else None,
+                "headline": next((h.title for h in g.headlines if h.url == doc["url"]), None),
                 "model": doc["generator"]["model"],
                 "headlines": len(g.headlines),
                 "mentions": g.lead.mentions,
